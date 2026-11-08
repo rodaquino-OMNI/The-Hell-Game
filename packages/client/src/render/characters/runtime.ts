@@ -1,6 +1,6 @@
 // Personagens na cena: carrega os .glb de public/models (manifesto personagens.json), instancia por ator
 // e toca o clipe escolhido em state.ts com o relógio da simulação amostrado a render.anim_fps (passo discreto
-// no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud) com skinning acrescentado aqui.
+// no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud; o skinning está no próprio material).
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -31,28 +31,12 @@ let manifestP: Promise<Manifest> | null = null;
 
 const url = (p: string) => import.meta.env.BASE_URL + p;
 
-/** acrescenta os chunks de skinning do three.js ao vértice do Ps1Material (o V1 não deforma malha) */
-function withSkinning(m: Ps1Material): Ps1Material {
-  const steps: [string, string][] = [
-    ["#include <common>", "#include <common>\n#include <skinning_pars_vertex>"],
-    ["vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );",
-      "vec3 transformed = vec3( position );\n  vec3 objectNormal = vec3( normal );\n  #include <skinbase_vertex>\n  #include <skinnormal_vertex>\n  #include <skinning_vertex>\n  vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );"],
-  ];
-  let vs = m.vertexShader;
-  for (const [from, to] of steps) {
-    if (!vs.includes(from)) throw new Error(`Ps1Material mudou: trecho '${from}' não encontrado para o skinning`);
-    vs = vs.replace(from, to);
-  }
-  m.vertexShader = vs.replace(/normalMatrix \* normal\b/g, "normalMatrix * objectNormal");
-  return m;
-}
-
 /** material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3) */
 function convertMaterial(m: THREE.Material): THREE.Material {
   const std = m as THREE.MeshStandardMaterial;
   const map = std.map ?? undefined;
   if (map) { map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = map.magFilter = THREE.NearestFilter; map.needsUpdate = true; }
-  const out = withSkinning(std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map }));
+  const out = std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map });
   out.name = std.name;
   return out;
 }
