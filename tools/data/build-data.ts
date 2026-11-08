@@ -3,7 +3,7 @@
 // Gera também o navmesh de cada mapa (GDD v0.3 §8.6, C-14: "o navmesh é gerado no build") em
 // packages/shared/generated/navmesh/<mapa>.bin (exportNavMesh do recast-navigation, parâmetros nav.*).
 // Uso: pnpm data
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadBalanceFile, loadMapFile } from "../../packages/shared/src/node.ts";
 import type { GameMap } from "../../packages/shared/src/index.ts";
@@ -20,6 +20,8 @@ for (const f of readdirSync(root + "data/maps").filter(f => f.endsWith(".json"))
   maps[m.id] = m;
 }
 writeFileSync(out + "maps.json", JSON.stringify(maps));
+// tokens de cor (Art Bible §2): o HUD e os menus leem as cores daqui (item R7)
+writeFileSync(out + "palette.json", readFileSync(root + "data/art/palette.json", "utf8"));
 
 let navInfo: string;
 try {

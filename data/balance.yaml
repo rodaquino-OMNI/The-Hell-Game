@@ -248,9 +248,16 @@ audio:
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:
-  threat_radius: 15
-  ping_types: [generator_here, hunter_here, need_help, going_to_rescue]
-  ping_cooldown: 2
+  threat_radius: 15                 # GDD-v0.3 §12.1: seta de ameaça a < 15 m (ou caçador revelado)
+  threat_sectors: 8                 # GDD-v0.3 §12.1: só a direção, quantizada em 8 setores
+  ping_types: [generator_here, hunter_here, need_help, going_to_rescue]   # GDD-v0.2 §12.1 (4 tipos)
+  ping_cooldown: 2                  # GDD-v0.3 §12.1
+  # LACUNA (GDD v0.2/v0.3 não definem): tempo que um ping fica visível. Proposta de 4 s, igual à marcação do
+  # ping do Batedor (GDD-v0.2 §5.2); decisão do Rodrigo pendente.
+  ping_lifetime: 4
+  # Retrato "ferido" no HUD: vida abaixo de 40 (estado Ferido, GDD-v0.2 §3.2 [Proposta]; GDD-v0.3 §8.3 usa o mesmo
+  # limiar na escolha de alvo). Se a regra Ferido entrar no sim, este valor passa para `survivor`.
+  wounded_hp: 40
   fov: {min: 60, max: 100, default: 75}
   tutorial_time: 60
   ftue_target_min: 10
