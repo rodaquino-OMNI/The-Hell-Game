@@ -61,7 +61,10 @@ export const BalanceSchema = z.object({
   cage: z.object({ time: pos, rescue_time: pos, rescue_range: pos, rescue_hp: pos, immunity: pos, deaths_at_capture: z.number().int().positive() }).strict(),
   generator: z.object({
     puzzles_per_generator: z.number().int().positive(), gate_time: pos, fails_to_regress: z.number().int().positive(),
+    regress_amount: z.number().int().nonnegative(), // GDD-v0.2 §6.2
     fail_spark_time: pos, completed_reveal: pos,
+    // LACUNA GDD-v0.2 §3.4 × §6.2: a revelação do gerador completo vale fora do raio de ruído? (padrão conservador: não)
+    completed_reveal_global: z.boolean(),
     by_team_size: z.record(z.string(), z.object({ required: z.number().int().positive(), bonus: z.number().int().nonnegative() }).strict()),
     puzzle_time_target: z.object({ full: range, solo: range }).strict(),
   }).strict(),
@@ -70,7 +73,8 @@ export const BalanceSchema = z.object({
     sequence: z.object({ length: z.number().int().positive() }).strict(),
     accessible: z.object({ zone_mult: pos, timed: z.boolean() }).strict(),
   }).strict(),
-  noise: z.record(z.string(), pos),
+  // raios de ruído em metros (GDD-v0.2 §3.4; ruleset v1)
+  noise: z.object({ walk: pos, run: pos, puzzle_fail: pos, rescue: pos, heal: pos, generator_done: pos }).strict(),
   points: z.object({ puzzle: pos, generator: pos, bonus_puzzle: pos, bonus_generator: pos }).strict(),
   economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos }).strict(),
   skins: z.record(z.string(), pos),
@@ -114,8 +118,15 @@ export const BalanceSchema = z.object({
     }).strict(),
   }).strict(),
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
+  // ai: só as chaves usadas pelas regras v1 (R1) são validadas; o resto da seção fica para a IA (R3, R4)
+  ai: z.looseObject({
+    hearing_investigate_time: pos,   // GDD-v0.3 §8.1 (audição)
+    by_difficulty: z.object({        // GDD-v0.3 §8.4 / GDD-v0.2 §8.4 (memória da última posição)
+      easy: z.looseObject({ memory: pos }), normal: z.looseObject({ memory: pos }),
+      hard: z.looseObject({ memory: pos }), nightmare: z.looseObject({ memory: pos }),
+    }).strict(),
+  }),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
-  ai: z.record(z.string(), z.unknown()),
   nav: z.record(z.string(), z.unknown()),
   maps: z.record(z.string(), z.unknown()),
   render,

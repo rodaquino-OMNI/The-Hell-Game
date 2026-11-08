@@ -53,8 +53,12 @@ generator:
   puzzles_per_generator: 5
   gate_time: 45
   fails_to_regress: 3
+  regress_amount: 1                # GDD-v0.2 §6.2: "3 falhas seguidas no mesmo gerador: regride 1 quebra-cabeça"
   fail_spark_time: 3
   completed_reveal: 3
+  # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).
+  # LACUNA: false = só o caçador dentro de noise.generator_done reage (leitura conservadora); true = alcança de qualquer distância.
+  completed_reveal_global: false
   by_team_size:                    # GDD-v0.2 §3.5
     1: {required: 2, bonus: 1}
     2: {required: 3, bonus: 2}
@@ -68,7 +72,7 @@ puzzles:
   sequence: {length: 4}
   accessible: {zone_mult: 1.6, timed: false}
 
-# ---------- 5. Ruído (GDD-v0.2 §3.4) ----------
+# ---------- 5. Ruído (GDD-v0.2 §3.4; usado com ruleset v1: o caçador no raio investiga por ai.hearing_investigate_time) ----------
 noise:
   walk: 0
   run: 10
