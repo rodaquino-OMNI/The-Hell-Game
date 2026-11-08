@@ -6,9 +6,12 @@ import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
 import { skinDef, tok, tokCss, WORLD } from "../look.ts";
 import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
+import { charactersReady } from "./characters/runtime.ts";
+import { aimLantern, bakeVertexLight, createAmbience, createLantern, cullShadowCasters, neutralBake, type Ambience } from "./environment.ts";
+import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
 import { clientRandom, urlPreset } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
-import { Ps1Material } from "./ps1.ts";
+import { Ps1Material, ps1Uniforms } from "./ps1.ts";
 import { createGenVisual, createLock, type GenVisual } from "./states.ts";
 
 /** contexto de render devolvido por `buildWorld` (substitui os `let` exportados da fase 0) */
@@ -19,7 +22,19 @@ export interface RenderCtx {
   /** luz pontual que segue o jogador */
   PL: THREE.PointLight;
   presenter: Presenter;
-  /** `renderer.info` do último quadro (cena + passe final) */
+  /** camada B: lanterna do jogador (cone e sombra) */
+  lantern: THREE.SpotLight;
+  /** camada B: chão e muros com luz assada nos vértices (assada em `buildActors`, com as lâmpadas da partida) */
+  baked: THREE.Mesh[];
+  /** camada C: névoa em billboards e poeira */
+  ambience: Ambience;
+  /** pulso de aberração: sobrevivente seguido, vida dele no quadro anterior e instante do último dano (relógio da simulação) */
+  fx: { id: number | null; lastHp: number | null; hitT: number | null };
+  /** personagens que podem projetar a sombra da lanterna (o próprio jogador não) */
+  casters: THREE.Object3D[];
+  /** passo (em 1/render.anim_fps) da última atualização do shadow map; NaN força a próxima */
+  shadowStep: number;
+  /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
 }
 
@@ -30,6 +45,8 @@ export const meshes = new Map<string, THREE.Object3D>();
 export const genVisuals: GenVisual[] = [];
 /** semente das texturas procedurais (fluxo próprio do PRNG do cliente) */
 const TEX_SALT = 1;
+/** sementes do grão da camada A e das posições da camada C (fluxos próprios) */
+const GRAIN_SALT = 2, AMBIENCE_SALT = 3;
 
 function tex(rand: () => number, color: string, n: number, rx: number, rz: number) {
   const k = document.createElement("canvas"); k.width = k.height = 32;
@@ -58,6 +75,12 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   R.outputColorSpace = THREE.LinearSRGBColorSpace;
   R.setPixelRatio(1);
   R.info.autoReset = false;
+  // camada B: sombra da lanterna em shadow map sem filtro (BasicShadowMap: texel nearest, sombra pixelada)
+  R.shadowMap.enabled = true;
+  R.shadowMap.type = THREE.BasicShadowMap;
+  // o shadow map é redesenhado a render.anim_fps (12 Hz, o passo PS1 da animação), não a cada quadro
+  R.shadowMap.autoUpdate = false;
+  setGrainSeed(Math.floor(clientRandom(GRAIN_SALT)() * 65536));
   const presenter = createPresenter(R, canvas, urlPreset);
   const [iw, ih] = rc.presets[presenter.preset].internal;
   const S = new THREE.Scene();
@@ -71,20 +94,41 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.add(PL);
   const rand = clientRandom(TEX_SALT);
   const [w, d] = map.size;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d, seg(w), seg(d)), lambert({ map: tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
-  floor.rotation.x = -Math.PI / 2; S.add(floor);
+  const baked: THREE.Mesh[] = [];
+  const floorGeo = new THREE.PlaneGeometry(w, d, seg(w), seg(d));
+  neutralBake(floorGeo);
+  const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.add(floor); baked.push(floor);
   for (const [x, z, ww, wd] of map.walls) {
-    const m = lambert({ map: tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
-    const b = new THREE.Mesh(new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd)), m);
-    b.position.set(x, map.wall_height / 2, z); S.add(b);
+    const m = new Ps1Material({ lit: true, baked: true, map: tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
+    const g = new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd));
+    neutralBake(g);
+    const b = new THREE.Mesh(g, m);
+    b.position.set(x, map.wall_height / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b);
   }
   S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: tok(WORLD.cage), wireframe: true }), map.cage[0], 1.2, map.cage[1]));
-  return { R, S, cam, PL, presenter, info: { calls: 0, triangles: 0 } };
+  const lantern = createLantern();
+  S.add(lantern, lantern.target);
+  const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
+  S.add(ambience.group);
+  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { id: null, lastHp: null, hitT: null }, casters: [], shadowStep: NaN, info: { calls: 0, triangles: 0 } };
+  onLayersChange(l => applyLayers(ctx, l));
+  setLayers(presetLayers(presenter.preset));
+  return ctx;
+}
+
+/** liga as camadas B (lanterna, sombra, luz assada) e C (névoa e poeira); a A fica no passe final (layers.ts) */
+function applyLayers(ctx: RenderCtx, l: LayerSet) {
+  ctx.lantern.visible = l.B;
+  ps1Uniforms.uBake.value = l.B ? 1 : 0;
+  ctx.ambience.group.visible = l.C;
+  ctx.shadowStep = NaN;
 }
 
 /** troca o preset de resolução interna (low/medium/high) */
 export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   ctx.presenter.setPreset(name);
+  setLayers(presetLayers(name));
   const [iw, ih] = rc.presets[name].internal;
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
 }
@@ -94,11 +138,14 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
   const { S } = ctx;
   genVisuals.length = 0;
   G.gens.forEach(g => {
-    S.add(box(1.5, 1, 1, lambert({ color: tok(g.bonus ? WORLD.bonusBody : WORLD.genBody) }), g.x, 0.5, g.z));
+    const body = box(1.5, 1, 1, lambert({ color: tok(g.bonus ? WORLD.bonusBody : WORLD.genBody) }), g.x, 0.5, g.z);
+    body.castShadow = body.receiveShadow = true;
+    S.add(body);
     // feixe e lâmpada com o padrão do estado (states.ts, Art Bible §4)
     genVisuals.push(createGenVisual(S, g.x, g.z));
   });
-  const gate = box(6, 3, 0.6, basic(tok(WORLD.gateClosed)), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
+  // o portão é chapado mas não emissivo: o bloom da camada A fica nos olhos, lanterna, feixes e lâmpadas
+  const gate = box(6, 3, 0.6, new Ps1Material({ lit: false, fog: false, emissive: false, color: tok(WORLD.gateClosed) }), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
   // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts.
   // Skin (V3): só o sobrevivente do jogador (id 0) a veste, como no protótipo.
   G.survivors.forEach(s => {
@@ -106,6 +153,22 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
     meshes.set("lock" + s.id, createLock(S));
   });
   const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
+  // camada B: luz assada com as lâmpadas dos geradores desta partida (o layout muda a posição)
+  bakeVertexLight(ctx.baked, G.gens);
+  ctx.fx = { id: null, lastHp: null, hitT: null };
+  // personagens recebem a sombra da lanterna e projetam quando estão no cone (cullShadowCasters); o próprio
+  // jogador não projeta (a lanterna sai do corpo dele)
+  const own = meshes.get("s" + G.survivors[0].id);
+  ctx.casters = [];
+  ctx.shadowStep = NaN;
+  void charactersReady().then(() => {
+    for (const s of G.survivors.map(v => meshes.get("s" + v.id)).concat(hm)) {
+      if (!s) continue;
+      s.traverse(o => { if ((o as THREE.Mesh).isMesh) o.receiveShadow = true; });
+      if (s !== own) ctx.casters.push(s);
+    }
+    ctx.shadowStep = NaN;
+  });
 }
 
 /** posiciona câmera e luz do jogador e desenha o quadro (alvo em baixa resolução → passe final) */
@@ -121,6 +184,21 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   } else cam.position.set(P.x, rc.camera.eye_height, P.z);
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
   PL.position.set(P.x, rc.lights.player_height, P.z);
+  aimLantern(ctx.lantern, cam, P.x, P.z);
+  // camada B: shadow map a render.anim_fps no relógio da simulação, só com os projetores dentro do cone
+  const shadowStep = Math.floor(fxTime(G.t) * rc.anim_fps);
+  if (ctx.lantern.visible && shadowStep !== ctx.shadowStep) {
+    cullShadowCasters(ctx.lantern, ctx.casters);
+    ctx.R.shadowMap.needsUpdate = true;
+    ctx.shadowStep = shadowStep;
+  }
+  // camada A: pulso de aberração quando a vida do jogador cai; grão e camada C no relógio da simulação
+  // só o dano do mesmo sobrevivente conta: trocar o alvo da câmera (modo espectador) não dispara o pulso
+  if (ctx.fx.id === P.id && ctx.fx.lastHp !== null && P.hp < ctx.fx.lastHp) ctx.fx.hitT = G.t;
+  ctx.fx.id = P.id;
+  ctx.fx.lastHp = P.hp;
+  tickLayers(G.t, ctx.fx.hitT);
+  ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
   present(ctx);
 }
 

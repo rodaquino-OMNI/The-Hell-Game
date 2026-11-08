@@ -42,8 +42,17 @@ jobs:
         run: pnpm a11y
       - name: Fumaça do protótipo original
         run: pnpm smoke:prototype
-      - name: Capturas de referência do material PS1 (V1)
+      - name: Capturas de referência do material PS1 (V1) e das camadas A, B e C por preset (V4)
         run: node tools/visual/compare.mjs --out "$RUNNER_TEMP/visual"
+      # na falha, publica as capturas atuais e os mapas de diferença (*.diff.png) para revisão
+      - name: Publicar capturas e diferenças
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2 # tag de 07/10/2026 (≥ 2 semanas)
+        with:
+          name: capturas-visuais
+          path: ${{ runner.temp }}/visual
+          if-no-files-found: ignore
+          retention-days: 14
   secrets:
     name: Varredura de segredos
     runs-on: ubuntu-latest

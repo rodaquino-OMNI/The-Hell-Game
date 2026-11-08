@@ -1,6 +1,6 @@
 // Personagens na cena: carrega os .glb de public/models (manifesto personagens.json), instancia por ator
 // e toca o clipe escolhido em state.ts com o relógio da simulação amostrado a render.anim_fps (passo discreto
-// no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud) com skinning acrescentado aqui.
+// no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud; o skinning está no próprio material).
 // V3: skin do jogador (troca de cor das secundárias no atlas + acessório pequeno no peito) e olhos do caçador que
 // acendem no preparo (telegraph, Art Bible §1.5 e §4).
 import * as THREE from "three";
@@ -47,28 +47,12 @@ let manifestP: Promise<Manifest> | null = null;
 
 const url = (p: string) => import.meta.env.BASE_URL + p;
 
-/** acrescenta os chunks de skinning do three.js ao vértice do Ps1Material (o V1 não deforma malha) */
-function withSkinning(m: Ps1Material): Ps1Material {
-  const steps: [string, string][] = [
-    ["#include <common>", "#include <common>\n#include <skinning_pars_vertex>"],
-    ["vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );",
-      "vec3 transformed = vec3( position );\n  vec3 objectNormal = vec3( normal );\n  #include <skinbase_vertex>\n  #include <skinnormal_vertex>\n  #include <skinning_vertex>\n  vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );"],
-  ];
-  let vs = m.vertexShader;
-  for (const [from, to] of steps) {
-    if (!vs.includes(from)) throw new Error(`Ps1Material mudou: trecho '${from}' não encontrado para o skinning`);
-    vs = vs.replace(from, to);
-  }
-  m.vertexShader = vs.replace(/normalMatrix \* normal\b/g, "normalMatrix * objectNormal");
-  return m;
-}
-
 /** material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3) */
 function convertMaterial(m: THREE.Material): THREE.Material {
   const std = m as THREE.MeshStandardMaterial;
   const map = std.map ?? undefined;
   if (map) { map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = map.magFilter = THREE.NearestFilter; map.needsUpdate = true; }
-  const out = withSkinning(std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map }));
+  const out = std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map });
   out.name = std.name;
   return out;
 }
@@ -152,7 +136,7 @@ function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefi
     for (const mesh of meshes) {
       const m = mesh.material as Ps1Material, map = m.uniforms.tMap.value as THREE.Texture | null;
       if (!map || m.name !== "atlas") continue;
-      if (!cache.has(map)) { const nm = withSkinning(new Ps1Material({ lit: true, map: skinAtlas(map, skin) })); nm.name = m.name; cache.set(map, nm); }
+      if (!cache.has(map)) { const nm = new Ps1Material({ lit: true, map: skinAtlas(map, skin) }); nm.name = m.name; cache.set(map, nm); }
       mesh.material = cache.get(map)!;
     }
   }
@@ -174,7 +158,7 @@ function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefi
 function prepareTelegraph(model: THREE.Object3D): Telegraph | null {
   const mesh = skinnedMeshes(model).find(m => (m.material as THREE.Material).name === "brilho");
   if (!mesh) return null;
-  const hot = withSkinning(new Ps1Material({ lit: false, fog: false, color: tok(FX.eyesWindup) }));
+  const hot = new Ps1Material({ lit: false, fog: false, color: tok(FX.eyesWindup) });
   hot.name = "brilho-preparo";
   mesh.geometry.computeBoundingBox();
   const center = mesh.geometry.boundingBox!.getCenter(new THREE.Vector3());

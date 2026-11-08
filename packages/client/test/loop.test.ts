@@ -2,7 +2,23 @@
 import { STEP } from "@thehell/sim";
 import { describe, expect, it } from "vitest";
 import { balance } from "../src/data.ts";
-import { advanceClock } from "../src/loop.ts";
+import { advanceClock, frameLoop } from "../src/loop.ts";
+
+describe("cadeia de quadros", () => {
+  it("start chamado a cada partida mantém uma única cadeia (um desenho por quadro)", () => {
+    const queue: ((now: number) => void)[] = [];
+    let draws = 0;
+    const loop = frameLoop(cb => queue.push(cb), () => { draws++; });
+    const runFrame = (t: number) => { for (const cb of queue.splice(0)) cb(t); };
+    expect(loop.start()).toBe(true);
+    for (let i = 0; i < 3; i++) runFrame(i);
+    // nova partida pelo menu: não cria segunda cadeia
+    expect(loop.start()).toBe(false);
+    for (let i = 3; i < 6; i++) runFrame(i);
+    expect(draws).toBe(6);
+    expect(queue.length).toBe(1);
+  });
+});
 
 const lim = balance.client;
 /** roda quadros de `frame` s por `seconds` s de relógio real e devolve o tempo de simulação avançado */
