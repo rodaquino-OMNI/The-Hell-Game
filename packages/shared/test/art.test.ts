@@ -1,7 +1,7 @@
 // V3: schema e coerência dos dados de arte (data/art/palette.json, data/art/personagens.json).
 import { describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
-import { checkArt, resolveClips, CLIP_NAMES } from "../src/index.ts";
+import { checkArt, resolveClips, variantIds, CLIP_NAMES } from "../src/index.ts";
 import { loadBalanceFile, loadPaletteFile, loadSheetFile } from "../src/node.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -32,5 +32,19 @@ describe("dados de arte", () => {
 
   it("acusa skin da loja sem ficha", () => {
     expect(checkArt(palette, sheet, [...skins, "nova"]).join()).toMatch(/skins da ficha/);
+  });
+
+  it("variantes de arte (A2-ajuste): padrão primeiro, padrão inexistente e cor de estado na variante acusados", () => {
+    const cur = sheet.personagens.find(c => c.id === "curandeiro")!;
+    expect(variantIds(cur)[0]).toBe(cur.variantes!.padrao);
+    expect(variantIds(cur).sort()).toEqual(Object.keys(cur.variantes!.lista).sort());
+    expect(variantIds(sheet.personagens.find(c => !c.variantes)!)).toEqual([undefined]);
+    const bad = clone(sheet);
+    const c = bad.personagens.find(x => x.id === "curandeiro")!;
+    c.variantes!.padrao = "nenhuma";
+    c.variantes!.lista.mago_caduceu.pecas[0].cor = "fx.preso";
+    const errs = checkArt(palette, bad, skins).join("\n");
+    expect(errs).toMatch(/variante padrão 'nenhuma'/);
+    expect(errs).toMatch(/fx\.preso/);
   });
 });

@@ -1,6 +1,8 @@
 // Gera os personagens (.glb) a partir do pacote CC0 Quaternius Universal Animation Library [Standard]
 // e da ficha data/art/personagens.json, expandida por packages/client/src/assets/characters.ts (Art Bible §3, §7; GDD v0.3 §10.3).
 // Saída: packages/client/public/models/<id>.glb e personagens.json (manifesto lido pelo cliente e pelo validador).
+// Personagem com `variantes` na ficha: o .glb leva a variante `padrao`; as outras são assadas só para medir os
+// triângulos (manifesto `variantes`, conferido pelo validador). Escolher outra = trocar `padrao` e rodar de novo.
 //
 // Uso: pnpm exec tsx tools/assets/build-characters.ts <pasta com UAL1_Standard.glb e UAL1_Standard_RM.glb>
 // A pasta de origem é a "Unreal-Godot/" do zip baixado de https://quaternius.itch.io/universal-animation-library
@@ -10,7 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadBalanceFile, loadPaletteFile, loadSheetFile } from "../../packages/shared/src/node.ts";
 import { checkArt } from "../../packages/shared/src/index.ts";
-import { expandSheet } from "../../packages/client/src/assets/characters.ts";
+import { expandVariants } from "../../packages/client/src/assets/characters.ts";
 import { atlasPixels, bakeCharacter, type SourceGlb } from "../../packages/client/src/render/characters/bake.ts";
 import { readRenderModels } from "../../packages/client/src/render/characters/budget.ts";
 
@@ -64,7 +66,8 @@ const palette = loadPaletteFile(root + "data/art/palette.json");
 const sheet = loadSheetFile(root + "data/art/personagens.json");
 const artErrors = checkArt(palette, sheet, Object.keys(balance.skins));
 if (artErrors.length) { for (const e of artErrors) console.error("ERRO (arte):", e); process.exit(1); }
-const CHARACTERS = expandSheet(sheet);
+/** por personagem, a variante padrão primeiro (vai para o .glb) e as outras (só medidas: orçamento no manifesto) */
+const VARIANTS = expandVariants(sheet);
 const source = readGlb(srcDir + "/UAL1_Standard.glb");
 const speeds = nativeSpeeds(readGlb(srcDir + "/UAL1_Standard_RM.glb"));
 const atlasPng = png(atlasPixels(palette, models.atlas), models.atlas, models.atlas);
@@ -73,14 +76,21 @@ const outDir = root + "packages/client/public/models/";
 mkdirSync(outDir, { recursive: true });
 const manifest = { $comment: "Gerado por tools/assets/build-characters.ts — não editar à mão.", anim_fps: models.animFps, personagens: [] as object[] };
 let fail = false;
-for (const spec of CHARACTERS) {
+for (const [spec, ...others] of VARIANTS) {
   const out = bakeCharacter({ spec, source, palette, animFps: models.animFps, atlasSize: models.atlas, atlasPng, nativeSpeed: speeds });
   const [lo, hi] = spec.tipo === "cacador" ? models.hunterTris : models.survivorTris;
-  const ok = out.triangles >= lo && out.triangles <= hi;
+  const inBudget = (n: number) => n >= lo && n <= hi;
+  const variantes = [{ id: spec.variante, triangulos: out.triangles }, ...others.map(v => ({ id: v.variante, triangulos: bakeCharacter({ spec: v, source, palette, animFps: models.animFps, atlasSize: models.atlas, atlasPng, nativeSpeed: speeds }).triangles }))];
+  const ok = variantes.every(v => inBudget(v.triangulos));
   if (!ok) fail = true;
   writeFileSync(outDir + spec.id + ".glb", out.glb);
-  manifest.personagens.push({ id: spec.id, nome: spec.nome, arquivo: `models/${spec.id}.glb`, tipo: spec.tipo, altura: spec.altura, triangulos: out.triangles, ossos: out.joints, ...(out.acessorio ? { acessorio: out.acessorio } : {}), clipes: out.clips });
-  console.log(`${ok ? "ok   " : "FORA "} ${spec.id.padEnd(11)} ${String(out.triangles).padStart(5)} triângulos (${lo}–${hi}), ${out.joints} ossos, ${out.clips.length} clipes, ${(out.glb.byteLength / 1024).toFixed(0)} KB`);
+  manifest.personagens.push({
+    id: spec.id, nome: spec.nome, arquivo: `models/${spec.id}.glb`, tipo: spec.tipo, altura: spec.altura, triangulos: out.triangles, ossos: out.joints,
+    ...(spec.variante ? { variante: spec.variante, variantes } : {}),
+    ...(out.acessorio ? { acessorio: out.acessorio } : {}), clipes: out.clips,
+  });
+  const extra = spec.variante ? ` [variante ${variantes.map(v => `${v.id}${v.id === spec.variante ? "*" : ""} ${v.triangulos}`).join(", ")}]` : "";
+  console.log(`${ok ? "ok   " : "FORA "} ${spec.id.padEnd(11)} ${String(out.triangles).padStart(5)} triângulos (${lo}–${hi}), ${out.joints} ossos, ${out.clips.length} clipes, ${(out.glb.byteLength / 1024).toFixed(0)} KB${extra}`);
 }
 writeFileSync(outDir + "personagens.json", JSON.stringify(manifest, null, 1) + "\n");
 if (fail) { console.error("FALHA: personagem fora do orçamento de render.models"); process.exit(1); }

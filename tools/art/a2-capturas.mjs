@@ -6,6 +6,10 @@
 //    protanopia (Chrome DevTools Protocol, Emulation.setEmulatedVisionDeficiency);
 //  - no jogo com material PS1 (deviceScaleFactor 2): feixe em cada estado, caçador com olhos acesos no preparo e
 //    aliado preso com cadeado;
+//  - A2-ajuste: personagem com variantes de arte na ficha (cajado do Curandeiro) ganha close da peça (frente e lado,
+//    cor e preto) e o jogo em 3ª pessoa com ele de jogador, câmera reta, para cima e para baixo (o cajado não pode
+//    tapar a câmera). A variante capturada é a assada no .glb (manifesto personagens.json, campo `variante`);
+//    a pasta de saída recebe variantes.json com ela;
 //  - proxy objetivo de distinção das silhuetas: IoU (interseção ÷ união) entre as máscaras pretas de cada par, por
 //    vista, de perto e na distância de jogo. É só um proxy: o portão é o teste humano da Art Bible §5.1.
 // Uso: node tools/art/a2-capturas.mjs <pasta de saída> [url]   (sem url, sobe packages/server/dist/server.mjs)
@@ -41,7 +45,13 @@ const FRAME = {
   perto: { fov: 20, dist: 8.22, camHeight: 1.35, lookHeight: 1.35, spacing: 0 },
   elenco: { fov: 20, dist: 16, camHeight: 1.4, lookHeight: 1.3, spacing: 1.55 },
   jogo: { fov: balance.prototype_extras.camera.fov, dist: 8, camHeight: 1.6, lookHeight: 1.2, spacing: 0 },
+  // close da cabeça do cajado (topo a ~2,2 m)
+  close: { fov: 20, dist: 4, camHeight: 2.1, lookHeight: 1.95, spacing: 0 },
 };
+const manifest = JSON.parse(readFileSync(join(root, "packages/client/public/models/personagens.json"), "utf8"));
+/** variante assada de cada personagem que tem variantes na ficha */
+const VARIANT = Object.fromEntries(manifest.personagens.filter(p => p.variante).map(p => [p.id, p.variante]));
+writeFileSync(join(out, "variantes.json"), JSON.stringify(VARIANT, null, 1) + "\n");
 const BG = { preto: "ui.text", cor: "world.fog", luz: "world.fog" };
 
 let url = process.argv[3], server;
@@ -102,6 +112,10 @@ try {
   }
   const tele = await shoot({ ids: ["espectro"], mode: "cor", yaw: 0, bg: BG.cor, telegraph: true, ...FRAME.perto });
   files.push(save("espectro-frente-cor-preparo.png", tele));
+  for (const id of Object.keys(VARIANT)) for (const [view, yaw] of VIEWS.slice(0, 2)) for (const mode of ["cor", "preto"]) {
+    const img = await shoot({ ids: [id], mode, yaw, bg: BG[mode], ...FRAME.close });
+    files.push(save(`${id}-close-${view}-${mode}.png`, img));
+  }
   await page.close();
 
   // ---------- daltonismo (emulação do Chrome sobre a imagem do elenco em cor) ----------
@@ -167,6 +181,11 @@ try {
   // aliado preso na gaiola com o cadeado
   await scene("aliado-preso-cadeado", `const c = [${map.cage[0]}, ${map.cage[1]}]; const A = G.survivors[1]; A.st = "cage"; A.x = c[0]; A.z = c[1];
     const P = G.survivors[0]; P.x = c[0] + 7; P.z = c[1] + 7; G.hunter.x = 1000;`, map.cage);
+  // jogador (Curandeiro, classe padrão do menu) em 3ª pessoa no pátio aberto: câmera reta, para cima e para baixo
+  if (VARIANT.curandeiro) for (const [name, pitch] of [["reta", 0], ["para-cima", 0.45], ["para-baixo", -0.35]]) {
+    await scene(`curandeiro-3a-pessoa-${name}`, `const P = G.survivors[0]; P.x = 4.75; P.z = 26; G.hunter.x = 1000; G.hunter.z = 1000;
+      G.survivors.slice(1).forEach((s, k) => { s.x = -20 - 2 * k; s.z = 26; });`, [4.75, 10], pitch);
+  }
   await game.close();
 } finally {
   await browser.close();

@@ -1,7 +1,7 @@
 // Pipeline de personagens (V2): escolha de clipe pelo estado do sim e consistência das fichas com a paleta.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHARACTERS, CLIP_NAMES } from "../src/assets/characters.ts";
+import { CHARACTERS, CLIP_NAMES, SHEET, expandCharacter, expandVariants } from "../src/assets/characters.ts";
 import { ACTIVE, chooseClip, newMemory, type ClipContext } from "../src/render/characters/state.ts";
 import { atlasLayout, atlasPixels, type Palette } from "../src/render/characters/bake.ts";
 
@@ -73,5 +73,15 @@ describe("fichas e atlas", () => {
     allowed.add("0,0,0");
     for (let i = 0; i < px.length; i += 4) expect(allowed.has(`${px[i]},${px[i + 1]},${px[i + 2]}`)).toBe(true);
     for (const [, [u, v]] of uv) { expect(u).toBeGreaterThan(0); expect(u).toBeLessThan(1); expect(v).toBeGreaterThan(0); expect(v).toBeLessThan(1); }
+  });
+
+  it("variantes: o padrão vai para CHARACTERS e cada variante soma só as próprias peças", () => {
+    const cur = SHEET.personagens.find(c => c.id === "curandeiro")!;
+    const all = expandVariants(SHEET).find(v => v[0].id === "curandeiro")!;
+    expect(all[0].variante).toBe(cur.variantes!.padrao);
+    expect(CHARACTERS.find(c => c.id === "curandeiro")!.variante).toBe(cur.variantes!.padrao);
+    const a = expandCharacter(SHEET, cur, "mago"), b = expandCharacter(SHEET, cur, "mago_caduceu");
+    expect(b.pecas.length - a.pecas.length).toBe(cur.variantes!.lista.mago_caduceu.pecas.length - cur.variantes!.lista.mago.pecas.length);
+    expect(() => expandCharacter(SHEET, cur, "nenhuma")).toThrow(/inexistente/);
   });
 });

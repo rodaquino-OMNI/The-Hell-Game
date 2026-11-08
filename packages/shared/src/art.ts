@@ -81,6 +81,16 @@ const character = z.object({
   dedosModelados: z.object({ ...comment, falanges: z.tuple([z.tuple([R2, R2]), z.tuple([R2, R2]), z.tuple([R2, R2])]), lados: z.number().int().min(3), cor: token, giro: num.optional() }).strict().optional(),
   /** onde a skin prende o acessório pequeno (posição relativa ao osso, mesma unidade das peças) */
   acessorio: z.object({ ...comment, osso: bone, desloc: V3 }).strict().optional(),
+  /**
+   * variantes de arte de uma parte da forma-chave, para o aprovador do marco escolher (A2-ajuste: cajado do
+   * Curandeiro). As peças da variante `padrao` somam-se a `pecas` no bake; as outras só entram no orçamento
+   * (validador) e nas capturas. Escolher = trocar `padrao` e rodar o bake.
+   */
+  variantes: z.object({
+    ...comment,
+    padrao: z.string().regex(/^[a-z_]+$/),
+    lista: z.record(z.string().regex(/^[a-z_]+$/), z.object({ ...comment, nome: z.string().min(1), pecas: z.array(PieceSchema) }).strict()),
+  }).strict().optional(),
 }).strict();
 
 const skin = z.object({
@@ -109,6 +119,12 @@ export type SheetCharacter = Sheet["personagens"][number];
 export type SheetPiece = z.infer<typeof PieceSchema>;
 export type ClipRecipe = z.infer<typeof clipRecipe>;
 export type SkinDef = z.infer<typeof skin>;
+
+/** ids das variantes de um personagem (a padrão primeiro); sem `variantes`, uma só, sem nome */
+export function variantIds(c: SheetCharacter): (string | undefined)[] {
+  if (!c.variantes) return [undefined];
+  return [c.variantes.padrao, ...Object.keys(c.variantes.lista).filter(v => v !== c.variantes!.padrao)];
+}
 
 /** tokens que nunca vão no corpo de um personagem: são cor de estado ou de foco (Art Bible §4, §8) */
 export const FORBIDDEN_ON_BODY = ["ui.accent", "fx.preso", "fx.ameaca", "ui.danger"] as const;
@@ -141,8 +157,10 @@ export function checkArt(palette: PaletteData, sheet: Sheet, skinIds: string[]):
     if (!sheet.conjuntos_clipes[c.clipes]) errs.push(`${c.id}: conjunto de clipes '${c.clipes}' inexistente`);
     if (!/^(class|hunter)\./.test(c.cor)) errs.push(`${c.id}: cor dominante '${c.cor}' deve ser class.* ou hunter.*`);
     if (slots.has(c.cor)) errs.push(`${c.id}: a cor dominante não pode ser trocada por skin`);
+    if (c.variantes && !c.variantes.lista[c.variantes.padrao]) errs.push(`${c.id}: variante padrão '${c.variantes.padrao}' fora de variantes.lista`);
+    const variantPieces = Object.values(c.variantes?.lista ?? {}).flatMap(v => v.pecas);
     const used = [c.cor, ...Object.entries(c.corpo).filter(([k]) => ["tronco", "bracos", "pernas", "pele", "sapato"].includes(k)).map(([, v]) => v as string),
-      ...c.pecas.map(p => p.cor), ...(c.dedosModelados ? [c.dedosModelados.cor] : [])];
+      ...c.pecas.map(p => p.cor), ...variantPieces.map(p => p.cor), ...(c.dedosModelados ? [c.dedosModelados.cor] : [])];
     for (const t of used) {
       if (!has(t)) errs.push(`${c.id}: cor '${t}' não é token de data/art/palette.json`);
       if (forbidden.has(t)) errs.push(`${c.id}: cor '${t}' é cor de estado/foco e não pode ir no corpo (Art Bible §4)`);

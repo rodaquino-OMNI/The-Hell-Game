@@ -41,7 +41,7 @@ A mesma tabela, com o critério de cada estado, está em `packages/client/src/re
 
 | Personagem | Tipo | Altura | Triângulos | Orçamento (`render.models`) | Ossos | Tamanho |
 | --- | --- | --- | --- | --- | --- | --- |
-| Curandeiro | sobrevivente | 1,75 m | 394 | 300–600 | 25 | 208 KB |
+| Curandeiro | sobrevivente | 1,75 m | 480 (variante a, padrão); 520 (variante b) | 300–600 | 25 | 222 KB |
 | Mecânico | sobrevivente | 1,76 m | 392 | 300–600 | 25 | 208 KB |
 | Atacador | sobrevivente | 1,76 m | 344 | 300–600 | 25 | 202 KB |
 | Batedor | sobrevivente | 1,72 m | 358 | 300–600 | 25 | 202 KB |
@@ -76,6 +76,53 @@ Achados da revisão do V2 (risco no teste de silhueta a 384×216). Formas-chave 
 Skins (GDD v0.2 §10.3, Art Bible §3 e §7): trocam só `char.calca` e `char.sapato` (tokens `skin.<id>.a` e `.b`) e põem um acessório pequeno no peito (uma caixa de 12 triângulos no ponto `acessorio` da ficha, que o bake grava em `personagens.json`); o validador soma esses 12 triângulos ao orçamento do sobrevivente. Só o sobrevivente do jogador veste a skin equipada, como no protótipo.
 
 Capturas do marco A2 e proxy de silhueta (IoU entre pares): `node tools/art/a2-capturas.mjs <pasta>` depois de `pnpm build`.
+
+## A2-ajuste: cajado de mago do Curandeiro (08/11/2026, aguardando escolha)
+
+Pedido do aprovador do marco A2: "o cajado do Curandeiro deveria se parecer com o de um mago ancestral". Desenho próprio no estilo do gênero (não reproduz o cajado de nenhum filme, livro ou jogo): haste de madeira nodosa em 3 trechos com dobras leves e nós, amarrado de couro com ponta solta abaixo da cabeça, e 3 galhos de seção triangular que abrem e se fecham em volta de um cristal emissivo (octaedro alongado) cuja ponta passa acima dos galhos, para ler também de costas. Capuz e manto (o resto da forma-chave, Art Bible §3) não mudaram. **A Art Bible não foi alterada**: muda só depois da escolha.
+
+As duas variantes ficam na ficha (`data/art/personagens.json`, `curandeiro.variantes`; schema em `packages/shared/src/art.ts`). As peças da variante `padrao` somam-se a `pecas` no bake; a outra é assada só para medir triângulos (manifesto `personagens.json`, campo `variantes`) e o validador confere as duas contra `render.models.survivor_tris` com o acessório de skin. Escolher = trocar `padrao` e rodar `tools/assets/build-characters.ts`, `node tools/assets/validate.mjs` e `node tools/visual/compare.mjs --update` (o Curandeiro aparece nas cenas de referência).
+
+| Variante | Id | O que tem | Triângulos | + skin | Orçamento |
+| --- | --- | --- | --- | --- | --- |
+| (a), **padrão até a escolha** | `mago` | cajado de mago com cristal, sem caduceu | 480 | 492 | 300–600 |
+| (b) | `mago_caduceu` | o mesmo cajado + caduceu pequeno: 2 asas (`char.lamina`) logo abaixo do amarrado e serpente em S de 2 trechos (`class.curandeiro`) cruzando a haste | 520 | 532 | 300–600 |
+
+| Peça | Antes (V3) | Depois (a e b) |
+| --- | --- | --- |
+| haste | 1 cilindro reto de 4 lados, raio 0,07, de -0,75 a 1,45 (eixo da mão); no idle tombava para trás e para dentro | 3 trechos de 4 lados, raios 0,05→0,06, 0,072→0,06, 0,075→0,08 (o começo de cada trecho mais grosso que o fim do anterior faz o nó), `char.madeira`; todo o cajado girado -28° em Y e +10° em Z para ficar de pé no idle |
+| topo | caduceu: losango (pirâmide, `class.curandeiro`) + asas (caixa 0,10 × 0,09 × 0,44, `char.lamina`) | 3 galhos (2 trechos de 3 lados cada, raios 0,045→0,022) em volta de um cristal emissivo (elipse de 4 lados e 2 anéis = octaedro, raios 0,18 × 0,10 × 0,10, `class.curandeiro`, `brilho`) |
+| couro | — | amarrado (cilindro de 4 lados, raio 0,098) + ponta solta (caixa 0,20 × 0,035 × 0,03), `char.couro` |
+| caduceu | no topo, grande | só na variante (b), pequeno, abaixo do cristal |
+
+Cores: só tokens já aprovados (`char.madeira`, `char.couro`, `char.lamina`, `class.curandeiro`); nenhum token novo. O cristal usa a cor dominante da classe e o material emissivo dos olhos e da lanterna (chapado, sem névoa, máscara de emissivo no alfa): entra no bloom da camada A do V4. Custo: o bloom é um passe de tela cheia, independente de quantos pixels são emissivos; `node tools/visual/compare.mjs` deu razão pareada de 1,27×–1,38× com o cajado novo e 1,29×–1,37× com o cajado do V3 no mesmo build (3 rodadas cada; teto `render.layer_cost_factor` 1,4×).
+
+Proxy de silhueta (IoU entre máscaras pretas, `tools/art/a2-capturas.mjs`, `silhuetas-iou.json`), Curandeiro contra cada um, pior vista de perto / pior vista na distância de jogo:
+
+| Par | V3 (antes) | (a) mago | (b) mago_caduceu |
+| --- | --- | --- | --- |
+| × Mecânico | 0,653 / 0,579 | 0,559 / 0,652 | 0,552 / 0,637 |
+| × Atacador | 0,584 / 0,571 | 0,561 / 0,642 | 0,554 / 0,628 |
+| × Batedor | 0,486 / 0,403 | 0,469 / 0,415 | 0,463 / 0,407 |
+| × Protetor | 0,541 / 0,540 | 0,555 / 0,589 | 0,548 / 0,578 |
+| × Espectro | 0,353 / 0,288 | 0,402 / 0,274 | 0,410 / 0,272 |
+
+De perto o Curandeiro ficou mais distinto de Mecânico, Atacador e Batedor; na distância de jogo, de lado, subiu (0,58 → 0,65 contra o Mecânico) porque a haste agora fica de pé junto do corpo em vez de cruzar o quadro na diagonal. Todos os pares do Curandeiro seguem abaixo dos pares já aprovados no A2 (Mecânico × Atacador 0,867, Atacador × Protetor 0,757). Batedor (ponta na cabeça): 0,47 de perto e 0,42 no jogo, menor que antes de perto. Proxy apenas; o portão é o teste humano da Art Bible §5.1.
+
+Câmera em 3ª pessoa (ombro direito, o lado do cajado): `a2-capturas.mjs` grava `jogo-curandeiro-3a-pessoa-{reta,para-cima,para-baixo}.png`; o cajado fica ao lado do corpo e não cobre o centro da tela em nenhuma das três.
+
+Registro do marco em `docs/art/marcos/a2/` (capturas do build com V4):
+
+| Arquivo | Conteúdo (da esquerda para a direita) |
+| --- | --- |
+| `a2-elenco-frente-preto.png`, `a2-elenco-frente-cor.png` | elenco de frente com a variante (a) |
+| `a2-elenco-frente-preto-variante-b.png` | elenco de frente em preto com a variante (b) |
+| `a2-espectro-preparo-olhos.png` | Espectro com os olhos acesos no preparo |
+| `cajado-variantes-preto.png`, `cajado-variantes-cor.png` | de frente: V3, (a), (b); de lado: V3, (a), (b) (384×216 recortado, ampliado 3×) |
+| `cajado-variantes-close.png` | close: (a) frente, (b) frente, (a) lado, (b) lado |
+| `cajado-variantes-jogo.png` | no jogo, 3ª pessoa: (a), (b) |
+
+Montagem: `node tools/art/lado-a-lado.mjs <saida.png> --de 4 --largura 90 --zoom 3 <png>...` sobre as pastas de `a2-capturas.mjs` de cada variante.
 
 ## Leitura de estado dos geradores no jogo (V3, Art Bible §4)
 
