@@ -20,8 +20,17 @@ const file = args.find(a => !a.startsWith("--")) ?? "data/art/palette.json";
 const asMd = args.includes("--md");
 const pal = JSON.parse(readFileSync(file, "utf8"));
 // GDD-v0.3 §10.1 item 4: quantização para color_bits por canal (data/balance.yaml render.ps1)
-const bits = parse(readFileSync(new URL("../../data/balance.yaml", import.meta.url), "utf8"))?.render?.ps1?.color_bits;
+const renderData = parse(readFileSync(new URL("../../data/balance.yaml", import.meta.url), "utf8"))?.render;
+const bits = renderData?.ps1?.color_bits;
 if (!Number.isInteger(bits)) throw new Error("data/balance.yaml sem render.ps1.color_bits");
+// Atlas dos personagens (Art Bible §7; packages/client/src/render/characters/atlas.ts): um bloco por token, numa grade
+// de ceil(√n) colunas. Os .glb foram assados com blocos de ATLAS_CELL px (atlas de render.models.atlas px, 8×8 blocos):
+// passar de (atlas / ATLAS_CELL)² tokens muda a grade e desalinha as UVs dos modelos assados
+const atlasSize = renderData?.models?.atlas;
+if (!Number.isInteger(atlasSize)) throw new Error("data/balance.yaml sem render.models.atlas");
+const ATLAS_CELL = 8;
+/** aviso quando faltam até ATLAS_MARGIN blocos livres */
+const ATLAS_MARGIN = 2;
 
 const to8 = v => Math.round((v * 255) / 31);
 const hex = c => "#" + c.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -184,6 +193,12 @@ if (t.distinct) {
       return [g, a.flatMap(x => b.map(y => [x, y])), v.visoes];
     }));
 }
+
+// ---------- capacidade do atlas ----------
+const atlasCap = (atlasSize / ATLAS_CELL) ** 2;
+out.push(`\n## Atlas dos personagens\n`, `${tokens.length} tokens de ${atlasCap} blocos (render.models.atlas = ${atlasSize} px, blocos de ${ATLAS_CELL} px).`);
+if (tokens.length > atlasCap) fails.push(`atlas: ${tokens.length} tokens > ${atlasCap} blocos; crescer render.models.atlas e rebake`);
+else if (tokens.length >= atlasCap - ATLAS_MARGIN) warns.push(`atlas: ${tokens.length} de ${atlasCap} blocos; acima de ${atlasCap} é preciso crescer render.models.atlas e rebake`);
 
 if (warns.length) out.push(`\n**Avisos (pior pixel, informativo):** ${warns.length}\n\n- ` + warns.join("\n- "));
 out.push(`\n**Resultado:** ${fails.length === 0 ? "todos os testes passam." : `${fails.length} falha(s):\n\n- ` + fails.join("\n- ")}`);

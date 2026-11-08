@@ -2,6 +2,10 @@
 //  ?seed=N        semente da partida e das texturas procedurais (capturas de referência reproduzíveis)
 //  ?preset=low|medium|high   preset de resolução interna (padrão: render.default_preset)
 //  ?ps1=0 | ?ps1=snap:0,dither:0.5   intensidades PS1 (padrão: render.ps1)
+//  ?retro=1       MOCKUP do modo "Retro FPS" (D-13, D-14, D-15; marco A2b): 1ª pessoa com a ferramenta na mão,
+//                 barra de estado inferior e Pátio industrial. Sem o parâmetro nada muda.
+//  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   ferramenta e classe mostradas no mockup (Protetor
+//                 e Batedor ainda não existem na simulação, fase 4: só a vista muda)
 // Sem `?seed`, a partida e as texturas continuam aleatórias como na fase 0.
 import { nextRandom } from "@thehell/sim";
 import { balance } from "../data.ts";
@@ -30,3 +34,12 @@ export function clientRandom(salt: number): () => number {
   const state = { seed: (urlSeed ^ Math.imul(salt, 0x9e3779b1)) | 0 };
   return () => nextRandom(state);
 }
+
+/** mockup do modo "Retro FPS" ligado (`?retro=1`; D-13, D-14) */
+export const urlRetro: boolean = params.get("retro") === "1";
+
+export const RETRO_CLASSES = ["curandeiro", "mecanico", "atacador", "protetor", "batedor"] as const;
+export type RetroClass = (typeof RETRO_CLASSES)[number];
+const retroClassRaw = params.get("retro_class");
+/** classe da vista do mockup pedida na URL, ou indefinida (= classe da partida) */
+export const urlRetroClass: RetroClass | undefined = (RETRO_CLASSES as readonly string[]).includes(retroClassRaw ?? "") ? (retroClassRaw as RetroClass) : undefined;

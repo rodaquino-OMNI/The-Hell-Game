@@ -12,6 +12,15 @@ export const CLASS_ICON: Record<ClassName, string> = {
   Atacador: svg(`<path d="M3 13L12 4"/><path d="M12 4l2-2"/><path d="M4 9l3 3"/><path d="M2 14l1.5-1.5"/>`),
 };
 
+/**
+ * mockup do modo Retro FPS (D-13): ícones das classes da fase 4, só para as vistas de Protetor e Batedor do A2b
+ * (Art Bible §3: escudo redondo; capuz com ponta e cachecol)
+ */
+export const PREVIEW_CLASS_ICON = {
+  protetor: svg(`<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/>`),
+  batedor: svg(`<path d="M8 1l3 6H5z"/><path d="M5 9h6"/><path d="M9 9l5 3M8 10l4 5"/>`),
+} as const;
+
 /** ícone de cada estado do retrato (o vivo não leva ícone) */
 export const STATE_ICON = {
   ok: "",

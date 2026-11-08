@@ -129,5 +129,18 @@
   "msg.trap_disarmed": "Armadilha desativada",
   "msg.revealed": "O caçador sentiu você!",
   "msg.gate_countdown": "Geradores prontos! Portão abrindo em {n} s — o caçador está furioso!",
-  "msg.gate_open": "PORTÃO ABERTO! CORRA!"
+  "msg.gate_open": "PORTÃO ABERTO! CORRA!",
+
+  "class.protector": "Protetor",
+  "class.scout": "Batedor",
+  "retro.bar": "Barra de estado",
+  "retro.health": "VIDA",
+  "retro.stamina": "FÔLEGO",
+  "retro.ability": "HABILIDADE Q",
+  "retro.ability_ready": "PRONTA",
+  "retro.ability_cd": "{n} s",
+  "retro.generators": "GERADORES",
+  "retro.puzzles": "quebra-cabeças {done}/{total}",
+  "retro.hunter": "CAÇADOR",
+  "retro.team": "EQUIPE"
 }

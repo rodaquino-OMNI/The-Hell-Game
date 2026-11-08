@@ -7,10 +7,11 @@ import { $, balance, cfg } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
+import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
 import { installRenderHook } from "./render/debug.ts";
-import { urlPs1, urlSeed } from "./render/options.ts";
+import { urlPs1, urlRetro, urlRetroClass, urlSeed } from "./render/options.ts";
 import { setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
@@ -34,6 +35,8 @@ function init() {
   buildActors(ctx, G, save.eq);
   view.yaw = 0;
   resetHud();
+  // mockup do modo Retro FPS (?retro=1, D-13): começa em 1ª pessoa (V alterna) com a barra de estado inferior
+  if (urlRetro) { view.thirdPerson = false; setupStatusBar(); }
 }
 
 /** gancho somente-leitura para os testes ponta a ponta (tools/smoke.mjs) */
@@ -41,6 +44,8 @@ function init() {
 /** gancho de render (capturas de referência e renderer.info) e intensidades PS1 do parâmetro de URL `?ps1=` */
 installRenderHook(() => ctx, () => G);
 setPs1(urlPs1);
+/** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
+if (urlRetro) (window as unknown as { __thehellView: typeof view }).__thehellView = view;
 
 function start() {
   hideMenu();
@@ -85,6 +90,7 @@ function draw(dt: number) {
   if (target) renderFrame(ctx, { ...G, survivors: [target] }, { ...view, thirdPerson: true });
   else renderFrame(ctx, G, view);
   hud(G, dt, view.yaw);
+  if (urlRetro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);
   puzzlePanel(G);
 }

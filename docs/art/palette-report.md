@@ -58,6 +58,13 @@ Quantização do passe final: 5 bits por canal (render.ps1.color_bits), dither B
 | `skin.our.b` | 23, 21, 15 | #BDAD7B | 3 | skin Ouro: sapatos e acessório |
 | `skin.fan.a` | 18, 17, 24 | #948CC5 | 2 | skin Fantasma: calça |
 | `skin.fan.b` | 24, 22, 31 | #C5B5FF | 2 | skin Fantasma: sapatos e acessório |
+| `world.industrial.parede` | 5, 6, 8 | #293142 | 2 | D-13/D-15 (mockup A2b, secundária): chapa de aço das paredes no preset industrial do Pátio |
+| `world.industrial.chapa` | 11, 12, 14 | #5A6373 | 3 | D-13/D-15 (secundária): rebites e borda iluminada das chapas |
+| `world.industrial.junta` | 2, 2, 3 | #101019 | 3 | D-13/D-15 (secundária): juntas entre chapas e lajes, sujeira |
+| `world.industrial.chao` | 7, 7, 7 | #3A3A3A | 2 | D-13/D-15 (secundária): laje de concreto do chão |
+| `world.industrial.faixa` | 16, 9, 6 | #844A31 | 3 | D-13/D-15 (secundária): faixa de segurança âmbar na base das paredes e cor da luz assada âmbar |
+| `world.industrial.luz_fria` | 7, 9, 13 | #3A4A6B | 2 | D-13/D-15 (secundária): luz ambiente fria de fábrica |
+| `world.industrial.tubo` | 21, 25, 28 | #ADCEE6 | 3 | D-13/D-15 (secundária): luminária fluorescente (emissiva) no topo dos muros |
 
 ## Contraste de texto (WCAG 2.2 1.4.3) (mínimo 4.5:1)
 
@@ -100,6 +107,12 @@ Quantização do passe final: 5 bits por canal (render.ps1.color_bits), dither B
 | `char.lanterna` | `world.fog` | 11.12:1 | 11.12:1 | 10.92:1 | passa |
 | `hunter.olhos_preparo` | `world.fog` | 14.02:1 | 14.05:1 | 13.77:1 | passa |
 | `hunter.olhos_preparo` | `world.wall` | 11.20:1 | 11.30:1 | 11.08:1 | passa |
+| `class.curandeiro` | `world.industrial.parede` | 3.72:1 | 3.72:1 | 3.40:1 | passa |
+| `class.mecanico` | `world.industrial.parede` | 5.66:1 | 5.65:1 | 5.17:1 | passa |
+| `class.atacador` | `world.industrial.parede` | 3.24:1 | 3.24:1 | 3.08:1 | passa |
+| `class.batedor` | `world.industrial.parede` | 9.97:1 | 9.99:1 | 9.43:1 | passa |
+| `class.protetor` | `world.industrial.parede` | 9.13:1 | 9.18:1 | 9.13:1 | passa |
+| `hunter.olhos_preparo` | `world.industrial.parede` | 11.33:1 | 11.42:1 | 11.33:1 | passa |
 
 ## Mudança de estado por brilho (Art Bible §1.5 e §4) (mínimo 3:1)
 
@@ -126,12 +139,18 @@ Menor diferença entre dois membros, em visão normal e sob cada simulação (Ma
 | acessorios | 36.3 / 36.4 / 36.1 | 34.1 / 34.1 / 33.8 | 37.4 / 37.5 / 36.9 | 33.1 / 32.8 / 28.6 | char.lanterna × olhos_preparo (tritanopia, média 4×4) | passa |
 | skins_estado | 15.9 / 15.8 / 14.4 | 12.7 / 12.8 / 12.5 | 12.9 / 12.8 / 11.5 | 12.7 / 12.8 / 12.3 | skin.our.b × fx.preso (tritanopia, exata) | passa (aviso) |
 | skins_classe | 13.3 / 13.2 / 11.3 | — | — | — | skin.fan.b × protetor (normal, média 4×4) | passa (aviso) |
+| industrial_estado | 21.4 / 21.3 / 20.3 | 12.3 / 12.2 / 10.5 | 12.2 / 12.3 / 9.7 | 13.2 / 13.3 / 12.9 | world.industrial.faixa × olhos (protanopia, média 4×4) | passa (aviso) |
 
-**Avisos (pior pixel, informativo):** 4
+## Atlas dos personagens
+
+61 tokens de 64 blocos (render.models.atlas = 64 px, blocos de 8 px).
+
+**Avisos (pior pixel, informativo):** 5
 
 - contraste gráfico hunter.carcereiro sobre world.fog (pior pixel): 2.89
 - grupo classes: class.mecanico × class.batedor em deuteranopia, pior pixel com ΔE00 11.1
 - grupo skins_estado: skin.our.b × fx.ameaca em deuteranopia, pior pixel com ΔE00 11.5
 - grupo skins_classe: skin.fan.b × class.protetor em normal, pior pixel com ΔE00 11.3
+- grupo industrial_estado: world.industrial.tubo × gen.bonus em deuteranopia, pior pixel com ΔE00 9.7
 
 **Resultado:** todos os testes passam.

@@ -40,6 +40,48 @@ const preset = z.object({ internal: z.tuple([z.number().int().positive(), z.numb
 const token = z.string().regex(/^[a-z_]+\.[a-z_]+$/);
 const minMax = z.tuple([z.number().int().positive(), z.number().int().positive()]);
 
+/** token com grupo e subgrupo (world.industrial.parede); a existência é conferida em packages/shared/test/retro.test.ts */
+const token3 = z.string().regex(/^[a-z_]+(\.[a-z0-9_]+)+$/);
+const V3n = z.tuple([num, num, num]);
+/** faixa [mín, máx] de opacidade (0..1) e de pixels (inteiros ≥ 1) */
+const unitRange = z.tuple([unit, unit]).refine(r => r[1] >= r[0], "faixa: máx deve ser ≥ mín");
+const pxRange = z.tuple([z.number().int().positive(), z.number().int().positive()]).refine(r => r[1] > r[0], "faixa: máx deve ser > mín");
+/**
+ * mockup do modo "Retro FPS" (D-13, D-14, D-15 em docs/plano-construcao.md §7; V9 em docs/handoff/plano-fases-1-2.md
+ * §5): balanço e ferramenta da classe na mão (D-13) e variante industrial do Pátio (D-15). Só com `?retro=1`.
+ */
+const retro = z.object({
+  bob: unit, bob_amplitude: z.tuple([pos, pos]), bob_stride: num.positive(), bob_return: unit,
+  viewmodel: z.object({
+    fov: num.positive().max(150),
+    far: num.positive(),
+    light: z.object({ ambient: token3, ambient_intensity: pos, key: token3, key_intensity: pos, key_pos: V3n }).strict(),
+    hand: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), forearm: z.tuple([num.positive(), num.positive()]), forearm_sides: z.number().int().min(3) }).strict(),
+    classes: z.record(
+      z.enum(["curandeiro", "mecanico", "atacador", "protetor", "batedor"]),
+      z.object({
+        grupos: z.array(z.object({ osso: z.string().min(1), cores: z.array(token3).optional(), origem: V3n, pos: V3n, rot: V3n, escala: num.positive() }).strict()).min(1),
+        maos: z.array(z.object({ pos: V3n, rot: V3n, antebraco: V3n }).strict()),
+      }).strict(),
+    ),
+  }).strict(),
+  industrial: z.object({
+    texture: z.number().int().min(16).max(256),
+    wall: z.object({
+      base: token3, edge: token3, seam: token3, stripe_color: token3, plates: z.number().int().positive(), edge_alpha: unit,
+      rivet: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+      rivet_step: z.number().int().positive(), rivet_inset: z.number().int().nonnegative(), stripe: z.number().int().nonnegative(),
+      stripe_period: z.number().int().positive(), grime: z.number().int().nonnegative(), grime_alpha: unitRange, grime_drip: pxRange,
+    }).strict(),
+    floor: z.object({
+      base: token3, seam: token3, fleck: token3, flecks: z.number().int().nonnegative(), fleck_alpha: unitRange,
+      stains: z.number().int().nonnegative(), stain_alpha: unitRange, stain_size: z.number().int().positive(),
+    }).strict(),
+    ambient: token3, ambient_intensity: pos, bake_color: token3, bake_intensity: pos,
+    lamp_token: token3, lamp_spacing: num.positive(), lamp_offset: pos, lamp_size: z.tuple([num.positive(), num.positive(), num.positive()]),
+  }).strict(),
+}).strict();
+
 /** render (GDD-v0.3 §10.1, §10.2, §10.6): presets de resolução interna, intensidades PS1 de 0 a 1, névoa e orçamentos */
 const render = z.object({
   default_preset: z.enum(["low", "medium", "high"]),
@@ -95,6 +137,7 @@ const render = z.object({
     eyes_flare: z.tuple([num.positive(), num.positive(), pos, pos]),
     lock: z.object({ size: num.positive(), above: pos }).strict(),
   }).strict(),
+  retro,
 }).strict();
 
 const difficulty = z.object({

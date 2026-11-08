@@ -129,5 +129,18 @@
   "msg.trap_disarmed": "Trampa desactivada",
   "msg.revealed": "¡El cazador te sintió!",
   "msg.gate_countdown": "¡Generadores listos! El portón se abre en {n} s — ¡el cazador está furioso!",
-  "msg.gate_open": "¡PORTÓN ABIERTO! ¡CORRE!"
+  "msg.gate_open": "¡PORTÓN ABIERTO! ¡CORRE!",
+
+  "class.protector": "Protector",
+  "class.scout": "Explorador",
+  "retro.bar": "Barra de estado",
+  "retro.health": "VIDA",
+  "retro.stamina": "ALIENTO",
+  "retro.ability": "HABILIDAD Q",
+  "retro.ability_ready": "LISTA",
+  "retro.ability_cd": "{n} s",
+  "retro.generators": "GENERADORES",
+  "retro.puzzles": "rompecabezas {done}/{total}",
+  "retro.hunter": "CAZADOR",
+  "retro.team": "EQUIPO"
 }

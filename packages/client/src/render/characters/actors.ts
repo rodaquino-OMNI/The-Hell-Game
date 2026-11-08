@@ -6,7 +6,7 @@ import { balance, cfg } from "../../data.ts";
 import { animateCharacter, charactersReady, createCharacter } from "./runtime.ts";
 
 /** modelo de cada classe jogável hoje (as demais fichas — Batedor, Protetor — entram com as classes, fase 4) */
-const SURVIVOR_MODEL: Record<ClassName, string> = { Curandeiro: "curandeiro", Mecânico: "mecanico", Atacador: "atacador" };
+export const SURVIVOR_MODEL: Record<ClassName, string> = { Curandeiro: "curandeiro", Mecânico: "mecanico", Atacador: "atacador" };
 /** caçador de lançamento (Art Bible §3) */
 const HUNTER_MODEL = "espectro";
 
