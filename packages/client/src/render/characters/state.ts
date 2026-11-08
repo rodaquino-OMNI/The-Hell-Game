@@ -1,5 +1,5 @@
 // Estado da simulação → clipe (Art Bible §7: 9 clipes). Puro, testável sem DOM.
-// Usa só o que @thehell/sim expõe hoje; o resto fica mapeado e inativo até o R1 expor (ver ACTIVE abaixo).
+// Usa só o que @thehell/sim expõe hoje; o resto fica mapeado e inativo até o sim expor (ver ACTIVE abaixo).
 import type { ClipName } from "../../assets/characters.ts";
 
 /** quais clipes cada tipo consegue disparar com o estado atual do sim (fase 0, ruleset prototype) */
@@ -9,7 +9,7 @@ export const ACTIVE: Record<"sobrevivente" | "cacador", Record<ClipName, string>
     andar: "velocidade medida > 0 e ≤ média de survivor.walk e survivor.run",
     correr: "velocidade medida > média de survivor.walk e survivor.run",
     interagir: "jogador com quebra-cabeça aberto (G.puzzle) ou resgatando (rescue > 0); bot com `work` subindo",
-    ferido: "INATIVO: falta survivor.wounded_hp em data/balance.yaml (GDD v0.3 §8.3 usa 40; GDD v0.2 §3.2 [Proposta])",
+    ferido: "andando com vida abaixo de survivor.wounded_hp (GDD v0.3 §8.3)",
     preso: "st = cage",
     golpe: "borda de subida de `atk` (recarga do ataque reiniciada = acabou de atacar)",
     dash: "INATIVO: sobrevivente sem dash no sim",

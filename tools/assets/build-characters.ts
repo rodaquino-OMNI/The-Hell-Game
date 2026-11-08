@@ -1,5 +1,5 @@
 // Gera os personagens (.glb) a partir do pacote CC0 Quaternius Universal Animation Library [Standard]
-// e das fichas de packages/client/src/assets/characters.ts (Art Bible §3, §7; GDD v0.3 §10.3).
+// e da ficha data/art/personagens.json, expandida por packages/client/src/assets/characters.ts (Art Bible §3, §7; GDD v0.3 §10.3).
 // Saída: packages/client/public/models/<id>.glb e personagens.json (manifesto lido pelo cliente e pelo validador).
 //
 // Uso: pnpm exec tsx tools/assets/build-characters.ts <pasta com UAL1_Standard.glb e UAL1_Standard_RM.glb>
@@ -8,9 +8,10 @@
 import { crc32, deflateSync } from "node:zlib";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadBalanceFile } from "../../packages/shared/src/node.ts";
-import { CHARACTERS } from "../../packages/client/src/assets/characters.ts";
-import { atlasPixels, bakeCharacter, type Palette, type SourceGlb } from "../../packages/client/src/render/characters/bake.ts";
+import { loadBalanceFile, loadPaletteFile, loadSheetFile } from "../../packages/shared/src/node.ts";
+import { checkArt } from "../../packages/shared/src/index.ts";
+import { expandSheet } from "../../packages/client/src/assets/characters.ts";
+import { atlasPixels, bakeCharacter, type SourceGlb } from "../../packages/client/src/render/characters/bake.ts";
 import { readRenderModels } from "../../packages/client/src/render/characters/budget.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -59,7 +60,11 @@ function nativeSpeeds(rm: SourceGlb): Record<string, number> {
 
 const balance = loadBalanceFile(root + "data/balance.yaml");
 const models = readRenderModels(balance.render);
-const palette = JSON.parse(readFileSync(root + "data/art/palette.json", "utf8")) as Palette;
+const palette = loadPaletteFile(root + "data/art/palette.json");
+const sheet = loadSheetFile(root + "data/art/personagens.json");
+const artErrors = checkArt(palette, sheet, Object.keys(balance.skins));
+if (artErrors.length) { for (const e of artErrors) console.error("ERRO (arte):", e); process.exit(1); }
+const CHARACTERS = expandSheet(sheet);
 const source = readGlb(srcDir + "/UAL1_Standard.glb");
 const speeds = nativeSpeeds(readGlb(srcDir + "/UAL1_Standard_RM.glb"));
 const atlasPng = png(atlasPixels(palette, models.atlas), models.atlas, models.atlas);
@@ -74,7 +79,7 @@ for (const spec of CHARACTERS) {
   const ok = out.triangles >= lo && out.triangles <= hi;
   if (!ok) fail = true;
   writeFileSync(outDir + spec.id + ".glb", out.glb);
-  manifest.personagens.push({ id: spec.id, nome: spec.nome, arquivo: `models/${spec.id}.glb`, tipo: spec.tipo, altura: spec.altura, triangulos: out.triangles, ossos: out.joints, clipes: out.clips });
+  manifest.personagens.push({ id: spec.id, nome: spec.nome, arquivo: `models/${spec.id}.glb`, tipo: spec.tipo, altura: spec.altura, triangulos: out.triangles, ossos: out.joints, ...(out.acessorio ? { acessorio: out.acessorio } : {}), clipes: out.clips });
   console.log(`${ok ? "ok   " : "FORA "} ${spec.id.padEnd(11)} ${String(out.triangles).padStart(5)} triângulos (${lo}–${hi}), ${out.joints} ossos, ${out.clips.length} clipes, ${(out.glb.byteLength / 1024).toFixed(0)} KB`);
 }
 writeFileSync(outDir + "personagens.json", JSON.stringify(manifest, null, 1) + "\n");

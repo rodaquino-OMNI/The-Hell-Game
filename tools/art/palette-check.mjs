@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Verificador da paleta (Art Bible §2 e §5): contraste WCAG 2.2 e distinção sob daltonismo simulado.
-// Sem dependências. Uso: node tools/art/palette-check.mjs [data/art/palette.json] [--md]
+// Cada teste roda sobre as cores exatas dos tokens e sobre as cores que saem do passe final do jogo
+// (dither Bayer 4×4 + quantização para render.ps1.color_bits por canal, packages/client/src/render/present.ts):
+// cada token vira até 16 variantes (uma por limiar da matriz de Bayer) e vale o pior par de variantes.
+// Uso: node tools/art/palette-check.mjs [data/art/palette.json] [--md]
 // Sai com código 1 se algum teste falhar (pronto para virar etapa da CI na fase 0).
 //
 // Referências:
@@ -10,11 +13,15 @@
 //    Simulation of Color Vision Deficiency", IEEE TVCG 15(6) — matrizes de severidade 1,0, aplicadas em RGB linear.
 //  - Diferença de cor: CIEDE2000 (Sharma, Wu & Dalal, 2005, "The CIEDE2000 Color-Difference Formula").
 import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 
 const args = process.argv.slice(2);
 const file = args.find(a => !a.startsWith("--")) ?? "data/art/palette.json";
 const asMd = args.includes("--md");
 const pal = JSON.parse(readFileSync(file, "utf8"));
+// GDD-v0.3 §10.1 item 4: quantização para color_bits por canal (data/balance.yaml render.ps1)
+const bits = parse(readFileSync(new URL("../../data/balance.yaml", import.meta.url), "utf8"))?.render?.ps1?.color_bits;
+if (!Number.isInteger(bits)) throw new Error("data/balance.yaml sem render.ps1.color_bits");
 
 const to8 = v => Math.round((v * 255) / 31);
 const hex = c => "#" + c.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -23,6 +30,26 @@ const color = name => {
   if (!t) throw new Error(`token inexistente: ${name}`);
   return t.rgb5.map(to8);
 };
+
+// Passe final (present.ts): q = floor(c·níveis + limiar) / níveis, limiar = (Bayer[k] + 0,5) / 16, níveis = 2^bits − 1.
+// A cor do token chega ao passe em 8 bits (alvo RGBA8); a saída volta a 8 bits na tela.
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const levels = 2 ** bits - 1;
+const quantize = (rgb, k) => rgb.map(v => Math.round(Math.min(1, Math.max(0, Math.floor((v / 255) * levels + (BAYER[k] + 0.5) / 16) / levels)) * 255));
+/** as 16 cores (uma por posição da matriz 4×4) que uma área chapada do token vira na tela */
+const pattern = name => BAYER.map((_, k) => quantize(color(name), k));
+/** variantes distintas do padrão (pior pixel) */
+const variants = name => [...new Map(pattern(name).map(q => [q.join(","), q])).values()];
+/**
+ * Modos de cor de um token. Portões: "exata" e "média 4×4" (a cor percebida da área com dither: média do padrão
+ * em luz linear, como o olho integra o Bayer). "pior pixel" (a variante mais desfavorável, pixel isolado) é
+ * informativo: sai como aviso, não como falha.
+ */
+const MODES = [
+  { name: "exata", gate: true, get: n => [color(n)] },
+  { name: "média 4×4", gate: true, get: n => { const p = pattern(n); return [[0, 1, 2].map(c => unlin(p.reduce((s, q) => s + lin(q[c]), 0) / p.length))]; } },
+  { name: "pior pixel", gate: false, get: variants },
+];
 
 // sRGB <-> linear
 const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
@@ -84,47 +111,81 @@ const de2000 = (c1, c2) => {
 const fails = [];
 const out = [];
 const t = pal.tests;
+const tokens = Object.entries(pal.tokens);
 
-out.push("## Tokens (15 bits → hex)\n", "| Token | RGB 5 bits | Hex | Uso |", "| --- | --- | --- | --- |");
-for (const [k, v] of Object.entries(pal.tokens)) out.push(`| \`${k}\` | ${v.rgb5.join(", ")} | ${hex(color(k))} | ${v.uso ?? ""} |`);
+out.push(`Quantização do passe final: ${bits} bits por canal (render.ps1.color_bits), dither Bayer 4×4. Portões: cor exata e média do padrão 4×4 (cor percebida); "pior pixel" é aviso.\n`);
+out.push("## Tokens (15 bits → hex)\n", "| Token | RGB 5 bits | Hex | Variantes após o passe final | Uso |", "| --- | --- | --- | --- | --- |");
+for (const [k, v] of tokens) out.push(`| \`${k}\` | ${v.rgb5.join(", ")} | ${hex(color(k))} | ${variants(k).length} | ${v.uso ?? ""} |`);
+const warns = [];
 
-out.push(`\n## Contraste de texto (WCAG 2.2 1.4.3, mínimo ${t.contrast_text.min}:1)\n`, "| Texto | Fundo | Razão | Resultado |", "| --- | --- | --- | --- |");
-for (const [a, b] of t.contrast_text.pairs) {
-  const r = contrast(color(a), color(b)); const ok = r >= t.contrast_text.min;
-  if (!ok) fails.push(`contraste texto ${a} sobre ${b}: ${r.toFixed(2)}`);
-  out.push(`| \`${a}\` | \`${b}\` | ${r.toFixed(2)}:1 | ${ok ? "passa" : "FALHA"} |`);
-}
+/** pior razão de contraste entre as cores de `a` e `b` no modo dado */
+const worstContrast = (a, b, get) => Math.min(...get(a).flatMap(x => get(b).map(y => contrast(x, y))));
 
-out.push(`\n## Contraste de elementos gráficos (WCAG 2.2 1.4.11, mínimo ${t.contrast_nontext.min}:1)\n`, "| Elemento | Fundo | Razão | Resultado |", "| --- | --- | --- | --- |");
-for (const [a, b] of t.contrast_nontext.pairs) {
-  const r = contrast(color(a), color(b)); const ok = r >= t.contrast_nontext.min;
-  if (!ok) fails.push(`contraste gráfico ${a} sobre ${b}: ${r.toFixed(2)}`);
-  out.push(`| \`${a}\` | \`${b}\` | ${r.toFixed(2)}:1 | ${ok ? "passa" : "FALHA"} |`);
-}
-
-const min = t.cvd_groups.min_de2000;
-out.push(`\n## Distinção entre cores do mesmo grupo (CIEDE2000, mínimo ${min})\n`);
-out.push("Menor diferença entre dois membros do grupo, em visão normal e sob cada simulação (Machado 2009, severidade 1,0).\n");
-out.push("| Grupo | Normal | Protanopia | Deuteranopia | Tritanopia | Par mais próximo (pior caso) | Resultado |", "| --- | --- | --- | --- | --- | --- | --- |");
-for (const [g, names] of Object.entries(t.cvd_groups)) {
-  if (!Array.isArray(names)) continue;
-  const row = []; let worst = { d: Infinity };
-  for (const [mode, m] of [["normal", null], ...Object.entries(CVD)]) {
-    let best = { d: Infinity };
-    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
-      const ci = m ? simulate(color(names[i]), m) : color(names[i]);
-      const cj = m ? simulate(color(names[j]), m) : color(names[j]);
-      const d = de2000(ci, cj);
-      if (d < best.d) best = { d, pair: `${names[i]} × ${names[j]}`, mode };
-    }
-    row.push(best.d.toFixed(1));
-    if (best.d < worst.d) worst = best;
+function contrastTable(title, test, kind) {
+  out.push(`\n## ${title} (mínimo ${test.min}:1)\n`, `| Elemento | Fundo | ${MODES.map(m => m.name).join(" | ")} | Resultado |`, "| --- | --- | --- | --- | --- | --- |");
+  for (const [a, b] of test.pairs) {
+    const r = MODES.map(m => worstContrast(a, b, m.get));
+    let ok = true, warn = false;
+    MODES.forEach((m, i) => {
+      if (r[i] >= test.min) return;
+      const msg = `${kind} ${a} sobre ${b} (${m.name}): ${r[i].toFixed(2)}`;
+      if (m.gate || test.pior_pixel_portao) { ok = false; fails.push(msg); } else { warn = true; warns.push(msg); }
+    });
+    out.push(`| \`${a}\` | \`${b}\` | ${r.map(x => x.toFixed(2) + ":1").join(" | ")} | ${ok ? (warn ? "passa (aviso)" : "passa") : "FALHA"} |`);
   }
-  const ok = worst.d >= min;
-  if (!ok) fails.push(`grupo ${g}: ${worst.pair} em ${worst.mode} com ΔE00 ${worst.d.toFixed(1)}`);
-  out.push(`| ${g} | ${row.join(" | ")} | ${worst.pair.replace(/\b(class|gen|hunter)\./g, "")} (${worst.mode}) | ${ok ? "passa" : "FALHA"} |`);
+}
+contrastTable("Contraste de texto (WCAG 2.2 1.4.3)", t.contrast_text, "contraste texto");
+contrastTable("Contraste de elementos gráficos (WCAG 2.2 1.4.11)", t.contrast_nontext, "contraste gráfico");
+if (t.contrast_state) contrastTable("Mudança de estado por brilho (Art Bible §1.5 e §4)", t.contrast_state, "contraste de estado");
+
+/** menor CIEDE2000 entre as cores de `a` e `b` sob a simulação `m` (null = visão normal) no modo `get` */
+const worstDe = (a, b, m, get) => {
+  let d = Infinity;
+  for (const x of get(a)) for (const y of get(b)) d = Math.min(d, de2000(m ? simulate(x, m) : x, m ? simulate(y, m) : y));
+  return d;
+};
+const VISION = [["normal", null], ...Object.entries(CVD)];
+
+/** `groups`: [nome, pares, visões?]; vale o pior par em cada visão (todas, ou só `visões`) e em cada modo de portão */
+function deTable(title, min, groups) {
+  out.push(`\n## ${title} (CIEDE2000, mínimo ${min})\n`);
+  out.push(`Menor diferença entre dois membros, em visão normal e sob cada simulação (Machado 2009, severidade 1,0); cada célula: ${MODES.map(m => m.name).join(" / ")}.\n`);
+  out.push("| Grupo | Normal | Protanopia | Deuteranopia | Tritanopia | Par mais próximo (pior caso) | Resultado |", "| --- | --- | --- | --- | --- | --- | --- |");
+  for (const [g, pairs, only] of groups) {
+    const row = []; let worst = { d: Infinity }, worstInfo = { d: Infinity };
+    for (const [mode, m] of VISION) {
+      if (only && !only.includes(mode)) { row.push("—"); continue; }
+      const cell = [];
+      for (const qm of MODES) {
+        let best = { d: Infinity };
+        for (const [a, b] of pairs) { const d = worstDe(a, b, m, qm.get); if (d < best.d) best = { d, pair: `${a} × ${b}`, mode: `${mode}, ${qm.name}` }; }
+        cell.push(best.d.toFixed(1));
+        if (qm.gate && best.d < worst.d) worst = best;
+        if (!qm.gate && best.d < worstInfo.d) worstInfo = best;
+      }
+      row.push(cell.join(" / "));
+    }
+    const ok = worst.d >= min, warn = worstInfo.d < min;
+    if (!ok) fails.push(`grupo ${g}: ${worst.pair} em ${worst.mode} com ΔE00 ${worst.d.toFixed(1)}`);
+    if (warn) warns.push(`grupo ${g}: ${worstInfo.pair} em ${worstInfo.mode} com ΔE00 ${worstInfo.d.toFixed(1)}`);
+    out.push(`| ${g} | ${row.join(" | ")} | ${worst.pair.replace(/\b(class|gen|hunter)\./g, "")} (${worst.mode}) | ${ok ? (warn ? "passa (aviso)" : "passa") : "FALHA"} |`);
+  }
+}
+const allPairs = names => names.flatMap((a, i) => names.slice(i + 1).map(b => [a, b]));
+deTable("Distinção entre cores do mesmo grupo", t.cvd_groups.min_de2000,
+  Object.entries(t.cvd_groups).filter(([, v]) => Array.isArray(v)).map(([g, names]) => [g, allPairs(names)]));
+if (t.distinct) {
+  // "prefixo.*" expande para todos os tokens com o prefixo
+  const expand = list => list.flatMap(p => (p.endsWith(".*") ? tokens.map(([k]) => k).filter(k => k.startsWith(p.slice(0, -1))) : [p]));
+  deTable("Cores que não podem ser confundidas com estado nem com cor dominante", t.distinct.min_de2000,
+    Object.entries(t.distinct).filter(([, v]) => v && typeof v === "object" && v.tokens).map(([g, v]) => {
+      const a = expand(v.tokens), b = expand(v.contra);
+      for (const n of [...a, ...b]) color(n);
+      return [g, a.flatMap(x => b.map(y => [x, y])), v.visoes];
+    }));
 }
 
+if (warns.length) out.push(`\n**Avisos (pior pixel, informativo):** ${warns.length}\n\n- ` + warns.join("\n- "));
 out.push(`\n**Resultado:** ${fails.length === 0 ? "todos os testes passam." : `${fails.length} falha(s):\n\n- ` + fails.join("\n- ")}`);
 
 if (asMd) console.log(out.join("\n"));

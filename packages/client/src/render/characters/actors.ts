@@ -1,4 +1,5 @@
 // Ligação simulação → personagens: qual modelo cada ator usa e o que do estado do sim vira clipe (state.ts).
+import type { SkinDef } from "@thehell/shared";
 import type { ClassName, GameState, Hunter, Survivor } from "@thehell/sim";
 import type * as THREE from "three";
 import { balance, cfg } from "../../data.ts";
@@ -9,10 +10,11 @@ const SURVIVOR_MODEL: Record<ClassName, string> = { Curandeiro: "curandeiro", Me
 /** caçador de lançamento (Art Bible §3) */
 const HUNTER_MODEL = "espectro";
 
-/** vida abaixo da qual o sobrevivente está ferido: lida de survivor.wounded_hp quando existir (LACUNA, ver state.ts) */
-const woundedHp = (balance.survivor as { wounded_hp?: number }).wounded_hp;
+/** vida abaixo da qual o sobrevivente está ferido (survivor.wounded_hp, GDD-v0.3 §8.3) */
+const woundedHp = balance.survivor.wounded_hp;
 
-export const createSurvivorModel = (s: Survivor) => createCharacter(SURVIVOR_MODEL[s.cls]);
+/** modelo da classe; `skin` (V3) troca só cores secundárias e põe o acessório pequeno */
+export const createSurvivorModel = (s: Survivor, skin?: SkinDef) => createCharacter(SURVIVOR_MODEL[s.cls], skin);
 export const createHunterModel = () => createCharacter(HUNTER_MODEL);
 
 /** clipe do sobrevivente `s`; o jogador (id 0) interage pelo quebra-cabeça aberto */

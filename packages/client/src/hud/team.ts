@@ -7,7 +7,7 @@ import { CLASS_ICON, STATE_ICON } from "./icons.ts";
 
 export type PortraitState = "ok" | "wounded" | "caged" | "dead" | "escaped";
 
-/** estado do retrato; "ferido" = vivo com vida abaixo de `ui.wounded_hp` (GDD-v0.2 §3.2) */
+/** estado do retrato; "ferido" = vivo com vida abaixo de `survivor.wounded_hp` (GDD-v0.3 §8.3; GDD-v0.2 §3.2) */
 export function portraitState(s: Pick<Survivor, "st" | "hp">, woundedHp: number): PortraitState {
   if (s.st === "cage") return "caged";
   if (s.st === "dead") return "dead";

@@ -13,7 +13,6 @@ const int = z.number().int();
 const UiSchema = z.object({
   threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
   ping_types: z.array(z.string().regex(/^[a-z_]+$/)).min(1), ping_cooldown: pos, ping_lifetime: pos.positive(),
-  wounded_hp: pos,
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
@@ -83,6 +82,18 @@ const render = z.object({
   layer_cost_factor: num.min(1),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
+  /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
+  states: z.object({
+    beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
+    lamp: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), height: pos }).strict(),
+    pending_hz: num.positive(), pending_duty: z.number().gt(0).lt(1), progress_hz: num.positive(), progress_pulse: pos,
+    bonus: z.object({
+      spiral_hz: pos, spiral_turns: num.positive(), spiral_steps: z.number().int().min(2), spiral_radius: num.positive(),
+      spiral_block: num.positive(), diamond: num.positive(),
+    }).strict(),
+    eyes_flare: z.tuple([num.positive(), num.positive(), pos, pos]),
+    lock: z.object({ size: num.positive(), above: pos }).strict(),
+  }).strict(),
 }).strict();
 
 const difficulty = z.object({
@@ -107,6 +118,8 @@ export const BalanceSchema = z.object({
     stamina: z.object({ max: pos, drain: pos, regen: pos, regen_puzzle: pos }).strict(),
     bot: z.object({ walk: pos, flee: pos, puzzle_time: pos }).strict(),
     radius: pos, bot_radius: pos, height: pos,
+    /** GDD-v0.3 §8.3: ferido abaixo desta vida (clipe `ferido`, IA) */
+    wounded_hp: pos,
   }).strict(),
   hunter: z.object({
     hp_base: pos, chase_speed: pos, patrol_speed: pos, final_pressure_speed_mult: pos,
@@ -186,7 +199,7 @@ export const BalanceSchema = z.object({
     decision_hz: pos.positive(), perception_hz: pos.positive(), // §8.1
     hearing_investigate_time: pos,                               // §8.1 (audição)
     target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
-    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, injured_hp: pos, // §8.3
+    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4

@@ -6,7 +6,8 @@ import { portraitState } from "../src/hud/team.ts";
 import { DIRECTIONS, relativeSector, sectorDegrees, sectorDirection, threatSector } from "../src/hud/threat.ts";
 import { PING_NAME } from "../src/text.ts";
 
-const ui = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname).ui;
+const bal = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
+const ui = bal.ui;
 const N = ui.threat_sectors;
 const P = { x: 3, z: -7 };
 /** ponto a `d` metros de P no ângulo `deg` (0 = frente da câmera com yaw, sentido horário) */
@@ -109,8 +110,8 @@ describe("pings (ui.ping_types, ui.ping_cooldown, ui.ping_lifetime)", () => {
 });
 
 describe("retratos da equipe", () => {
-  it("vivo, ferido (< ui.wounded_hp), preso, morto e escapou", () => {
-    const w = ui.wounded_hp;
+  it("vivo, ferido (< survivor.wounded_hp), preso, morto e escapou", () => {
+    const w = bal.survivor.wounded_hp;
     expect(portraitState({ st: "ok", hp: w }, w)).toBe("ok");
     expect(portraitState({ st: "ok", hp: w - 0.5 }, w)).toBe("wounded");
     expect(portraitState({ st: "cage", hp: 10 }, w)).toBe("caged");

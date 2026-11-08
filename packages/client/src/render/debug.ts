@@ -6,7 +6,9 @@ import { balance } from "../data.ts";
 import type { PresetName } from "./present.ts";
 import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
 import { getPs1, setPs1, type Ps1Intensity } from "./ps1.ts";
-import { meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
+import { genVisuals, meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
+import { telegraphOn } from "./characters/runtime.ts";
+import { portrait, type PortraitOptions } from "./characters/portrait.ts";
 import { syncActors, syncDynamic } from "./sync.ts";
 
 export interface RenderHook {
@@ -36,6 +38,13 @@ export interface RenderHook {
    * custo de render de forma síncrona (tools/visual/compare.mjs mede o tempo de fora da página)
    */
   bench(view: View, frames: number): void;
+  /**
+   * retrato de personagens numa cena à parte (teste de silhueta, Art Bible §5.1): desenha pelo mesmo caminho do jogo
+   * (resolução interna do preset, material PS1, dither) e devolve os pixels como `capture`
+   */
+  portrait(o: PortraitOptions): Promise<{ width: number; height: number; rgba: string }>;
+  /** estado visível da leitura (V3), após o último sync: olhos do caçador acesos e ids com cadeado à mostra */
+  states(): { telegraph: boolean; locks: number[] };
 }
 
 type View = { yaw: number; pitch: number; thirdPerson: boolean };
@@ -61,22 +70,25 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     capture: (view, opts = {}) => {
       const { ctx, G } = need();
       syncActors(G, view.thirdPerson);
-      const hidden = (opts.hidden ?? []).map(k => meshes.get(k)).filter((m): m is THREE.Object3D => !!m && m.visible);
+      // beam<i>: feixe do gerador i (genVisuals do V3)
+      const find = (k: string) => meshes.get(k) ?? (k.startsWith("beam") ? genVisuals[Number(k.slice(4))]?.beam : undefined);
+      const hidden = (opts.hidden ?? []).map(find).filter((m): m is THREE.Object3D => !!m && m.visible);
       for (const m of hidden) m.visible = false;
       // a captura independe do histórico: o shadow map é redesenhado para esta vista
       ctx.shadowStep = NaN;
       renderFrame(ctx, G, view);
       for (const m of hidden) m.visible = true;
       syncDynamic(ctx, G);
-      const gl = ctx.R.getContext();
-      const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
-      const px = new Uint8Array(width * height * 4);
-      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, px);
-      const flipped = new Uint8Array(px.length), row = width * 4;
-      for (let y = 0; y < height; y++) flipped.set(px.subarray((height - 1 - y) * row, (height - y) * row), y * row);
-      let bin = "";
-      for (let i = 0; i < flipped.length; i += 0x8000) bin += String.fromCharCode(...flipped.subarray(i, i + 0x8000));
-      return { width, height, rgba: btoa(bin) };
+      return readScreen(ctx);
+    },
+    states: () => ({
+      telegraph: telegraphOn(meshes.get("hunter")!),
+      locks: [...meshes].filter(([k, m]) => k.startsWith("lock") && m.visible).map(([k]) => Number(k.slice(4))),
+    }),
+    portrait: async o => {
+      const { ctx } = need();
+      await portrait(ctx, o);
+      return readScreen(ctx);
     },
     bench: (view, frames) => {
       const { ctx, G } = need();
@@ -92,4 +104,17 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     },
   };
   (window as unknown as { __thehellRender: RenderHook }).__thehellRender = hook;
+}
+
+/** pixels da tela (RGBA, linhas de cima para baixo) em base64, lidos no mesmo quadro (sem preserveDrawingBuffer) */
+function readScreen(ctx: RenderCtx) {
+  const gl = ctx.R.getContext();
+  const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
+  const px = new Uint8Array(width * height * 4);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const flipped = new Uint8Array(px.length), row = width * 4;
+  for (let y = 0; y < height; y++) flipped.set(px.subarray((height - 1 - y) * row, (height - y) * row), y * row);
+  let bin = "";
+  for (let i = 0; i < flipped.length; i += 0x8000) bin += String.fromCharCode(...flipped.subarray(i, i + 0x8000));
+  return { width, height, rgba: btoa(bin) };
 }

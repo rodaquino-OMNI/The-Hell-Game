@@ -172,7 +172,7 @@ try {
     if (pcd === T["ping.ready"]) fail(`${locale}: recarga do ping não aparece: ${pcd}`);
 
     // retratos: um aliado preso e um ferido
-    await game(page, (w) => { const g = window.__thehell(); g.survivors[1].st = "cage"; g.survivors[1].cage = 40; g.survivors[2].hp = w - 5; }, balance.ui.wounded_hp);
+    await game(page, (w) => { const g = window.__thehell(); g.survivors[1].st = "cage"; g.survivors[1].cage = 40; g.survivors[2].hp = w - 5; }, balance.survivor.wounded_hp);
     await page.waitForTimeout(150);
     const states = await page.$$eval("#tm li", els => els.map(e => e.className));
     if (!states[1]?.includes("caged") || !states[2]?.includes("wounded")) fail(`${locale}: retratos sem preso/ferido: ${JSON.stringify(states)}`);
