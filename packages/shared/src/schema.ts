@@ -187,6 +187,8 @@ export const BalanceSchema = z.object({
   audio: z.record(z.string(), z.unknown()),
   ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
+  /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
+  client: z.object({ max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive() }).strict(),
 }).strict();
 
 export type Balance = z.infer<typeof BalanceSchema>;
