@@ -138,10 +138,10 @@ export const CHARACTERS: CharacterSpec[] = [
       // manto que abre embaixo
       { forma: "seg", de: "spine_02", ate: "pelvis", osso: "pelvis", ateDesloc: [0, -0.5, 0], r: [[0.17, 0.13], [0.3, 0.25]], lados: 6, cor: "class.curandeiro", giro: 30 },
       // cajado mais alto que a cabeça: na pose T fica ao longo do braço direito; com o braço baixado fica de pé
-      { forma: "cilindro", osso: "hand_r", de: [-0.85, 0, 0.02], ate: [1.15, 0, 0.02], r: [0.025, 0.025], lados: 4, cor: "ui.text_dim", giro: 45 },
+      { forma: "cilindro", osso: "hand_r", de: [-0.75, 0, 0.02], ate: [1.45, 0, 0.02], r: [0.028, 0.028], lados: 4, cor: "ui.text_dim", giro: 45 },
       // caduceu no topo: losango e asas
-      { forma: "piramide", osso: "hand_r", base: [1.15, 0, 0.02], ponta: [1.32, 0, 0.02], r: 0.07, cor: "class.curandeiro" },
-      { forma: "caixa", osso: "hand_r", desloc: [1.08, 0, 0.02], tam: [0.05, 0.03, 0.3], rot: [0, 0, 0], cor: "ui.text" },
+      { forma: "piramide", osso: "hand_r", base: [1.45, 0, 0.02], ponta: [1.64, 0, 0.02], r: 0.08, cor: "class.curandeiro" },
+      { forma: "caixa", osso: "hand_r", desloc: [1.36, 0, 0.02], tam: [0.06, 0.04, 0.36], cor: "ui.text" },
     ],
     clipes: SURVIVOR_CLIPS,
   },
@@ -155,10 +155,10 @@ export const CHARACTERS: CharacterSpec[] = [
       // lanterna na frente do capacete (emissiva)
       { forma: "caixa", osso: "Head", desloc: [0, 0.2, 0.17], tam: [0.09, 0.07, 0.05], cor: "ui.accent", brilho: true },
       // chave inglesa grande na mão direita: cabo ao longo do braço, boca em U na ponta
-      { forma: "caixa", osso: "hand_r", desloc: [-0.33, 0, 0.02], tam: [0.46, 0.045, 0.06], cor: "ui.text_dim" },
-      { forma: "caixa", osso: "hand_r", desloc: [-0.59, 0, 0.02], tam: [0.08, 0.06, 0.22], cor: "ui.text_dim" },
-      { forma: "caixa", osso: "hand_r", desloc: [-0.66, 0, 0.1], tam: [0.12, 0.06, 0.06], cor: "ui.text_dim" },
-      { forma: "caixa", osso: "hand_r", desloc: [-0.66, 0, -0.06], tam: [0.12, 0.06, 0.06], cor: "ui.text_dim" },
+      { forma: "caixa", osso: "hand_r", desloc: [-0.33, 0, 0.02], tam: [0.46, 0.07, 0.08], cor: "ui.text_dim" },
+      { forma: "caixa", osso: "hand_r", desloc: [-0.6, 0, 0.02], tam: [0.1, 0.09, 0.3], cor: "ui.text_dim" },
+      { forma: "caixa", osso: "hand_r", desloc: [-0.7, 0, 0.13], tam: [0.16, 0.09, 0.08], cor: "ui.text_dim" },
+      { forma: "caixa", osso: "hand_r", desloc: [-0.7, 0, -0.09], tam: [0.16, 0.09, 0.08], cor: "ui.text_dim" },
     ],
     clipes: SURVIVOR_CLIPS,
   },
@@ -167,8 +167,7 @@ export const CHARACTERS: CharacterSpec[] = [
     pecas: [
       // corpo igual ao do Mecânico, na cor do Atacador, sem capacete (Art Bible §3, pedido A1-1)
       ...humanoid({ ...MECH_BODY, tronco: "class.atacador", bracos: "class.atacador" }),
-      // cabelo curto (cabeça livre)
-      { forma: "caixa", osso: "Head", desloc: [0, 0.2, -0.01], tam: [0.2, 0.08, 0.21], cor: "ui.bg" },
+      // cabeça livre e redonda (sem capacete): é o que separa a silhueta da do Mecânico (Art Bible §3, ponto de atenção 2)
       // espada nas costas, na diagonal, cabo acima do ombro direito
       { forma: "cilindro", osso: "spine_03", em: "spine_03", de: [0.24, -0.5, -0.19], ate: [-0.14, 0.24, -0.19], r: [[0.05, 0.012], [0.035, 0.012]], lados: 4, cor: "ui.text" },
       { forma: "caixa", osso: "spine_03", em: "spine_03", desloc: [-0.155, 0.27, -0.19], tam: [0.2, 0.04, 0.05], rot: [0, 0, -27], cor: "ui.panel" },
@@ -184,8 +183,8 @@ export const CHARACTERS: CharacterSpec[] = [
       { forma: "piramide", osso: "Head", base: [0, 0.2, -0.01], ponta: [0, 0.42, -0.07], r: 0.11, cor: "class.batedor" },
       // cachecol: volta no pescoço e duas pontas que voam para trás
       { forma: "seg", de: "neck_01", ate: "Head", osso: "neck_01", r: [[0.085, 0.085], [0.08, 0.08]], lados: 6, cor: "ui.accent" },
-      { forma: "caixa", osso: "spine_03", em: "neck_01", desloc: [0.04, -0.02, -0.25], tam: [0.08, 0.025, 0.36], rot: [-14, 8, 0], cor: "ui.accent" },
-      { forma: "caixa", osso: "spine_03", em: "neck_01", desloc: [-0.03, -0.07, -0.42], tam: [0.07, 0.025, 0.3], rot: [-24, -10, 0], cor: "ui.accent" },
+      { forma: "caixa", osso: "spine_03", em: "neck_01", desloc: [0.04, -0.02, -0.25], tam: [0.1, 0.05, 0.4], rot: [-14, 8, 0], cor: "ui.accent" },
+      { forma: "caixa", osso: "spine_03", em: "neck_01", desloc: [-0.03, -0.07, -0.42], tam: [0.09, 0.05, 0.34], rot: [-24, -10, 0], cor: "ui.accent" },
     ],
     clipes: SURVIVOR_CLIPS,
   },

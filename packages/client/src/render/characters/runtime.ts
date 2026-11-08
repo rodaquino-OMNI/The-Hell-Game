@@ -1,10 +1,11 @@
 // Personagens na cena: carrega os .glb de public/models (manifesto personagens.json), instancia por ator
 // e toca o clipe escolhido em state.ts com o relógio da simulação amostrado a render.anim_fps (passo discreto
-// no mixer, Art Bible §7). Material provisório: Lambert com atlas nearest (o material PS1 vem do V1).
+// no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud) com skinning acrescentado aqui.
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { ClipName } from "../../assets/characters.ts";
+import { Ps1Material } from "../ps1.ts";
 import { chooseClip, newMemory, type ActorView, type ClipContext, type Memory } from "./state.ts";
 
 export interface ClipMeta { nome: ClipName; laco: boolean; duracao: number; velocidade_nativa: number }
@@ -30,13 +31,30 @@ let manifestP: Promise<Manifest> | null = null;
 
 const url = (p: string) => import.meta.env.BASE_URL + p;
 
-/** material do atlas: Lambert chapado (luz por vértice); emissivo vira Basic sem névoa (olhos e lanterna) */
+/** acrescenta os chunks de skinning do three.js ao vértice do Ps1Material (o V1 não deforma malha) */
+function withSkinning(m: Ps1Material): Ps1Material {
+  const steps: [string, string][] = [
+    ["#include <common>", "#include <common>\n#include <skinning_pars_vertex>"],
+    ["vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );",
+      "vec3 transformed = vec3( position );\n  vec3 objectNormal = vec3( normal );\n  #include <skinbase_vertex>\n  #include <skinnormal_vertex>\n  #include <skinning_vertex>\n  vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );"],
+  ];
+  let vs = m.vertexShader;
+  for (const [from, to] of steps) {
+    if (!vs.includes(from)) throw new Error(`Ps1Material mudou: trecho '${from}' não encontrado para o skinning`);
+    vs = vs.replace(from, to);
+  }
+  m.vertexShader = vs.replace(/normalMatrix \* normal\b/g, "normalMatrix * objectNormal");
+  return m;
+}
+
+/** material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3) */
 function convertMaterial(m: THREE.Material): THREE.Material {
   const std = m as THREE.MeshStandardMaterial;
-  const map = std.map;
-  if (map) { map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = map.magFilter = THREE.NearestFilter; }
-  if (std.emissiveMap) return new THREE.MeshBasicMaterial({ map, fog: false, name: std.name });
-  return new THREE.MeshLambertMaterial({ map, flatShading: true, name: std.name });
+  const map = std.map ?? undefined;
+  if (map) { map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = map.magFilter = THREE.NearestFilter; map.needsUpdate = true; }
+  const out = withSkinning(std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map }));
+  out.name = std.name;
+  return out;
 }
 
 function loadManifest(): Promise<Manifest> {
@@ -72,10 +90,10 @@ function loadAsset(id: string): Promise<Asset> {
   return p;
 }
 
-/** começa a baixar os modelos dos ids (chamar cedo: menu ou buildWorld) */
-export function preloadCharacters(ids: string[]) {
-  for (const id of ids) loadAsset(id).catch(e => console.error(`modelo ${id}:`, e));
-}
+/** promessas de todos os personagens criados (capturas de referência esperam por elas) */
+const pending: Promise<unknown>[] = [];
+/** resolve quando todos os personagens criados até agora estão na cena */
+export const charactersReady = () => Promise.all(pending).then(() => true);
 
 /** contêiner do personagem (posição e rumo vêm da simulação); o modelo entra quando o .glb termina de carregar */
 export function createCharacter(id: string): THREE.Group {
@@ -83,7 +101,7 @@ export function createCharacter(id: string): THREE.Group {
   root.name = "personagem:" + id;
   const inst: Instance = { id, model: null, mixer: null, actions: new Map(), meta: new Map(), current: null, mem: null, step: -1 };
   instances.set(root, inst);
-  loadAsset(id).then(a => {
+  const p = loadAsset(id).then(a => {
     const model = cloneSkinned(a.scene);
     // o glTF olha para +Z; na simulação o rumo 0 olha para −Z
     model.rotation.y = Math.PI;
@@ -98,6 +116,7 @@ export function createCharacter(id: string): THREE.Group {
       inst.actions.set(clip.name as ClipName, act);
     }
   }).catch(e => console.error(`modelo ${id}:`, e));
+  pending.push(p);
   return root;
 }
 

@@ -210,7 +210,7 @@
    "arquivo": "models/atacador.glb",
    "tipo": "sobrevivente",
    "altura": 1.76,
-   "triangulos": 356,
+   "triangulos": 344,
    "ossos": 25,
    "clipes": [
     {

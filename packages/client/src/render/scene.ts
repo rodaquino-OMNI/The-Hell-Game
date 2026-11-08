@@ -4,7 +4,8 @@
 import * as THREE from "three";
 import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
-import { CLASS_COLORS, HUNTER_COLORS, SKIN_COLORS, WORLD_COLORS } from "../look.ts";
+import { WORLD_COLORS } from "../look.ts";
+import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
 import { clientRandom, urlPreset } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
 import { Ps1Material } from "./ps1.ts";
@@ -46,19 +47,6 @@ export function box(w: number, h: number, d: number, m: THREE.Material, x: numbe
 }
 /** subdivisões de uma dimensão para o tamanho de célula `render.tessellate` (GDD-v0.3 §10.1 item 2) */
 const seg = (len: number) => Math.max(1, Math.ceil(len / rc.tessellate));
-function figure(S: THREE.Scene, color: number, big: boolean, skin?: { c?: number | null; h?: number; t?: number }) {
-  const g = new THREE.Group();
-  g.add(box(big ? 1 : 0.6, big ? 2 : 1.1, big ? 0.8 : 0.4, lambert({ color: skin && skin.c != null ? skin.c : color }), 0, big ? 1.3 : 0.75, 0));
-  g.add(box(0.4, 0.4, 0.4, lambert({ color: big ? HUNTER_COLORS.head : skin?.h ?? WORLD_COLORS.skinTone }), 0, big ? 2.5 : 1.55, 0));
-  if (skin?.t) g.add(box(0.5, 0.2, 0.5, lambert({ color: skin.t }), 0, 1.85, 0));
-  if (big) {
-    g.add(box(0.1, 0.1, 0.05, basic(HUNTER_COLORS.eyes), -0.1, 2.55, -0.22), box(0.1, 0.1, 0.05, basic(HUNTER_COLORS.eyes), 0.1, 2.55, -0.22));
-    g.add(box(0.2, 1.6, 0.2, lambert({ color: HUNTER_COLORS.arms }), -0.65, 1.3, 0), box(0.2, 1.6, 0.2, lambert({ color: HUNTER_COLORS.arms }), 0.65, 1.3, 0));
-  }
-  S.add(g);
-  return g;
-}
-
 /** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
@@ -97,8 +85,8 @@ export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
 }
 
-/** geradores, portão e figuras da partida criada; `skin` é a skin equipada do jogador */
-export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
+/** geradores, portão e personagens da partida criada; `_skin` (skin equipada) volta com as skins de paleta (V3) */
+export function buildActors(ctx: RenderCtx, G: GameState, _skin: string) {
   const { S } = ctx;
   G.gens.forEach((g, i) => {
     const gr = new THREE.Group();
@@ -109,8 +97,9 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
     meshes.set("lamp" + i, lamp); meshes.set("beam" + i, beam);
   });
   const gate = box(6, 3, 0.6, basic(WORLD_COLORS.gateClosed), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
-  G.survivors.forEach(s => meshes.set("s" + s.id, figure(S, CLASS_COLORS[s.cls], false, s.id === 0 ? SKIN_COLORS[skin] : undefined)));
-  meshes.set("hunter", figure(S, HUNTER_COLORS.body, true));
+  // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts
+  G.survivors.forEach(s => { const m = createSurvivorModel(s); S.add(m); meshes.set("s" + s.id, m); });
+  const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
 }
 
 /** posiciona câmera e luz do jogador e desenha o quadro (alvo em baixa resolução → passe final) */

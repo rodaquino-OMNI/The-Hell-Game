@@ -20,6 +20,7 @@
     "check:palette": "node tools/art/palette-check.mjs",
     "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
     "smoke": "node tools/smoke.mjs",
+    "assets:validate": "node tools/assets/validate.mjs",
     "visual": "node tools/visual/compare.mjs"
   },
   "devDependencies": {

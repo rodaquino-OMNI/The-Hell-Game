@@ -27,6 +27,8 @@ jobs:
       - name: Paleta (contraste e daltonismo)
         run: pnpm check:palette
       - run: pnpm build
+      - name: Modelos (glTF-Validator, triângulos e clipes por personagem)
+        run: node tools/assets/validate.mjs
       - run: pnpm exec playwright install --with-deps chromium
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
