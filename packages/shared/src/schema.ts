@@ -1,6 +1,6 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (audio, ui, net) passam sem validação
-// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9).
+// as seções ainda não implementadas (audio, net) passam sem validação
+// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12).
 import { z } from "zod";
 
 const num = z.number().finite();
@@ -8,6 +8,16 @@ const pos = num.nonnegative();
 const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
+
+/** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
+const UiSchema = z.object({
+  threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
+  ping_types: z.array(z.string().regex(/^[a-z_]+$/)).min(1), ping_cooldown: pos, ping_lifetime: pos.positive(),
+  wounded_hp: pos,
+  fov: z.object({ min: pos, max: pos, default: pos }).strict(),
+  tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
+  locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+}).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
@@ -76,6 +86,14 @@ const render = z.object({
 const difficulty = z.object({
   hunter_hp: pos, chase: pos, melee_cd: pos, detect: pos, reveal: pos, cage: pos, gate: pos,
   zone_mult: pos, projectile_dmg: pos, trap_interval: pos, points_mult: pos,
+}).strict();
+
+/** GDD-v0.3 §8.4 (valores do GDD-v0.2 §8.4): reação, previsão de projétil, conhecimento de loops e memória */
+const aiDifficulty = z.object({
+  reaction: pos,
+  projectile_lead: z.enum(["none", "linear", "linear_static"]),
+  loop_knowledge: z.enum(["none", "partial", "full", "avoid_long"]),
+  memory: pos,
 }).strict();
 
 export const BalanceSchema = z.object({
@@ -160,20 +178,26 @@ export const BalanceSchema = z.object({
     }).strict(),
   }).strict(),
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
-  // ai: só as chaves usadas pelas regras v1 (R1) são validadas; o resto da seção fica para a IA (R3, R4)
-  ai: z.looseObject({
-    hearing_investigate_time: pos,   // GDD-v0.3 §8.1 (audição)
-    by_difficulty: z.object({        // GDD-v0.3 §8.4 / GDD-v0.2 §8.4 (memória da última posição)
-      easy: z.looseObject({ memory: pos }), normal: z.looseObject({ memory: pos }),
-      hard: z.looseObject({ memory: pos }), nightmare: z.looseObject({ memory: pos }),
-    }).strict(),
-  }),
+  // ai: GDD-v0.3 §8 (R1 + R3). Só `bots` (§8.5, item R4) fica sem validação detalhada.
+  ai: z.object({
+    hunter_brain: z.enum(["basic", "utility"]),
+    decision_hz: pos.positive(), perception_hz: pos.positive(), // §8.1
+    hearing_investigate_time: pos,                               // §8.1 (audição)
+    target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
+    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, injured_hp: pos, // §8.3
+    patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
+    by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
+    loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
+    anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6
+    stuck_fail_after: pos.positive(),                                                                      // §8.6 (T-03)
+    bots: z.record(z.string(), z.unknown()),
+  }).strict(),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
   nav: NavSchema,
   maps: MapsSchema,
   render,
   audio: z.record(z.string(), z.unknown()),
-  ui: z.record(z.string(), z.unknown()),
+  ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
 }).strict();
 

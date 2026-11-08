@@ -4,7 +4,8 @@
 import { createGame, drainEvents, step, STEP, type GameState } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
 import { $, cfg } from "./data.ts";
-import { hud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
+import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
+import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
 import { installRenderHook } from "./render/debug.ts";
@@ -13,6 +14,7 @@ import { setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
 import { messageText } from "./text.ts";
+import { initLocale } from "./ui/locale.ts";
 import { hideMenu, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
 import { persist, save } from "./ui/shop.ts";
 
@@ -20,6 +22,8 @@ let G: GameState;
 let ctx: RenderCtx;
 let acc = 0, last = 0;
 
+applyPalette(document.documentElement);
+initLocale();
 setupMenu(start);
 
 function init() {
@@ -27,6 +31,7 @@ function init() {
   G = createGame(cfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
   buildActors(ctx, G, save.eq);
   view.yaw = 0;
+  resetHud();
 }
 
 /** gancho somente-leitura para os testes ponta a ponta (tools/smoke.mjs) */
@@ -45,6 +50,7 @@ function start() {
 }
 
 setupInput(() => G);
+setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
 
 // ---------- quadro ----------
@@ -70,8 +76,11 @@ function loop(now: number) {
 
 function draw(dt: number) {
   syncActors(G, view.thirdPerson);
-  renderFrame(ctx, G, view);
-  hud(G, dt);
+  // modo espectador (v1, GDD-v0.3 §3.3 item 4): a câmera segue o aliado escolhido, em 3ª pessoa
+  const target = cameraTarget(G);
+  if (target) renderFrame(ctx, { ...G, survivors: [target] }, { ...view, thirdPerson: true });
+  else renderFrame(ctx, G, view);
+  hud(G, dt, view.yaw);
   syncDynamic(ctx, G);
   puzzlePanel(G);
 }
