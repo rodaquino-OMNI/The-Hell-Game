@@ -1,10 +1,10 @@
 # THE HELL — Plano de construção da v1.0
 
-**08/11/2026 · aguarda aprovação do Rodrigo antes da criação de agentes e de código**
+**08/11/2026 · aprovado (PR #1 integrado) · decisões registradas na seção 7**
 
 A v1.0 (GDD-v0.2 §0, com o delta do [GDD v0.3](GDD-v0.3.md)) sai em 7 fases e 55 itens, construída por 10 agentes especialistas num ciclo de PR → CI → staging → produção. O custo de hospedagem estimado é de US$ 6 a 8 por mês, dentro do teto de US$ 10. A estimativa de calendário é de 18 a 29 semanas até o soft launch, contra 8 a 10 meses do GDD para uma equipe humana; quem define o ritmo são os portões humanos (aprovação de arte, playtests com pessoas), não a escrita de código.
 
-O que o Rodrigo precisa fazer agora: responder às decisões da seção 7. O código do protótipo já está no repositório (D-10 resolvida).
+Estado: plano aprovado e todas as decisões tomadas (seção 7). Próximo passo: o filho aprova a revisão 2 das silhuetas (marco A1) e começa a fase 0.
 
 ---
 
@@ -85,8 +85,8 @@ Cada item vira uma issue e um ou mais PRs curtos. **Definition of Ready:** crit�
 
 | ID | Item | Depende de | Agente | Prova |
 | --- | --- | --- | --- | --- |
-| F4-01 | Mapa 2 | F1-04, D-06 | IA + ART | validador; **marco A5** |
-| F4-02 | Mapa 3 | F1-04, D-06 | IA + ART | validador; **marco A5** |
+| F4-01 | Mapa 2: Floresta Nebulosa (névoa que esconde quem não corre) | F1-04 | IA + ART | validador; **marco A5** |
+| F4-02 | Mapa 3: Parque de Diversões, com carrossel em ciclo de 30 s (navmesh com obstáculo dinâmico; validador testa os dois estados) | F1-04 | IA + ART | validador nos dois estados; **marco A5** |
 | F4-03 | Batedor (G-04) | F1-02 | GAM | uso 20–35% no simulador |
 | F4-04 | Protetor (G-04) | F1-02 | GAM | uso 20–35% no simulador |
 | F4-05 | Caçador 2: O Carcereiro | F1-05 | GAM + IA | contra-jogo do §4.2 testado |
@@ -153,13 +153,13 @@ Fora do teto e, por isso, fora da v1.0 sem decisão do Rodrigo: Postgres gerenci
 | Portão | Quem | Onde fica registrado |
 | --- | --- | --- |
 | Aprovação deste plano e do GDD v0.3 | Rodrigo | comentário no PR destes documentos |
-| Merge em `main` | Rodrigo | aprovação de PR (regra de proteção de branch) |
+| Merge em `main` | agente, depois de testes e CI verdes (regra do Rodrigo, 08/11/2026) | PR com CI verde e revisão de outro agente |
 | Deploy em produção | Rodrigo | GitHub Environment `producao` com revisor obrigatório |
 | Marcos de arte A1 a A5 (Art Bible §9) | filho | comentário na issue do marco |
 | Login no Fly.io e criação do token de deploy | Rodrigo | link de login enviado pelo agente DEV; o agente nunca vê a senha |
 | Playtests e recrutamento do beta | Rodrigo | issue por rodada |
 
-Volume de PRs: se aprovar cada merge ficar pesado, uma alternativa é o Rodrigo aprovar só um PR de integração por item da WBS, e os agentes fazerem merge entre si dentro do item. Fica como opção na seção 7.
+O Rodrigo continua aprovando o deploy em produção e acompanha os merges pelos PRs.
 
 ## 6. Agentes
 
@@ -183,71 +183,39 @@ Volume de PRs: se aprovar cada merge ficar pesado, uma alternativa é o Rodrigo 
 
 Revisão cruzada: o PR de um agente é revisado por outro (ex.: SIM revisa GAM; NET revisa SIM; QA revisa todos os testes).
 
-## 7. Decisões pendentes
+## 7. Decisões
 
-Recomendação marcada com ★. Basta responder com o número e a letra (ex.: "D-01 a, D-02 b").
+Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https://claude.ai/artifact/X4o2TFZ2NGDiRS4nCPScQg). Efeito nos documentos: GDD v0.3 (revisão 2), Art Bible (revisão 2) e `data/balance.yaml` 0.3.1.
 
-**D-01. Regra de vitória da equipe (GDD-v0.3 C-01)**
-a) ★ Equipe vence se ⌈n/2⌉ escaparem ou a vida do caçador chegar a 0
-b) Equipe vence se qualquer um escapar
-c) Equipe vence só se todos escaparem
-
-**D-02. Limite de tempo da partida (C-02)**
-a) ★ Limite duro de 10 min
-b) Limite de 12 min
-c) Sem limite (o portão fica aberto até todos saírem ou morrerem)
-
-**D-03. Caçador mais lento que o sobrevivente andando (C-07)**
-a) ★ Manter 3,9 na fase 0 e decidir na fase 1 com simulação e partidas de vocês dois
-b) Subir já para 4,3 m/s em Normal
-
-**D-04. Pontos para moedas (C-09)**
-a) ★ 0,3 por ponto, skins de 300 a 1.500 (uma skin a cada 3–5 partidas)
-b) Manter 1:1 com os preços atuais (80 a 250)
-
-**D-05. Simulador na CI (C-15)**
-a) ★ Porta de regressão até a calibração com pessoas; porta de banda depois
-b) Porta de banda desde a fase 1 (risco: CI vermelha por limitação dos bots, como no Caçada Sombria)
-
-**D-06. Mapas 2 e 3 (o filho escolhe)**
-a) ★ Hospital Abandonado e Floresta Nebulosa
-b) Hospital Abandonado e Parque de Diversões
-c) Floresta Nebulosa e Parque de Diversões
-
-**D-07. Contas na v1.0**
-a) ★ Convidado com código de recuperação, sem cadastro externo
-b) Convidado + login com Discord
-c) Convidado + login com Google
-
-**D-08. Moeda premium e passe pago**
-a) ★ Fora da v1.0; código pronto atrás de flag desligada
-b) Incluir na v1.0 (exige escolher provedor de pagamento)
-
-**D-09. Caçadores (C-17)**
-a) ★ Caçador humano na fase 3; O Carcereiro e O Lamento na fase 4
-b) Só o Espectro na v1.0; os outros dois na temporada 1
-
-**D-10. Código do protótipo — resolvida em 08/11/2026**
-O Rodrigo enviou o arquivo; ele está em `prototype/the-hell.html` (22 KB). Paridade conferida em [`prototipo-paridade.md`](prototipo-paridade.md): todos os valores da tabela 2.3 batem.
-
-**D-11. Aprovação de merges**
-a) ★ Rodrigo aprova cada merge em `main`
-b) Rodrigo aprova um PR de integração por item da WBS
-
-**D-12. Visibilidade do repositório**
-O `The-Hell-Game` é **público** hoje: o GDD, a Art Bible e os desenhos do filho ficam visíveis para qualquer pessoa. CI gratuita depende disso.
-a) ★ Manter público
-b) Tornar privado (Actions passa a consumir a franquia de minutos do plano do GitHub; conferir o limite)
+| ID | Escolha | Efeito |
+| --- | --- | --- |
+| A1-1 | b) mudar formas | Atacador com corpo como o do Mecânico e espada nas costas; Protetor com escudo no braço (Art Bible §3) |
+| A1-2 | b) mudar cor | Atacador em vermelho (#E64242), testado contra daltonismo e contraste; demais cores mantidas |
+| A1-3 | a) magenta | feixe do gerador bônus em magenta |
+| A1-4 | b) sem desenhos | a folha de silhuetas é a referência principal |
+| D-01 | b) basta 1 escapar | `match.team_min_escapes: 1` |
+| D-02 | a) 10 min | `match.hard_time_limit: 600` |
+| D-03 | b) 4,3 m/s já | perseguição Normal 4,3; tabela de dificuldade escalada (3,9 / 4,3 / 4,6 / 5,0) |
+| D-04 | b) 1 por ponto, skins mais caras | skins de 640 a 2.000 (8× o protótipo) |
+| D-05 | a) porta de regressão | simulador alerta piora; vira porta de banda após o beta |
+| D-06 | c) Floresta e Parque | F4-01 e F4-02; Hospital para a temporada 1 |
+| D-07 | a) convidado com código | sem cadastro externo na v1.0 |
+| D-08 | a) fora da v1.0 | moeda premium e passe atrás de flag desligada |
+| D-09 | a) caçador humano e 3 caçadores | F3-02, F4-05, F4-06 |
+| D-10 | resolvida | protótipo em `prototype/the-hell.html` |
+| D-11 | a) Rodrigo aprova cada mudança, **depois substituída** pela instrução do Rodrigo em 08/11/2026: os agentes fazem merge após testes e CI verdes | seção 5 |
+| D-12 | a) manter público | CI gratuita no GitHub Actions |
 
 ## 8. Riscos principais
 
 | Risco | Efeito no plano | Mitigação |
 | --- | --- | --- |
 | Bots não representam humanos (lição do Caçada Sombria) | simulador não calibra; fase 4 travada | D-05; fuga competente dos bots (§8.5); calibração no beta |
+| Parque de Diversões é o mapa mais caro (obstáculo móvel, D-06) | fase 4 atrasa | carrossel isolado num componente próprio; validador nos dois estados desde o primeiro layout |
 | Preço de gru acima do esperado | teto de US$ 10 apertado | máquina dorme sem uso; staging em 256 MB; alerta a US$ 8 |
 | Falta de jogadores no beta | critério D1 > 30% não medível | bots em casual; salas privadas; recrutamento pelo Rodrigo |
 | Medição em UHD 620 | critério de FPS sem prova | máquina de um testador nas fases 2 e 5 |
-| Aprovações humanas acumulam | fases param | opção D-11 b; resumo semanal de pendências pelo PRO |
+| Aprovações humanas acumulam | fases param | merges feitos pelos agentes após CI verde; resumo semanal de pendências pelo PRO |
 
 ## Fontes
 

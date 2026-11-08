@@ -1,6 +1,6 @@
 # THE HELL — Art Bible v0.3
 
-**Anexo do GDD v0.3 · 08/11/2026 · aguarda aprovação do marco de arte 1**
+**Anexo do GDD v0.3 · 08/11/2026 · revisão 2 (pedidos do marco A1) · aguarda a aprovação final do filho**
 
 THE HELL parece um jogo de PlayStation 1 achado num porão: pouca resolução, cor contada, névoa grossa e polígonos que tremem. O medo vem do que não se vê direito. Mas o que importa para jogar (quem é quem, onde está o gerador, de onde vem o perigo) tem que ser lido em menos de 1 segundo, mesmo com o granulado (GDD-v0.2 §1, pilar 5).
 
@@ -27,14 +27,14 @@ Paleta de 15 bits (5 bits por canal, como no PS1). Os tokens abaixo são a fonte
 | Grupo | Tokens | Regra |
 | --- | --- | --- |
 | Mundo | `world.fog` #192131, `world.wall` #313139, `world.ground` #313129 | Escuro e frio. Nenhum token de mundo pode competir com cor de personagem |
-| Classes | Curandeiro #009C73, Mecânico #E69C00, Atacador #52A5FF, Batedor #EFE642, Protetor #D6D6EF | Base na paleta de Okabe e Ito, feita para daltônicos, ajustada em 15 bits e testada (seção 5) |
+| Classes | Curandeiro #009C73, Mecânico #E69C00, Atacador #E64242, Batedor #EFE642, Protetor #D6D6EF | Base na paleta de Okabe e Ito, feita para daltônicos, ajustada em 15 bits e testada (seção 5) |
 | Geradores | pendente #D66300, em progresso #F7DE31, pronto #21C5A5, bônus #EF63DE | Cada estado tem também um padrão de piscar próprio (seção 4) |
 | Caçadores | Espectro #B5BDCE, O Carcereiro #A55A21, O Lamento #9463E6; olhos #FF2110 | Cada caçador tem cor dominante e cabeça diferentes (GDD-v0.2 §10.4) |
 | Interface | fundo #101019, painel #212131, texto #EFE6D6, texto secundário #9C9CA5, destaque #FFB531, perigo #FF4A29 | Texto ≥ 4,5:1 contra o fundo |
 
 A tabela completa, com os valores de 5 bits, está em [`art/palette-report.md`](art/palette-report.md).
 
-**O que mudou durante os testes.** A primeira versão da paleta falhou em 6 testes: Curandeiro, Atacador e Protetor sumiam contra a parede; O Lamento sumia na névoa; Mecânico × Protetor e os feixes "pronto" × "bônus" ficavam iguais para quem tem tritanopia. Correções: parede mais escura, Atacador em azul-céu, Protetor em prata, O Lamento mais claro e feixe bônus em magenta. A versão atual passa em todos.
+**O que mudou durante os testes.** (Revisão 2: o Atacador passou para vermelho, #E64242, a pedido do filho; o tom foi escolhido entre 90 vermelhos que passam em todos os testes, com a maior margem de contraste contra a parede.) A primeira versão da paleta falhou em 6 testes: Curandeiro, Atacador e Protetor sumiam contra a parede; O Lamento sumia na névoa; Mecânico × Protetor e os feixes "pronto" × "bônus" ficavam iguais para quem tem tritanopia. Correções: parede mais escura, Atacador em azul-céu, Protetor em prata, O Lamento mais claro e feixe bônus em magenta. A versão atual passa em todos.
 
 ## 3. Silhuetas
 
@@ -46,9 +46,9 @@ Cada personagem tem uma **forma-chave** que não muda com skin nenhuma. Skins tr
 | --- | --- | --- | --- |
 | Curandeiro | capuz arredondado e manto que abre embaixo | cajado com caduceu, mais alto que a cabeça | o cajado é a única linha vertical acima da cabeça entre os sobreviventes |
 | Mecânico | capacete com lanterna (quadrado no topo da cabeça) | chave inglesa grande na mão | o capacete quadrado se lê de longe |
-| Atacador | ombros muito largos, cabeça pequena (triângulo invertido) | bastão | o corpo em V é a forma do "lutador" |
+| Atacador | corpo igual ao do Mecânico, sem capacete | espada nas costas, com o cabo acima do ombro direito | pedido do filho (A1-1); a diagonal da espada e o cabo acima do ombro são únicos no elenco |
 | Batedor | corpo mais fino e cabeça com ponta | cachecol que voa para trás | o cachecol mostra a direção e a velocidade |
-| Protetor | corpo largo e reto | escudo redondo nas costas | o círculo grande atrás do tronco é único |
+| Protetor | corpo largo e reto, armadura prata | escudo redondo preso no braço esquerdo | pedido do filho (A1-1); o círculo grande ao lado do corpo é único |
 
 ### Caçadores (altura 2,40 a 2,50 m)
 
@@ -61,6 +61,10 @@ Cada personagem tem uma **forma-chave** que não muda com skin nenhuma. Skins tr
 Todos os caçadores têm dois olhos vermelhos emissivos (`hunter.olhos`). Eles são a primeira coisa visível na névoa.
 
 **Ponto de atenção.** O Protetor (prata) e o Espectro (cinza-azulado) são os dois personagens claros. A diferença de altura (1,82 m × 2,50 m), os olhos vermelhos e os braços longos separam os dois. Esse par é o primeiro do teste de silhueta com pessoas (seção 5.1).
+
+**Ponto de atenção 2: Atacador × Mecânico.** Pelo pedido do filho, os dois têm o mesmo corpo. O que separa os dois na silhueta é a cabeça (capacete quadrado no Mecânico, cabeça livre no Atacador) e o acessório (chave na mão × espada nas costas). Os dois entram juntos no teste de silhueta com pessoas do marco A2.
+
+**Ponto de atenção 3: Atacador vermelho × vermelho de perigo.** O vermelho do Atacador (#E64242) fica quase igual ao vermelho da seta de ameaça e dos olhos do caçador (diferença CIEDE2000 de 4,4 em visão normal, contra 12 exigido entre cores do mesmo grupo). Não é falha de teste, porque são grupos diferentes, mas o mesmo vermelho passa a significar duas coisas. Mitigação: o perigo nunca depende só da cor (a seta tem forma de seta e pulsa, os olhos do caçador brilham, cada ameaça tem som próprio), e o retrato do Atacador no HUD leva o ícone da espada. Se o playtest mostrar confusão, a saída é trocar o tom do Atacador para um vermelho mais escuro ou mais rosado, que passe nos mesmos testes.
 
 ## 4. Leitura de estados no jogo
 
@@ -90,7 +94,7 @@ O script `tools/art/palette-check.mjs` simula protanopia, deuteranopia e tritano
 
 | Grupo | Normal | Protanopia | Deuteranopia | Tritanopia | Par mais próximo | Resultado |
 | --- | --- | --- | --- | --- | --- | --- |
-| Classes | 23,6 | 16,2 | 12,3 | 12,7 | Mecânico × Batedor (deuteranopia) | passa |
+| Classes | 23,6 | 15,8 | 12,3 | 17,2 | Mecânico × Batedor (deuteranopia) | passa |
 | Geradores | 37,1 | 24,8 | 20,1 | 14,6 | pendente × bônus (tritanopia) | passa |
 | Caçadores | 26,4 | 27,5 | 26,7 | 24,8 | Espectro × O Lamento (tritanopia) | passa |
 
@@ -111,7 +115,7 @@ Rodar: `node tools/art/palette-check.mjs --md`. O script sai com erro se algum t
 
 ## 6. Mood board
 
-**A referência principal são os desenhos do filho.** **LACUNA:** ainda não estão no repositório. Pedido: fotos ou digitalizações em `docs/art/referencias/filho/`, uma pasta por personagem ou mapa.
+**Referência principal: a folha de silhuetas aprovada pelo filho.** Ele não tem desenhos próprios (A1-4), então as formas-chave da seção 3 e a folha de silhuetas são a fonte. Se ele desenhar algo depois, os desenhos entram em `docs/art/referencias/filho/` e passam a valer acima de tudo.
 
 Referências externas só de domínio público ou com licença aberta, com a licença registrada em `docs/art/referencias/LICENCAS.md`. Direções para a coleta na fase 2 (obras em domínio público por idade; links e licenças a conferir antes de entrar no repositório):
 
@@ -141,7 +145,7 @@ Esqueleto e animações-base podem vir de pacotes CC0 já usados no Caçada Somb
 
 - **Fonte:** pixel, com licença aberta (OFL). **LACUNA:** escolher a fonte e confirmar que tem todos os acentos de pt-BR e es (ã õ ç á é í ó ú â ê ô à ü ñ ¿ ¡). Teste: renderizar a frase de teste nos 3 tamanhos.
 - **Molduras:** 2 px, 9-slice, cor `ui.panel` com borda `ui.text_dim`.
-- **Ícones:** 16 e 32 px; um ícone por classe com a forma-chave da seção 3 (cajado, chave, bastão, cachecol, escudo).
+- **Ícones:** 16 e 32 px; um ícone por classe com a forma-chave da seção 3 (cajado, chave, espada, cachecol, escudo).
 - **Foco de teclado e gamepad:** contorno de 2 px em `ui.accent`, sempre visível.
 - **Contraste mínimo** 4,5:1 (seção 5.3).
 
@@ -151,15 +155,12 @@ Cada marco é aprovado num comentário na issue do marco no GitHub. Sem aprovaç
 
 | Marco | O que ele vê | Quando |
 | --- | --- | --- |
-| A1 | Esta Art Bible: paleta, silhuetas-conceito, regras | agora |
+| A1 | Esta Art Bible: paleta, silhuetas-conceito, regras. Revisão 1 respondida em 08/11/2026 (Atacador com espada e em vermelho, Protetor com escudo no braço, bônus magenta); revisão 2 aguarda aprovação | agora |
 | A2 | Primeiro sobrevivente e o Espectro modelados e animados, no shader PS1 | fase 2 |
 | A3 | Mapa 1 (Pátio) com iluminação, névoa e feixes | fase 2 |
 | A4 | Interface completa (menu, lobby, HUD, loja, resumo) | fase 3 |
 | A5 | Mapas 2 e 3, Batedor, Protetor e o segundo caçador | fase 4 |
 
-**Perguntas para o marco A1:**
+**Respostas da revisão 1 (08/11/2026):** formas mudadas (Atacador com corpo de Mecânico e espada nas costas; Protetor com escudo no braço), Atacador em vermelho, bônus em magenta, sem desenhos próprios.
 
-1. As formas-chave da seção 3 são as que você imaginou para cada classe e caçador? O que trocaria?
-2. As cores das classes combinam com a personalidade de cada uma?
-3. O feixe do gerador bônus em magenta funciona, ou prefere outra cor? (Ela precisa passar no teste da seção 5.)
-4. Tem desenhos seus que devem virar a referência principal?
+**Pergunta da revisão 2:** a nova folha de silhuetas (no topo deste documento) está do jeito que você queria?

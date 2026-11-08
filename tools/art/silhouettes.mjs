@@ -33,14 +33,19 @@ const figuras = [
       <rect x="-6" y="-210" width="12" height="10"/>
       <rect x="36" y="-130" width="10" height="84" transform="rotate(-20 40 -85)"/>
       <path d="M30,-148 a20,20 0 1,1 26,0 l-7,-12 h-12 Z" transform="rotate(-20 40 -85)"/>` },
-  { nome: "Atacador", token: "class.atacador", alt: 1.8, svg: () => humano({ h: 1.8, ombro: 0.66, quadril: 0.36, cabeca: 0.22 }) + `
-      <path d="M-40,-160 L40,-160 L44,-140 L-44,-140 Z"/>
-      <rect x="40" y="-170" width="11" height="96" rx="5" transform="rotate(14 45 -95)"/>` },
+  { nome: "Atacador", token: "class.atacador", alt: 1.78, svg: () => `
+      <g transform="rotate(32 0 -150)">
+        <rect x="-4" y="-246" width="8" height="160"/>
+        <rect x="-17" y="-214" width="34" height="7"/>
+        <rect x="-3" y="-240" width="6" height="26"/>
+        <circle cx="0" cy="-246" r="6"/>
+      </g>` + humano({ h: 1.78, ombro: 0.5 }) },
   { nome: "Batedor", token: "class.batedor", alt: 1.72, svg: () => humano({ h: 1.72, ombro: 0.38, quadril: 0.3, cabeca: 0.22 }) + `
       <path d="M-14,-160 L14,-160 L-36,-150 Q-52,-158 -62,-140 Q-46,-142 -34,-136 L-12,-146 Z"/>
       <path d="M-10,-186 L10,-186 L0,-206 Z"/>` },
-  { nome: "Protetor", token: "class.protetor", alt: 1.82, svg: () => `<circle cx="-6" cy="-128" r="40"/>` + humano({ h: 1.82, ombro: 0.6, quadril: 0.46, cabeca: 0.25 }) + `
-      <path d="M-16,-200 L16,-200 L16,-188 L-16,-188 Z"/>` },
+  { nome: "Protetor", token: "class.protetor", alt: 1.82, svg: () => humano({ h: 1.82, ombro: 0.6, quadril: 0.46, cabeca: 0.25 }) + `
+      <path d="M-16,-200 L16,-200 L16,-188 L-16,-188 Z"/>
+      <circle cx="-50" cy="-104" r="32"/>` },
   { nome: "Espectro", token: "hunter.espectro", alt: 2.5, cacador: true, svg: () => `
       <ellipse cx="0" cy="-252" rx="14" ry="26"/>
       <path d="M-30,-226 L30,-226 L20,-120 L-20,-120 Z"/>
@@ -82,7 +87,7 @@ const reguas = [0.5, 1, 1.5, 2, 2.5].map(m => `<line x1="40" x2="${LARG - 20}" y
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${LARG}" height="${CHAO2 + 50}" viewBox="0 0 ${LARG} ${CHAO2 + 50}">
 <style>.n{font:600 14px monospace;fill:#111}.t{font:11px monospace;fill:#555}.r{stroke:#ccc;stroke-width:1;stroke-dasharray:3 4}.h{font:700 15px monospace;fill:#111}</style>
 <rect width="100%" height="100%" fill="#f4f1ea"/>
-<text x="20" y="24" class="h">THE HELL — silhuetas-conceito v0.3 (rascunho para o marco de arte 1)</text>
+<text x="20" y="24" class="h">THE HELL — silhuetas-conceito v0.3 · revisão 2 (pedidos do marco de arte A1)</text>
 <text x="20" y="44" class="t">Linha 1: preto chapado — cada figura deve ser reconhecida em menos de 1 s. Linha 2: cor do token (data/art/palette.json) sobre o fundo de névoa.</text>
 ${reguas}
 <line x1="40" x2="${LARG - 20}" y1="${CHAO1}" y2="${CHAO1}" stroke="#888"/>
