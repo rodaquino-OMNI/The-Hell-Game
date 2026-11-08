@@ -76,6 +76,14 @@ const difficulty = z.object({
   zone_mult: pos, projectile_dmg: pos, trap_interval: pos, points_mult: pos,
 }).strict();
 
+/** GDD-v0.3 §8.4 (valores do GDD-v0.2 §8.4): reação, previsão de projétil, conhecimento de loops e memória */
+const aiDifficulty = z.object({
+  reaction: pos,
+  projectile_lead: z.enum(["none", "linear", "linear_static"]),
+  loop_knowledge: z.enum(["none", "partial", "full", "avoid_long"]),
+  memory: pos,
+}).strict();
+
 export const BalanceSchema = z.object({
   version: z.string(),
   difficulty: z.enum(["easy", "normal", "hard", "nightmare"]),
@@ -160,14 +168,20 @@ export const BalanceSchema = z.object({
     }).strict(),
   }).strict(),
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
-  // ai: só as chaves usadas pelas regras v1 (R1) são validadas; o resto da seção fica para a IA (R3, R4)
-  ai: z.looseObject({
-    hearing_investigate_time: pos,   // GDD-v0.3 §8.1 (audição)
-    by_difficulty: z.object({        // GDD-v0.3 §8.4 / GDD-v0.2 §8.4 (memória da última posição)
-      easy: z.looseObject({ memory: pos }), normal: z.looseObject({ memory: pos }),
-      hard: z.looseObject({ memory: pos }), nightmare: z.looseObject({ memory: pos }),
-    }).strict(),
-  }),
+  // ai: GDD-v0.3 §8 (R1 + R3). Só `bots` (§8.5, item R4) fica sem validação detalhada.
+  ai: z.object({
+    hunter_brain: z.enum(["basic", "utility"]),
+    decision_hz: pos.positive(), perception_hz: pos.positive(), // §8.1
+    hearing_investigate_time: pos,                               // §8.1 (audição)
+    target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
+    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, injured_hp: pos, // §8.3
+    patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
+    by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
+    loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
+    anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6
+    stuck_fail_after: pos.positive(),                                                                      // §8.6 (T-03)
+    bots: z.record(z.string(), z.unknown()),
+  }).strict(),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
   nav: NavSchema,
   maps: MapsSchema,

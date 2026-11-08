@@ -1,8 +1,14 @@
 // Monta a configuração da simulação a partir de data/balance.yaml e do mapa.
 // Nenhum número de jogo fica na simulação: todos vêm daqui.
 import type { Balance, GameMap } from "@thehell/shared";
+import { gridFromMap, type GridNav, type NavQuery } from "./nav/grid.ts";
 
 export type Difficulty = Balance["difficulty"];
+export type HunterBrain = Balance["ai"]["hunter_brain"];
+export type AiDifficulty = Balance["ai"]["by_difficulty"]["normal"];
+
+/** transição de estado do caçador (GDD-v0.3 §8.2), para o log do simulador */
+export interface AiTrace { t: number; from: string; to: string }
 
 export interface SimConfig {
   balance: Balance;
@@ -25,6 +31,16 @@ export interface SimConfig {
   projectileDamage: number;
   trapInterval: number;
   pointsMult: number;
+  /** caçador do v1: "basic" (R1) ou "utility" (IA do R3, GDD-v0.3 §8). No protótipo é sempre "basic". */
+  brain: HunterBrain;
+  /** parâmetros da IA na dificuldade (GDD-v0.3 §8.4) */
+  aiLevel: AiDifficulty;
+  /** grade A* de reserva do mapa (`nav.fallback_grid`, raio do caçador): projeção de pontos e linha livre. Só com a IA. */
+  grid: GridNav | null;
+  /** consulta de caminho da IA: o navmesh injetado (RecastNav) ou a própria grade. Não é serializável e não entra no estado. */
+  nav: NavQuery | null;
+  /** gancho opcional chamado a cada transição de estado do caçador (simulador, testes) */
+  trace?: (e: AiTrace) => void;
 }
 
 export interface ConfigOptions {
@@ -32,15 +48,23 @@ export interface ConfigOptions {
   ruleset?: Balance["ruleset"];
   /** sobrepõe `balance.difficulty` */
   difficulty?: Difficulty;
+  /** sobrepõe `ai.hunter_brain` (só vale no v1) */
+  hunterBrain?: HunterBrain;
+  /** navmesh para a IA (ex.: RecastNav de "@thehell/sim/nav/recast"); sem isto, a grade A* de reserva (GDD-v0.3 §8.6) */
+  nav?: NavQuery;
+  trace?: (e: AiTrace) => void;
 }
 
 export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions = {}): SimConfig {
   const v1 = (opts.ruleset ?? balance.ruleset) === "v1";
   const difficulty = opts.difficulty ?? balance.difficulty;
   const h = balance.hunter;
+  const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";
+  const grid = brain === "utility" ? gridFromMap(map, balance, h.radius) : null;
   const base = {
     balance, map, v1, difficulty,
     requiredGenerators: map.generators.length,
+    brain, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
   };
   if (!v1) {
     return {
