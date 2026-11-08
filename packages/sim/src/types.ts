@@ -42,8 +42,100 @@ export interface Survivor extends Vec {
   antiTunnel: number;
 }
 
-/** Preparo visível de um golpe ou dash (telegraph, GDD-v0.2 §4.1). `t` = segundos até soltar; `total` = duração do preparo. */
-export interface Windup { kind: "melee" | "dash"; t: number; total: number }
+/**
+ * Preparo visível de uma habilidade (telegraph, GDD-v0.2 §4.1: "toda habilidade"). `t` = segundos até soltar;
+ * `total` = duração do preparo. Golpe e dash desde o R1; projétil e armadilha com a IA do R3 (`ai.hunter_brain: utility`).
+ */
+export interface Windup { kind: "melee" | "dash" | "projectile" | "trap"; t: number; total: number }
+
+/** estados do caçador (GDD-v0.3 §8.2): Patrulha → Investigar → Perseguir → Atacar → Recuo → Prender */
+export type HunterMode = "patrol" | "investigate" | "chase" | "attack" | "recoil" | "cage";
+
+/** sobrevivente como o caçador o percebeu na última leitura (snapshot filtrado, GDD-v0.3 §8.1) */
+export interface SeenSurvivor extends Vec {
+  id: number;
+  cls: ClassName;
+  hp: number;
+  /** velocidade estimada entre duas leituras seguidas (0 na primeira) */
+  vx: number;
+  vz: number;
+  /** visto pelo cone/linha de visão ou por contato (false = só pela revelação periódica) */
+  visible: boolean;
+  /** sob anti-tunnel (GDD-v0.2 §4.3): o caçador sabe quem prendeu há pouco */
+  antiTunnel: boolean;
+}
+
+/** gerador como informação pública (posição, progresso e conclusão; GDD-v0.3 §8.2 e §8.3) */
+export interface SeenGenerator extends Vec { progress: number; done: boolean; bonus: boolean }
+
+/** leitura de percepção do caçador: só o que um jogador naquela posição receberia (GDD-v0.3 §8.1) */
+export interface Percept {
+  t: number;
+  self: Vec & { a: number };
+  survivors: SeenSurvivor[];
+  gens: SeenGenerator[];
+  gate: Vec;
+  /** pressão final (portão em contagem ou aberto) */
+  finalPressure: boolean;
+  /** último ruído ouvido (posição e instante), se houver */
+  heard: { x: number; z: number; at: number; dur: number } | null;
+}
+
+/** estado da IA do caçador (R3). Dado puro e serializável: entra no hash de determinismo. */
+export interface HunterAi {
+  mode: HunterMode;
+  /** tempo até a próxima leitura de percepção e a próxima decisão (`ai.perception_hz`, `ai.decision_hz`) */
+  perceiveIn: number;
+  decideIn: number;
+  percept: Percept | null;
+  /** quando cada sobrevivente visível foi notado (tempo de reação da dificuldade, GDD-v0.2 §8.4) */
+  noticed: { id: number; at: number }[];
+  /** alvo atual (-1 = nenhum) e seu placar de utilidade */
+  target: number;
+  score: number;
+  /** instante da última troca de alvo */
+  switchedAt: number;
+  /** última posição conhecida do alvo (memória da dificuldade) */
+  memory: { id: number; x: number; z: number; until: number } | null;
+  /** ponto investigado e prazo; `spot` = ponto atual da vasculha em volta dele */
+  investigate: { x: number; z: number; until: number; spot: Vec | null } | null;
+  /** ruído ouvido ainda não tratado (vira investigação depois do tempo de reação) */
+  heard: { x: number; z: number; at: number; dur: number } | null;
+  /** destino da patrulha (gerador ou portão, projetado na grade) e índice do gerador */
+  patrol: { x: number; z: number; gen: number } | null;
+  /** caminho atual: destino pedido e pontos restantes */
+  goal: Vec | null;
+  path: Vec[];
+  /** há caminho válido até o destino (critério de trava do T-03) */
+  pathOk: boolean;
+  /** força replanejamento pelo A* (anti-travamento) */
+  forceAstar: boolean;
+  /** contagem de voltas no loop em que o alvo corre (GDD-v0.3 §8.4) */
+  loop: { id: string; target: number; acc: number; last: number } | null;
+  /** ponto de corte pelo navmesh quando o alvo corre num loop longo (Pesadelo, "evita loops longos") */
+  intercept: Vec | null;
+  /** o último golpe capturou o alvo (Recuo → Prender) */
+  captured: boolean;
+  /**
+   * janela do anti-travamento (`ai.anti_stuck`): tempo, posição inicial e deslocamento esperado (soma vetorial dos
+   * deslocamentos pretendidos, antes da colisão)
+   */
+  stuck: { t: number; x: number; z: number; ex: number; ez: number };
+  /** velocidade pretendida no último passo (0 = parado de propósito) */
+  speed: number;
+  /** deslocamento pretendido no último passo, antes da colisão (base do critério de trava T-03) */
+  step: Vec;
+  /** quantas vezes o anti-travamento replanejou */
+  replans: number;
+}
+
+/** posição da gaiola e saída da partida (variação de layout escolhida pela semente, GDD-v0.3 §9.3) */
+export interface Arena {
+  layout: { generators: number; cage: number; exit: number };
+  cage: Vec;
+  gate: Vec;
+  exitZ: number;
+}
 
 export interface Hunter extends Vec {
   hp: number;
@@ -68,6 +160,8 @@ export interface Hunter extends Vec {
   windup: Windup | null;
   /** v1: recuo pós-golpe restante (GDD-v0.2 §4.3, `hunter.melee.recoil`): parado e sem agir */
   recoil: number;
+  /** v1 com `ai.hunter_brain: utility`: estado da IA do R3 */
+  ai?: HunterAi;
 }
 
 export interface Generator extends Vec {
@@ -136,6 +230,8 @@ export interface GameState {
   gens: Generator[];
   survivors: Survivor[];
   hunter: Hunter;
+  /** gaiola e saída desta partida (protótipo: as do topo do mapa; v1: layout da semente) */
+  arena: Arena;
   traps: Trap[];
   projectiles: Projectile[];
   puzzle: Puzzle | null;

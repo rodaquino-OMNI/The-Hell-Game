@@ -138,6 +138,34 @@ export class GridNav implements NavQuery {
     return best;
   }
 
+  /**
+   * Centro de célula livre mais próximo do ponto, sem limite de distância (null só se a grade não tiver célula
+   * livre). Usado para projetar destinos (ponto de patrulha, vasculha, interceptação) num ponto navegável:
+   * um ponto sorteado ou previsto pode cair dentro de parede (achado da revisão do R2). Busca em anéis
+   * quadrados crescentes; para quando o anel já está mais longe que o melhor achado (determinística).
+   */
+  nearestFree(p: P2): P2 | null {
+    const i0 = Math.min(this.nx - 1, Math.max(0, Math.floor((p[0] - this.x0) / this.cell)));
+    const j0 = Math.min(this.nz - 1, Math.max(0, Math.floor((p[1] - this.z0) / this.cell)));
+    let best = -1, bestD = Infinity;
+    const maxK = Math.max(this.nx, this.nz);
+    for (let k = 0; k <= maxK; k++) {
+      if (best >= 0 && (k - 1) * this.cell > bestD) break;
+      for (let j = j0 - k; j <= j0 + k; j++) {
+        for (let i = i0 - k; i <= i0 + k; i++) {
+          if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) !== k) continue; // só a borda do anel
+          if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) continue;
+          const c = j * this.nx + i;
+          if (!this.free[c]) continue;
+          const [x, z] = this.center(c);
+          const d = Math.hypot(x - p[0], z - p[1]);
+          if (d < bestD) { best = c; bestD = d; }
+        }
+      }
+    }
+    return best >= 0 ? this.center(best) : null;
+  }
+
   /** linha reta livre para o agente (caixas infladas em `radius`, dentro do mapa) */
   lineOfSight(a: P2, b: P2): boolean {
     const r = this.radius;
