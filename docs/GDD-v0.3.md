@@ -1,6 +1,6 @@
 # THE HELL — Game Design Document v0.3
 
-**Delta sobre o v0.2 · 08/11/2026**
+**Delta sobre o v0.2 · 08/11/2026 · revisão 2: decisões D-01 a D-12 aplicadas**
 
 O v0.3 fecha as seções 8 a 13 (IA, mapas, gráficos, áudio, UI e arquitetura) e resolve as contradições do v0.2. Ele não repete o v0.2: toda seção não citada aqui continua valendo como está em [`GDD-v0.2.md`](GDD-v0.2.md). Onde houver conflito, vale o v0.3.
 
@@ -14,22 +14,22 @@ Legenda (igual ao v0.2): **[Implementado]** · **[Especificado]** · **[Proposta
 
 | ID | Onde (v0.2) | Problema | Decisão no v0.3 | Quem confirma |
 | --- | --- | --- | --- | --- |
-| C-01 | §3.3 | Regra de vitória da equipe escrita duas vezes, a segunda frase interrompida ("…regra simplificada"). | Regra única em §3.3 revisto abaixo: a equipe vence se escapados ≥ ⌈n/2⌉ **ou** a vida do caçador chegar a 0; senão vence o caçador. Equivale às duas frases do v0.2 sem ambiguidade. | Rodrigo (D-01, fecha §19.3) |
-| C-02 | §2.5, §3.1, §3.3 | Não há condição que encerre a partida se ninguém chegar ao portão: o protótipo acaba quando o jogador morre, e o GDD pede eliminar todos. | Partida termina quando todos os sobreviventes estão em estado terminal, ou a vida do caçador chega a 0, ou o limite duro de tempo é atingido. Limite duro **[Proposta]** 10 min (`match.hard_time_limit`), acima da faixa de 5 a 9 min do §0. | Rodrigo (D-02) |
+| C-01 | §3.3 | Regra de vitória da equipe escrita duas vezes, a segunda frase interrompida ("…regra simplificada"). | **Decidido (D-01 b):** a equipe vence se **pelo menos 1** sobrevivente escapar **ou** a vida do caçador chegar a 0; senão vence o caçador (§3.3 revisto). Fecha a pendência §19.3. | Rodrigo e filho, 08/11/2026 |
+| C-02 | §2.5, §3.1, §3.3 | Não há condição que encerre a partida se ninguém chegar ao portão: o protótipo acaba quando o jogador morre, e o GDD pede eliminar todos. | Partida termina quando todos os sobreviventes estão em estado terminal, ou a vida do caçador chega a 0, ou o limite duro de tempo é atingido. **Decidido (D-02 a):** limite duro de 10 min (`match.hard_time_limit`). | Rodrigo e filho, 08/11/2026 |
 | C-03 | §3.5 × §7.3 | Vida do caçador escala por tamanho do time (50/65/80/90–100) e também por dificuldade (60/80/100/120), sem regra de combinação. As duas tabelas têm 80 como base (3 sobreviventes, Normal). | Vida = `hp` da dificuldade (§7.3) × fator do time. Fatores tirados do §3.5 dividindo por 80: 0,625 / 0,8125 / 1 / 1,125 / 1,25 (`hunter_hp_scale`). Exemplo: Difícil com 5 sobreviventes = 100 × 1,25 = 125. | Simulador (fase 1) |
 | C-04 | §13.2 × §15.2 × Apêndice A | `data/` em JSON (§13.2) ou em YAML (§15.2, Apêndice A). | YAML é a fonte editada; o build valida por schema e gera JSON para o cliente e o servidor. | — |
 | C-05 | §13.5 × stack decidida | Postgres, Redis, CDN Cloudflare, Sentry e Prometheus/Grafana estouram o teto de US$ 10/mês e a regra de hospedar só no Fly.io. | Substituição por equivalentes já em produção no Caçada Sombria: SQLite no volume do Fly, filas em memória, assets servidos pela própria máquina com cache imutável, erros e métricas em rotas próprias. Detalhe em §13.5 revisto. | Decisão já tomada |
 | C-06 | §2.3 × §3.4 × §8.1 | O protótipo detecta em 360° num raio de 11 m (confirmado no código, `prototype/the-hell.html` L162); o GDD especifica cone de 90° com linha de visão. | Vale o GDD (cone de 90°, `hunter.vision_fov_deg`). Como isso enfraquece o caçador em relação ao baseline, a paridade da fase 0 mede o protótipo com 360° e a fase 1 recalibra no simulador. | Simulador (fase 1) |
-| C-07 | §2.3 × §1 pilar 4 × §9.1 | O caçador persegue a 3,9 m/s e o sobrevivente **anda** a 4,0 m/s. Andando, o sobrevivente nunca é alcançado sem dash ou projétil; o "loop de 6 a 10 s de vantagem" do §9.1 deixa de ter sentido. | Sem mudança de valor no v0.3 (é o baseline testado). Registrado como risco de balanceamento: a fase 1 roda o cenário no simulador e no playtest interno. Candidata **[Proposta]**: perseguição 4,3 m/s em Normal. | Filho e Rodrigo (D-03), com dados |
+| C-07 | §2.3 × §1 pilar 4 × §9.1 | O caçador persegue a 3,9 m/s e o sobrevivente **anda** a 4,0 m/s. Andando, o sobrevivente nunca é alcançado sem dash ou projétil; o "loop de 6 a 10 s de vantagem" do §9.1 deixa de ter sentido. | **Decidido (D-03 b):** perseguição de 4,3 m/s em Normal. Para manter a ordem da tabela §7.3, as outras dificuldades sobem na mesma proporção (×4,3/3,9): Fácil 3,9, Difícil 4,6, Pesadelo 5,0. Na pressão final (×1,2), o caçador chega a 5,16 m/s, ainda abaixo da corrida do sobrevivente (5,4). A paridade da fase 0 continua medida com 3,9 (valor do protótipo). | Rodrigo e filho, 08/11/2026 |
 | C-08 | §2.3 × §3.4 | Falha em quebra-cabeça chama o caçador por 8 s (protótipo, de qualquer distância, L118) ou gera ruído de 18 m (§3.4). | Vale o §3.4: ruído de 18 m; o caçador só reage se estiver no raio. Mesmo tratamento da C-06 na calibração. | Simulador (fase 1) |
-| C-09 | §2.3 × §7.2 × Apêndice A | Baseline converte pontos em moedas 1:1; o Apêndice A já usa 0,3 (proposta do §7.2). | `data/balance.yaml` usa 0,3, aguardando aprovação (§19.4). O preço das skins sobe junto (300 a 1.500). | Rodrigo (D-04) |
+| C-09 | §2.3 × §7.2 × Apêndice A | Baseline converte pontos em moedas 1:1; o Apêndice A já usa 0,3 (proposta do §7.2). | **Decidido (D-04 b):** mantém 1 moeda por ponto e **aumenta o preço das skins**. As 7 skins atuais passam a custar 8× o preço do protótipo: Sombra 640, Abóbora 800, Neon Ciano 960, Carmesim 1.200, Ouro 1.600, Fantasma 2.000. Com 170 a 300 moedas por partida (20 + 30 na vitória + 150 a 250 pontos, §7.2), a skin mais barata sai em 2 a 4 partidas e a mais cara em 7 a 12; a média fica perto do ritmo do §14.2 (3 a 5). Fecha §19.4. | Rodrigo e filho, 08/11/2026 |
 | C-10 | §10.1 × §10.6 | Resolução interna 320×240 (4:3) ou 384×216 (16:9); meta de FPS "a 720p". | 16:9 em todos os presets. Resolução interna por preset (320×180, 384×216, 480×270), escalada por inteiro até a saída de 1280×720 em que o FPS é medido. | — |
 | C-11 | §13.3 × Apêndice B | Simulação a 60 Hz no cliente e 30 Hz no servidor quebra o determinismo da predição (passos diferentes dão resultados diferentes). | Passo da simulação fixo em 1/60 s nos dois lados. O servidor roda 2 passos por tick de 30 Hz (`net.sim_step_hz`, `net.server_tick_hz`). | — |
 | C-12 | §10.1 × three.js atual | O v0.2 conta com iluminação por vértice do `MeshLambertMaterial` (r128). Nas versões atuais do three.js o Lambert é calculado por fragmento. **LACUNA:** confirmar no changelog a versão exata da mudança. | Shader próprio de Gouraud (iluminação por vértice) dentro do material PS1 (§10 revisto). | Agente de render (fase 2) |
 | C-13 | §11 × navegadores | `.ogg/.opus` como formato único. Suporte a Opus no Safari não verificado (**LACUNA**). | MP3 como formato de entrega na v1.0, como no Caçada Sombria (50 arquivos MP3 em produção nos 4 navegadores). Opus volta como otimização se o suporte for confirmado. | — |
 | C-14 | §9.4 × capacidade de agentes | Mapas feitos no Blender com metadados no glTF exigem edição manual em ferramenta gráfica. | Layout de mapa em JSON (`data/maps/*.json`: paredes, spawns, geradores, loops, gaiolas, esconderijos), gerado e validado por script, como no Caçada Sombria (`tools/mapgen`). glTF fica para personagens e props. | — |
-| C-15 | §7.6 × experiência do Caçada Sombria | O §15.2 faz a CI falhar se o simulador sair das bandas da §7.6. No Caçada Sombria, bots deram vitória ao caçador em 84 a 100% das partidas e nenhuma alavanca testada mudou o resultado, porque a fuga dos bots é bem mais fraca que a de pessoas (`cacada-sombria-V2/docs/balanceamento-v07.md`). | O simulador vira **porta de regressão** (falha se a métrica piorar mais que a tolerância contra o build anterior) e só vira porta de banda depois que a calibração com pessoas da fase 5 mostrar que bots e humanos dão resultados próximos. | Rodrigo (D-05) |
-| C-17 | §0 × §17.1 | A v1.0 tem 3 caçadores (§0), mas a fase 4 só prevê o "caçador 2". O "Jogar de caçador" aparece como modo opcional (§14.4), embora o multiplayer 1 contra 5 exija um caçador humano. | Os caçadores 2 e 3 (O Carcereiro e O Lamento, §4.2) entram na fase 4. O caçador controlado por pessoa entra na fase 3, junto com o multiplayer; na v1.0, "Jogar de caçador" é o papel de caçador nas filas casual e ranked. | Rodrigo (D-09) |
+| C-15 | §7.6 × experiência do Caçada Sombria | O §15.2 faz a CI falhar se o simulador sair das bandas da §7.6. No Caçada Sombria, bots deram vitória ao caçador em 84 a 100% das partidas e nenhuma alavanca testada mudou o resultado, porque a fuga dos bots é bem mais fraca que a de pessoas (`cacada-sombria-V2/docs/balanceamento-v07.md`). | **Decidido (D-05 a).** O simulador vira **porta de regressão** (falha se a métrica piorar mais que a tolerância contra o build anterior) e só vira porta de banda depois que a calibração com pessoas da fase 5 mostrar que bots e humanos dão resultados próximos. | Rodrigo, 08/11/2026 |
+| C-17 | §0 × §17.1 | A v1.0 tem 3 caçadores (§0), mas a fase 4 só prevê o "caçador 2". O "Jogar de caçador" aparece como modo opcional (§14.4), embora o multiplayer 1 contra 5 exija um caçador humano. | Os caçadores 2 e 3 (O Carcereiro e O Lamento, §4.2) entram na fase 4. O caçador controlado por pessoa entra na fase 3, junto com o multiplayer; na v1.0, "Jogar de caçador" é o papel de caçador nas filas casual e ranked. **Decidido (D-09 a).** | Rodrigo e filho, 08/11/2026 |
 | C-16 | §7.6 | Não há métrica para o pilar 3 "objetivos opcionais de risco/recompensa" (geradores bônus). | **LACUNA** registrada; proposta de métrica de telemetria "partidas com ≥ 1 bônus concluído" na fase 5, sem banda até haver dados. | — |
 
 O código do protótipo foi conferido linha a linha contra a tabela 2.3 em [`prototipo-paridade.md`](prototipo-paridade.md): todos os valores batem, e 11 comportamentos fora do GDD ficam registrados lá. Correção factual: o protótipo tem 22 KB, não ~45 KB (§2.5).
@@ -56,8 +56,8 @@ Cada mecânica liga um pilar (§1) a um parâmetro de dados e a uma métrica que
 ## §3.3 revisto. Condições de fim [Especificado] Δ
 
 1. **Individual:** Escapou (vitória) ou Morto (derrota).
-2. **Equipe:** com n sobreviventes no início, a equipe vence se o número de escapados for ≥ ⌈n/2⌉ ou se a vida do caçador chegar a 0. Em qualquer outro caso, o caçador vence. Para n = 1 a 5, ⌈n/2⌉ = 1, 1, 2, 2, 3.
-3. **Fim da partida:** quando todos os sobreviventes estão em estado terminal, quando a vida do caçador chega a 0 ou no limite duro (`match.hard_time_limit`, [Proposta] 600 s). No limite, quem não escapou conta como não escapado e não perde pontos já ganhos.
+2. **Equipe:** a equipe vence se pelo menos 1 sobrevivente escapar ou se a vida do caçador chegar a 0 (D-01 b). Em qualquer outro caso, o caçador vence. O resultado individual continua separado: quem morreu perde, mesmo com o time vencendo.
+3. **Fim da partida:** quando todos os sobreviventes estão em estado terminal, quando a vida do caçador chega a 0 ou no limite duro (`match.hard_time_limit`, 600 s, D-02 a). No limite, quem não escapou conta como não escapado e não perde pontos já ganhos.
 4. Jogador morto vira espectador (sem mudança).
 
 **Aceite:** teste unitário cobre n = 1 a 5 com todas as combinações de escapados, mortos e caçador derrotado.
@@ -144,7 +144,10 @@ Feixes de luz nos geradores: cores e padrões de piscar na Art Bible §4 (a comb
 
 ### 9.2 Catálogo para a v1.0
 
-A v1.0 tem 3 mapas (§0): o Pátio (porte do protótipo) e mais dois do catálogo §9.2. Recomendação: **Hospital Abandonado** (loops curtos, testa o Mecânico) e **Floresta Nebulosa** (loops longos, contraste com o Hospital). O Parque de Diversões tem a mecânica mais cara (carrossel em ciclo) e fica para a temporada 1. Escolha final do filho (D-06).
+A v1.0 tem 3 mapas (§0): o Pátio (porte do protótipo) e mais dois do catálogo §9.2. **Decidido (D-06 c): Floresta Nebulosa e Parque de Diversões.** O Hospital Abandonado fica para a temporada 1.
+
+- **Floresta Nebulosa:** loops longos e baixa visibilidade; a névoa esconde quem não corre (§9.2 do v0.2). Parâmetro novo a definir na fase 4: alcance de visão do caçador sobre quem anda na névoa.
+- **Parque de Diversões:** setores temáticos e carrossel que bloqueia a passagem num ciclo de 30 s. Isso traz o único obstáculo móvel do jogo, com três consequências técnicas: o navmesh usa obstáculos dinâmicos (TileCache do recast-navigation-js) em vez de malha fixa; o validador de mapa testa os dois estados do carrossel (aberto e fechado), e todo gerador precisa continuar alcançável nos dois; a IA replaneja o caminho quando o carrossel muda de estado. Risco: é o mapa mais caro do catálogo, e entra no caminho crítico da fase 4.
 
 ### 9.3 Variação procedural leve [Especificado] Δ (era Proposta)
 
@@ -281,7 +284,7 @@ Estimativa de banda (**[Meta]** ≤ 20 KB/s): 6 entidades × ~11 bytes + eventos
 | CDN Cloudflare | Assets com hash no nome e cache imutável de 365 dias, servidos pela própria máquina | Regra "só Fly.io, sem Cloudflare"; padrão do `build.mjs` do Caçada Sombria |
 | Sentry | `POST /api/erro` grava erros do navegador e do servidor no SQLite, com limite por IP | Padrão do Caçada Sombria |
 | Prometheus/Grafana | `GET /api/metricas` agregado + métricas da plataforma do Fly. **LACUNA:** confirmar o que o painel do Fly oferece hoje e se tem custo | Teto de custo |
-| OAuth Google/Discord | Conta convidada com token aleatório guardado no navegador + código de recuperação; OAuth atrás de feature flag | O Rodrigo não faz configuração longa em várias contas; decisão D-07 |
+| OAuth Google/Discord | Conta convidada com token aleatório guardado no navegador + código de recuperação; OAuth atrás de feature flag | O Rodrigo não faz configuração longa em várias contas; decidido (D-07 a) |
 | Deploy canary | Dois apps no Fly (staging e produção); staging a cada merge, produção com aprovação | Máquina única com volume não comporta canary |
 
 Tabelas: contas, perfis, carteira como livro-razão só de inserção (moedas nunca vêm do cliente), inventário, rating Glicko-2 por papel, partidas, eventos de telemetria, erros, temporadas, denúncias. Backup: snapshots diários de volume do Fly (os primeiros 10 GB de snapshot não são cobrados, segundo a página de preços).
@@ -308,21 +311,21 @@ Sem mudança de regra. Números: o servidor descarta entrada que exceda 1,1× a 
 
 ---
 
-## Decisões pendentes
+## Decisões
 
-As perguntas estão em múltipla escolha no [plano de construção](plano-construcao.md#7-decisões-pendentes), com recomendação.
+Todas tomadas em 08/11/2026 pelo Rodrigo e pelo filho. Registro completo no [plano de construção](plano-construcao.md#7-decisões).
 
-| ID | Decisão | Bloqueia |
+| ID | Decisão | Escolha |
 | --- | --- | --- |
-| D-01 | Regra de vitória da equipe (C-01) | Fase 1 |
-| D-02 | Limite duro de partida (C-02) | Fase 1 |
-| D-03 | Velocidade do caçador contra a do sobrevivente (C-07) | Fase 1 (calibração) |
-| D-04 | Conversão de pontos em moedas e preços (C-09) | Fase 3 (loja) |
-| D-05 | Simulador como porta de regressão até a calibração (C-15) | Fase 0 (CI) |
-| D-06 | Mapas 2 e 3 (§9.2) | Fase 4 |
-| D-07 | Tipo de conta na v1.0 (§13.5) | Fase 3 |
-| D-08 | Moeda premium e passe pago (§14.2–14.3) | Fase 6 |
-| D-09 | Caçadores 2 e 3 na fase 4 e caçador humano na fase 3 (C-17) | Fase 3 |
+| D-01 | Vitória da equipe (C-01) | b) basta 1 escapar |
+| D-02 | Limite de tempo (C-02) | a) 10 min |
+| D-03 | Velocidade do caçador (C-07) | b) 4,3 m/s em Normal já |
+| D-04 | Moedas e preços (C-09) | b) 1 por ponto, skins mais caras |
+| D-05 | Simulador na CI (C-15) | a) porta de regressão |
+| D-06 | Mapas 2 e 3 (§9.2) | c) Floresta Nebulosa e Parque de Diversões |
+| D-07 | Contas (§13.5) | a) convidado com código de recuperação |
+| D-08 | Moeda premium e passe (§14.2–14.3) | a) fora da v1.0, atrás de flag |
+| D-09 | Caçadores (C-17) | a) caçador humano na fase 3; os 3 caçadores na v1.0 |
 
 ## Fontes
 

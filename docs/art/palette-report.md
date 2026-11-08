@@ -13,7 +13,7 @@
 | `world.ground` | 6, 6, 5 | #313129 | chão |
 | `class.curandeiro` | 0, 19, 14 | #009C73 | Curandeiro |
 | `class.mecanico` | 28, 19, 0 | #E69C00 | Mecânico |
-| `class.atacador` | 10, 20, 31 | #52A5FF | Atacador |
+| `class.atacador` | 28, 8, 8 | #E64242 | Atacador |
 | `class.batedor` | 29, 28, 8 | #EFE642 | Batedor (fase 4) |
 | `class.protetor` | 26, 26, 29 | #D6D6EF | Protetor (fase 4) |
 | `gen.pendente` | 26, 12, 0 | #D66300 | gerador não iniciado |
@@ -44,12 +44,12 @@
 | --- | --- | --- | --- |
 | `class.curandeiro` | `world.fog` | 4.61:1 | passa |
 | `class.mecanico` | `world.fog` | 7.00:1 | passa |
-| `class.atacador` | `world.fog` | 6.28:1 | passa |
+| `class.atacador` | `world.fog` | 4.01:1 | passa |
 | `class.batedor` | `world.fog` | 12.33:1 | passa |
 | `class.protetor` | `world.fog` | 11.30:1 | passa |
 | `class.curandeiro` | `world.wall` | 3.68:1 | passa |
 | `class.mecanico` | `world.wall` | 5.59:1 | passa |
-| `class.atacador` | `world.wall` | 5.02:1 | passa |
+| `class.atacador` | `world.wall` | 3.20:1 | passa |
 | `class.batedor` | `world.wall` | 9.85:1 | passa |
 | `class.protetor` | `world.wall` | 9.03:1 | passa |
 | `gen.pendente` | `world.fog` | 4.33:1 | passa |
@@ -69,7 +69,7 @@ Menor diferença entre dois membros do grupo, em visão normal e sob cada simula
 
 | Grupo | Normal | Protanopia | Deuteranopia | Tritanopia | Par mais próximo (pior caso) | Resultado |
 | --- | --- | --- | --- | --- | --- | --- |
-| classes | 23.6 | 16.2 | 12.3 | 12.7 | mecanico × batedor (deuteranopia) | passa |
+| classes | 23.6 | 15.8 | 12.3 | 17.2 | mecanico × batedor (deuteranopia) | passa |
 | geradores | 37.1 | 24.8 | 20.1 | 14.6 | pendente × bonus (tritanopia) | passa |
 | cacadores | 26.4 | 27.5 | 26.7 | 24.8 | espectro × lamento (tritanopia) | passa |
 

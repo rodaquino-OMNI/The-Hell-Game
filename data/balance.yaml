@@ -5,7 +5,7 @@
 # Regra: código lê daqui; nenhum número de jogo no código. Schema e validação entram na fase 0 (item G-01).
 # Unidades: metros, segundos, m/s, Hz. Multiplicadores sem unidade.
 
-version: 0.3.0
+version: 0.3.1   # revisão 2: decisões D-01 a D-12 (08/11/2026)
 difficulty: normal
 
 # ---------- 1. Sobrevivente (GDD-v0.2 §2.3) ----------
@@ -22,7 +22,7 @@ survivor:
 # ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
 hunter:
   hp_base: 80                      # Normal, 3 sobreviventes; escala em hunter_hp_scale (GDD-v0.3 C-03)
-  chase_speed: 3.9                 # ver GDD-v0.3 C-07 (mais lento que o sobrevivente andando)
+  chase_speed: 4.3                 # D-03 b (protótipo: 3.9, ver prototype_extras)
   patrol_speed: 3.1
   final_pressure_speed_mult: 1.2
   melee: {range: 1.8, cooldown: 1.7, damage: 15, damage_final: 18, recoil: 0.6}
@@ -77,8 +77,16 @@ noise:
 # ---------- 6. Pontos (GDD-v0.2 §2.3, §7.1 — só os implementados; propostas ficam desligadas) ----------
 points: {puzzle: 10, generator: 40, bonus_puzzle: 25, bonus_generator: 75}
 
-# ---------- 7. Economia (GDD-v0.2 §7.2 — 0,3 aguarda aprovação, decisão D-04) ----------
-economy: {start_coins: 150, base_coins: 20, win_coins: 30, points_to_coins: 0.3}
+# ---------- 7. Economia (D-04 b: 1 moeda por ponto, skins 8× mais caras que no protótipo) ----------
+economy: {start_coins: 150, base_coins: 20, win_coins: 30, points_to_coins: 1.0}
+skins:   # preço em moedas; protótipo: 0 / 100 / 80 / 120 / 150 / 200 / 250
+  std: 0
+  abo: 800
+  som: 640
+  neo: 960
+  car: 1200
+  our: 1600
+  fan: 2000
 
 # ---------- 8. Classes (GDD-v0.2 §2.3, Apêndice A) ----------
 classes:
@@ -94,12 +102,12 @@ classes:
   repeat_penalty: {cooldown_base: 1.5, effect_step: 0.3}   # GDD-v0.2 §5.1
   upgrade_caps: {min_cooldown_mult: 0.5, max_effect_mult: 1.5}
 
-# ---------- 9. Dificuldade (GDD-v0.2 §7.3) ----------
+# ---------- 9. Dificuldade (GDD-v0.2 §7.3; perseguição escalada ×4,3/3,9 pela D-03 b) ----------
 difficulty_table:
-  easy:      {hunter_hp: 60,  chase: 3.5, melee_cd: 2.2, detect: 9,  reveal: 35, cage: 90, gate: 35, zone_mult: 1.3,  projectile_dmg: 6,  trap_interval: 40, points_mult: 0.8}
-  normal:    {hunter_hp: 80,  chase: 3.9, melee_cd: 1.7, detect: 11, reveal: 28, cage: 75, gate: 45, zone_mult: 1.0,  projectile_dmg: 8,  trap_interval: 32, points_mult: 1.0}
-  hard:      {hunter_hp: 100, chase: 4.2, melee_cd: 1.4, detect: 13, reveal: 22, cage: 60, gate: 55, zone_mult: 0.8,  projectile_dmg: 10, trap_interval: 26, points_mult: 1.3}
-  nightmare: {hunter_hp: 120, chase: 4.5, melee_cd: 1.2, detect: 15, reveal: 18, cage: 45, gate: 60, zone_mult: 0.65, projectile_dmg: 12, trap_interval: 20, points_mult: 1.6}
+  easy:      {hunter_hp: 60,  chase: 3.9, melee_cd: 2.2, detect: 9,  reveal: 35, cage: 90, gate: 35, zone_mult: 1.3,  projectile_dmg: 6,  trap_interval: 40, points_mult: 0.8}
+  normal:    {hunter_hp: 80,  chase: 4.3, melee_cd: 1.7, detect: 11, reveal: 28, cage: 75, gate: 45, zone_mult: 1.0,  projectile_dmg: 8,  trap_interval: 32, points_mult: 1.0}
+  hard:      {hunter_hp: 100, chase: 4.6, melee_cd: 1.4, detect: 13, reveal: 22, cage: 60, gate: 55, zone_mult: 0.8,  projectile_dmg: 10, trap_interval: 26, points_mult: 1.3}
+  nightmare: {hunter_hp: 120, chase: 5.0, melee_cd: 1.2, detect: 15, reveal: 18, cage: 45, gate: 60, zone_mult: 0.65, projectile_dmg: 12, trap_interval: 20, points_mult: 1.6}
 
 # ---------- 9b. Comportamentos do protótipo fora do GDD (docs/prototipo-paridade.md §2) ----------
 prototype_extras:
@@ -112,13 +120,14 @@ prototype_extras:
   fighter_strike_cd_on_miss: true                       # P-08
   projectile_life: 2.0
   gate_exit_half_width: 3.2
+  chase_speed: 3.9                                      # paridade da fase 0 (D-03 b muda o jogo para 4.3)
 
 # ---------- 10. Partida (GDD-v0.3 §3.3 revisto) ----------
 match:
   prep_time: [10, 20]
   hunter_spawn_min_dist: 35
-  hard_time_limit: 600              # [Proposta] decisão D-02
-  team_win_fraction: 0.5            # escapados >= ceil(n × 0,5)
+  hard_time_limit: 600              # D-02 a
+  team_min_escapes: 1               # D-01 b: basta 1 escapar
 
 # ---------- 11. IA (GDD-v0.3 §8) ----------
 ai:

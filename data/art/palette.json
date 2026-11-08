@@ -15,9 +15,9 @@
 
     "class.curandeiro": { "rgb5": [0, 19, 14],  "forma": "caduceu nas costas + capuz arredondado", "uso": "Curandeiro" },
     "class.mecanico":   { "rgb5": [28, 19, 0],  "forma": "chave inglesa grande + capacete com lanterna", "uso": "Mecânico" },
-    "class.atacador":   { "rgb5": [10, 20, 31],  "forma": "ombros largos + bastão", "uso": "Atacador" },
+    "class.atacador":   { "rgb5": [28, 8, 8],   "forma": "corpo como o do Mecânico, sem capacete + espada nas costas (cabo acima do ombro)", "uso": "Atacador" },
     "class.batedor":    { "rgb5": [29, 28, 8],  "forma": "corpo esguio + cachecol esvoaçante", "uso": "Batedor (fase 4)" },
-    "class.protetor":   { "rgb5": [26, 26, 29], "forma": "escudo redondo nas costas + corpo largo (armadura prata)", "uso": "Protetor (fase 4)" },
+    "class.protetor":   { "rgb5": [26, 26, 29], "forma": "corpo largo (armadura prata) + escudo redondo no braço esquerdo", "uso": "Protetor (fase 4)" },
 
     "gen.pendente":     { "rgb5": [26, 12, 0],  "padrao": "feixe piscando lento (1 Hz)", "uso": "gerador não iniciado" },
     "gen.progresso":    { "rgb5": [30, 27, 6],  "padrao": "feixe pulsando (2 Hz)", "uso": "gerador em progresso" },
