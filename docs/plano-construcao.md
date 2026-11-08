@@ -4,7 +4,7 @@
 
 A v1.0 (GDD-v0.2 §0, com o delta do [GDD v0.3](GDD-v0.3.md)) sai em 7 fases e 55 itens, construída por 10 agentes especialistas num ciclo de PR → CI → staging → produção. O custo de hospedagem estimado é de US$ 6 a 8 por mês, dentro do teto de US$ 10. A estimativa de calendário é de 18 a 29 semanas até o soft launch, contra 8 a 10 meses do GDD para uma equipe humana; quem define o ritmo são os portões humanos (aprovação de arte, playtests com pessoas), não a escrita de código.
 
-O que o Rodrigo precisa fazer agora: responder às decisões da seção 7 e dizer onde está o código do protótipo (D-10).
+O que o Rodrigo precisa fazer agora: responder às decisões da seção 7 e trazer o código do protótipo para o repositório (D-10).
 
 ---
 
@@ -228,9 +228,9 @@ a) ★ Caçador humano na fase 3; O Carcereiro e O Lamento na fase 4
 b) Só o Espectro na v1.0; os outros dois na temporada 1
 
 **D-10. Código do protótipo (HTML único, ~45 KB)**
-a) Vou colocar no repositório em `prototype/the-hell.html`
-b) Está num artefato do Claude (mande o link)
-c) Não tenho mais; reconstruir a partir da tabela 2.3 do GDD (a paridade passa a ser contra a tabela, não contra o jogo)
+Localizado em 08/11/2026: é o artefato `claude.ai/artifact/5gRXLcKBbwbY2shNvfjYRZ`, publicado na conversa de criação do jogo. Ele pertence a outra conta e não está compartilhado com a sessão de construção, que não consegue lê-lo. O histórico dessa conversa confere com a tabela 2.3 e o changelog 2.4 do GDD (mesmos valores de caçador, sobreviventes, gaiola, portão, pontos e moedas).
+a) ★ Quem é dono do artefato abre o link, baixa ou copia o código e coloca em `prototype/the-hell.html` (ou anexa o arquivo na conversa)
+b) Não é possível exportar; reconstruir a partir da tabela 2.3 do GDD (a paridade passa a ser contra a tabela, não contra o jogo)
 
 **D-11. Aprovação de merges**
 a) ★ Rodrigo aprova cada merge em `main`
@@ -246,7 +246,7 @@ b) Tornar privado (Actions passa a consumir a franquia de minutos do plano do Gi
 | Risco | Efeito no plano | Mitigação |
 | --- | --- | --- |
 | Bots não representam humanos (lição do Caçada Sombria) | simulador não calibra; fase 4 travada | D-05; fuga competente dos bots (§8.5); calibração no beta |
-| Sem o protótipo | paridade da fase 0 sem referência real | D-10 c como alternativa |
+| Sem o código do protótipo | paridade da fase 0 sem referência real | D-10 b como alternativa |
 | Preço de gru acima do esperado | teto de US$ 10 apertado | máquina dorme sem uso; staging em 256 MB; alerta a US$ 8 |
 | Falta de jogadores no beta | critério D1 > 30% não medível | bots em casual; salas privadas; recrutamento pelo Rodrigo |
 | Medição em UHD 620 | critério de FPS sem prova | máquina de um testador nas fases 2 e 5 |
