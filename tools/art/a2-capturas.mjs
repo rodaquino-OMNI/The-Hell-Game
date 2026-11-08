@@ -156,14 +156,14 @@ try {
   // vista um pouco para cima: o feixe inteiro (14 m) e o losango do bônus no quadro
   for (const [name, setup, i] of states) await scene(name, near(i, 12) + setup, [gens[i].x, gens[i].z], 0.45);
   // feixes de longe: todos os estados ao mesmo tempo, vistos do centro do mapa
-  await scene("feixes-de-longe", `const P = G.survivors[0]; P.x = 0; P.z = 25; G.hunter.x = 1000; G.t = 0.25;
+  await scene("feixes-de-longe", `const P = G.survivors[0]; P.x = 4.75; P.z = 26; G.hunter.x = 1000; G.t = 0.25;
     G.gens.forEach((g, k) => { g.done = k % 3 === 2; g.n = k % 3 === 1 ? 2 : g.done ? 5 : 0; });`, [0, -10]);
   // caçador em preparo de golpe (olhos acesos) e sem preparo, a 5 m de frente para o jogador
-  const hunt = on => `const P = G.survivors[0]; P.x = 0; P.z = 25; G.survivors.slice(1).forEach((s, k) => { s.x = -6 - 2 * k; s.z = 23; });
-    const H = G.hunter; H.x = 3.5; H.z = 21.5; H.a = Math.atan2(-(P.x - H.x), -(P.z - H.z));
+  const hunt = on => `const P = G.survivors[0]; P.x = 4.75; P.z = 26; G.survivors.slice(1).forEach((s, k) => { s.x = -20 - 2 * k; s.z = 26; });
+    const H = G.hunter; H.x = 4.75; H.z = 21; H.a = Math.atan2(-(P.x - H.x), -(P.z - H.z));
     H.windup = ${on ? "{ kind: 'melee', t: 0.3, total: 0.45 }" : "null"}; G.t = 3;`;
-  await scene("cacador-preparo-olhos-acesos", hunt(true), [3.5, 21.5], 0.3);
-  await scene("cacador-sem-preparo", hunt(false), [3.5, 21.5], 0.3);
+  await scene("cacador-preparo-olhos-acesos", hunt(true), [4.75, 21], 0.3);
+  await scene("cacador-sem-preparo", hunt(false), [4.75, 21], 0.3);
   // aliado preso na gaiola com o cadeado
   await scene("aliado-preso-cadeado", `const c = [${map.cage[0]}, ${map.cage[1]}]; const A = G.survivors[1]; A.st = "cage"; A.x = c[0]; A.z = c[1];
     const P = G.survivors[0]; P.x = c[0] + 7; P.z = c[1] + 7; G.hunter.x = 1000;`, map.cage);

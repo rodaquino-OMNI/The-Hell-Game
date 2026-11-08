@@ -42,7 +42,7 @@
     "char.couro":       { "rgb5": [8, 5, 3],    "uso": "guarda da espada" },
     "char.cachecol":    { "rgb5": [8, 16, 28],  "uso": "cachecol do Batedor (não pode ser ui.accent: é a cor de fx.preso)" },
     "char.lanterna":    { "rgb5": [20, 27, 31], "uso": "lanterna do capacete do Mecânico, emissiva (não pode ser ui.accent)" },
-    "hunter.olhos_preparo": { "rgb5": [31, 28, 20], "uso": "olhos e lampejo do caçador durante o preparo de golpe e dash (Art Bible §1.5, §4)" },
+    "hunter.olhos_preparo": { "rgb5": [31, 29, 22], "uso": "olhos e lampejo do caçador durante o preparo de golpe e dash (Art Bible §1.5, §4)" },
     "hunter.farrapos":  { "rgb5": [5, 5, 7],    "uso": "farrapos e pés do Espectro" },
     "world.gerador":    { "rgb5": [10, 10, 12], "uso": "corpo do gerador" },
     "world.gerador_bonus": { "rgb5": [13, 11, 4], "uso": "corpo do gerador bônus" },
@@ -92,8 +92,9 @@
       ]
     },
     "contrast_state": {
-      "$comment": "V3: olhos do caçador acendem no preparo (Art Bible §1.5, §4): o brilho muda o bastante para ler sem depender de matiz",
+      "$comment": "V3: olhos do caçador acendem no preparo (Art Bible §1.5, §4): o brilho muda o bastante para ler sem depender de matiz. Elementos pequenos (2 olhos): o pior pixel do dither também é portão",
       "min": 3.0,
+      "pior_pixel_portao": true,
       "pairs": [["hunter.olhos_preparo", "hunter.olhos"]]
     },
     "distinct": {

@@ -10,7 +10,8 @@ import type { SkinDef } from "@thehell/shared";
 import type { ClipName } from "../../assets/characters.ts";
 import { balance } from "../../data.ts";
 import { FX, PALETTE, tok } from "../../look.ts";
-import { Ps1Material } from "../ps1.ts";
+import { ps1Uniforms, Ps1Material } from "../ps1.ts";
+import { minWidthScale } from "../states.ts";
 import { atlasCell, rgb5ToRgb8 } from "./atlas.ts";
 import { chooseClip, newMemory, type ActorView, type ClipContext, type Memory } from "./state.ts";
 
@@ -178,16 +179,27 @@ function prepareTelegraph(model: THREE.Object3D): Telegraph | null {
   mesh.geometry.computeBoundingBox();
   const center = mesh.geometry.boundingBox!.getCenter(new THREE.Vector3());
   const { bone, m } = bindToBone(mesh, "Head");
-  const [w, h] = balance.render.states.eyes_flare;
-  const flare = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new Ps1Material({ lit: false, fog: false, color: tok(FX.eyesWindup) }));
-  flare.position.copy(center.applyMatrix4(m));
+  const [w, h, ahead, minPx] = balance.render.states.eyes_flare;
+  const flareMat = new Ps1Material({ lit: false, fog: false, color: tok(FX.eyesWindup) });
+  flareMat.uniforms.uSnap = { value: 0 };
+  const flare = new THREE.Mesh(new THREE.PlaneGeometry(w, h), flareMat);
+  const eyes = center.applyMatrix4(m);
+  flare.position.copy(eyes);
   flare.visible = false;
   flare.frustumCulled = false;
   // sempre de frente para a câmera (o lampejo se lê de qualquer ângulo)
-  const q = new THREE.Quaternion();
+  // e avançado `ahead` m na direção da câmera (o braço erguido no golpe não o cobre)
+  const q = new THREE.Quaternion(), p = new THREE.Vector3(), c = new THREE.Vector3();
   flare.onBeforeRender = (_r, _s, camera) => {
-    flare.parent!.getWorldQuaternion(q).invert().multiply(camera.quaternion);
+    const parent = flare.parent!;
+    parent.getWorldQuaternion(q).invert().multiply(camera.quaternion);
     flare.quaternion.copy(q);
+    p.copy(eyes).applyMatrix4(parent.matrixWorld);
+    c.setFromMatrixPosition(camera.matrixWorld).sub(p).normalize().multiplyScalar(ahead).add(p);
+    // altura mínima em tela: minPx pixels da resolução interna
+    const dist = c.distanceTo(camera.getWorldPosition(p)), fov = (camera as THREE.PerspectiveCamera).fov ?? 60;
+    flare.position.copy(parent.worldToLocal(c));
+    flare.scale.setScalar(minWidthScale(dist, fov, ps1Uniforms.uRes.value.y, h, minPx));
     flare.updateMatrixWorld();
   };
   bone.add(flare);

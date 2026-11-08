@@ -49,8 +49,6 @@ const render = z.object({
   tessellate: num.positive(),
   fog: z.object({ near: pos, far: pos }).strict().refine(f => f.far > f.near, "render.fog: far deve ser maior que near"),
   camera: z.object({ near: num.positive(), far: num.positive(), eye_height: pos }).strict().refine(c => c.far > c.near, "render.camera: far deve ser maior que near"),
-  /** V3: distância (m) câmera–jogador abaixo da qual o modelo do jogador some em 3ª pessoa */
-  hide_player_within: pos,
   lights: z.object({ ambient: pos, player: pos, player_decay: pos, player_height: pos }).strict(),
   player_light_radius: pos,
   anim_fps: num.positive(),
@@ -61,12 +59,12 @@ const render = z.object({
   states: z.object({
     beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
     lamp: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), height: pos }).strict(),
-    pending_hz: num.positive(), progress_hz: num.positive(), progress_pulse: pos,
+    pending_hz: num.positive(), pending_duty: z.number().gt(0).lt(1), progress_hz: num.positive(), progress_pulse: pos,
     bonus: z.object({
       spiral_hz: pos, spiral_turns: num.positive(), spiral_steps: z.number().int().min(2), spiral_radius: num.positive(),
       spiral_block: num.positive(), diamond: num.positive(),
     }).strict(),
-    eyes_flare: z.tuple([num.positive(), num.positive()]),
+    eyes_flare: z.tuple([num.positive(), num.positive(), pos, pos]),
     lock: z.object({ size: num.positive(), above: pos }).strict(),
   }).strict(),
 }).strict();
@@ -174,7 +172,7 @@ export const BalanceSchema = z.object({
     decision_hz: pos.positive(), perception_hz: pos.positive(), // §8.1
     hearing_investigate_time: pos,                               // §8.1 (audição)
     target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
-    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, injured_hp: pos, // §8.3
+    target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4

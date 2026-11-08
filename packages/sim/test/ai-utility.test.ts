@@ -16,7 +16,7 @@ describe("dados do §8.3", () => {
     expect(b.ai.target_switch_margin).toBe(0.15);
     expect(b.ai.isolated_radius).toBe(8);
     expect(b.ai.protected_radius).toBe(4);
-    expect(b.ai.injured_hp).toBe(40);
+    expect(b.survivor.wounded_hp).toBe(40);
   });
   it("termos conforme as definições do §8.3", () => {
     const a = seen(0, 0, 5.5, { hp: 39 }), c = seen(1, 0, 8.5, { cls: "Atacador" });

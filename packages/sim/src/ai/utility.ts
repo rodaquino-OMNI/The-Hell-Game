@@ -8,7 +8,7 @@ export interface UtilityTerms {
   proximity: number;
   /** fração do gerador em que o alvo trabalha (0 se não trabalha) */
   progress: number;
-  /** 1 se a vida estiver abaixo de `ai.injured_hp` */
+  /** 1 se a vida estiver abaixo de `survivor.wounded_hp` (GDD-v0.3 §8.3; fonte única do limiar de ferido) */
   injured: number;
   /** 1 se não há aliado percebido a menos de `ai.isolated_radius` */
   isolated: number;
@@ -33,7 +33,7 @@ export function utilityTerms(cfg: SimConfig, p: Percept, s: SeenSurvivor): Utili
   return {
     proximity: Math.min(1, Math.max(0, 1 - dist(p.self, s) / cfg.detectRadius)),
     progress,
-    injured: s.hp < ai.injured_hp ? 1 : 0,
+    injured: s.hp < cfg.balance.survivor.wounded_hp ? 1 : 0,
     isolated: others.some(o => dist(o, s) < ai.isolated_radius) ? 0 : 1,
     protected: others.some(o => o.cls === "Atacador" && dist(o, s) < ai.protected_radius) ? 1 : 0,
   };

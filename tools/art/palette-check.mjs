@@ -129,7 +129,7 @@ function contrastTable(title, test, kind) {
     MODES.forEach((m, i) => {
       if (r[i] >= test.min) return;
       const msg = `${kind} ${a} sobre ${b} (${m.name}): ${r[i].toFixed(2)}`;
-      if (m.gate) { ok = false; fails.push(msg); } else { warn = true; warns.push(msg); }
+      if (m.gate || test.pior_pixel_portao) { ok = false; fails.push(msg); } else { warn = true; warns.push(msg); }
     });
     out.push(`| \`${a}\` | \`${b}\` | ${r.map(x => x.toFixed(2) + ":1").join(" | ")} | ${ok ? (warn ? "passa (aviso)" : "passa") : "FALHA"} |`);
   }

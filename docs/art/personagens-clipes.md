@@ -76,3 +76,20 @@ Achados da revisão do V2 (risco no teste de silhueta a 384×216). Formas-chave 
 Skins (GDD v0.2 §10.3, Art Bible §3 e §7): trocam só `char.calca` e `char.sapato` (tokens `skin.<id>.a` e `.b`) e põem um acessório pequeno no peito (uma caixa de 12 triângulos no ponto `acessorio` da ficha, que o bake grava em `personagens.json`); o validador soma esses 12 triângulos ao orçamento do sobrevivente. Só o sobrevivente do jogador veste a skin equipada, como no protótipo.
 
 Capturas do marco A2 e proxy de silhueta (IoU entre pares): `node tools/art/a2-capturas.mjs <pasta>` depois de `pnpm build`.
+
+## Leitura de estado dos geradores no jogo (V3, Art Bible §4)
+
+Implementação em `packages/client/src/render/states.ts`; números em `data/balance.yaml` `render.states`.
+
+| Estado do sim | Feixe | Padrão |
+| --- | --- | --- |
+| obrigatório, `n = 0` | `gen.pendente` | pisca a `pending_hz` (1 Hz), aceso `pending_duty` (0,5) do ciclo |
+| obrigatório, `n > 0` | `gen.progresso` | pulsa na largura a `progress_hz` (2 Hz), até × (1 + `progress_pulse`) |
+| concluído (obrigatório ou bônus) | `gen.pronto` | contínuo |
+| bônus não concluído (com ou sem progresso) | `gen.bonus` | espiral girando + losango no topo; **não pulsa** |
+
+Escolhas registradas (a Art Bible §4 não trata os dois casos):
+- **Bônus em andamento não pulsa:** o bônus já tem padrão próprio (espiral e losango); somar o pulso do "em progresso" misturaria dois sinais no mesmo feixe. O progresso do bônus aparece no quebra-cabeça e no HUD.
+- **Bônus concluído vira "pronto":** para o jogador, "concluído" é um estado só (verde-água contínuo); a espiral e o losango somem. Assim "pronto" significa sempre "nada mais a fazer aqui".
+
+Feixe sem vertex snapping (uniforme `uSnap` próprio, `beam.snap`) e com largura mínima de `beam.min_px` pixels internos: de longe ele continua uma linha cheia. Olhos do caçador no preparo: `hunter.olhos_preparo`, ≥ 3:1 contra `hunter.olhos` também no pior pixel do dither (portão em `pnpm check:palette`), mais o lampejo (`eyes_flare`): sem vertex snapping, com altura mínima de 2 pixels internos e avançado para a câmera, porque a 8 m a faixa de 7 cm sumia na grade do snap.

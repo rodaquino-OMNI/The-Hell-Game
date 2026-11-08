@@ -37,7 +37,7 @@ Quantização do passe final: 5 bits por canal (render.ps1.color_bits), dither B
 | `char.couro` | 8, 5, 3 | #422919 | 2 | guarda da espada |
 | `char.cachecol` | 8, 16, 28 | #4284E6 | 3 | cachecol do Batedor (não pode ser ui.accent: é a cor de fx.preso) |
 | `char.lanterna` | 20, 27, 31 | #A5DEFF | 2 | lanterna do capacete do Mecânico, emissiva (não pode ser ui.accent) |
-| `hunter.olhos_preparo` | 31, 28, 20 | #FFE6A5 | 3 | olhos e lampejo do caçador durante o preparo de golpe e dash (Art Bible §1.5, §4) |
+| `hunter.olhos_preparo` | 31, 29, 22 | #FFEFB5 | 2 | olhos e lampejo do caçador durante o preparo de golpe e dash (Art Bible §1.5, §4) |
 | `hunter.farrapos` | 5, 5, 7 | #29293A | 2 | farrapos e pés do Espectro |
 | `world.gerador` | 10, 10, 12 | #525263 | 3 | corpo do gerador |
 | `world.gerador_bonus` | 13, 11, 4 | #6B5A21 | 2 | corpo do gerador bônus |
@@ -98,14 +98,14 @@ Quantização do passe final: 5 bits por canal (render.ps1.color_bits), dither B
 | `char.lamina` | `world.fog` | 10.17:1 | 10.20:1 | 9.84:1 | passa |
 | `char.cachecol` | `world.fog` | 4.35:1 | 4.37:1 | 4.21:1 | passa |
 | `char.lanterna` | `world.fog` | 11.12:1 | 11.12:1 | 10.92:1 | passa |
-| `hunter.olhos_preparo` | `world.fog` | 13.13:1 | 13.09:1 | 12.25:1 | passa |
-| `hunter.olhos_preparo` | `world.wall` | 10.49:1 | 10.52:1 | 9.85:1 | passa |
+| `hunter.olhos_preparo` | `world.fog` | 14.02:1 | 14.05:1 | 13.77:1 | passa |
+| `hunter.olhos_preparo` | `world.wall` | 11.20:1 | 11.30:1 | 11.08:1 | passa |
 
 ## Mudança de estado por brilho (Art Bible §1.5 e §4) (mínimo 3:1)
 
 | Elemento | Fundo | exata | média 4×4 | pior pixel | Resultado |
 | --- | --- | --- | --- | --- | --- |
-| `hunter.olhos_preparo` | `hunter.olhos` | 3.12:1 | 3.12:1 | 2.97:1 | passa (aviso) |
+| `hunter.olhos_preparo` | `hunter.olhos` | 3.33:1 | 3.35:1 | 3.33:1 | passa |
 
 ## Distinção entre cores do mesmo grupo (CIEDE2000, mínimo 12)
 
@@ -123,16 +123,15 @@ Menor diferença entre dois membros, em visão normal e sob cada simulação (Ma
 
 | Grupo | Normal | Protanopia | Deuteranopia | Tritanopia | Par mais próximo (pior caso) | Resultado |
 | --- | --- | --- | --- | --- | --- | --- |
-| acessorios | 37.9 / 37.7 / 36.2 | 35.5 / 35.4 / 33.8 | 39.0 / 38.8 / 37.1 | 36.2 / 36.3 / 35.5 | char.lanterna × olhos_preparo (protanopia, média 4×4) | passa |
-| skins_estado | 14.6 / 14.5 / 13.6 | 12.7 / 12.8 / 11.0 | 12.9 / 12.8 / 11.5 | 12.7 / 12.8 / 12.0 | skin.our.b × fx.preso (tritanopia, exata) | passa (aviso) |
+| acessorios | 36.3 / 36.4 / 36.1 | 34.1 / 34.1 / 33.8 | 37.4 / 37.5 / 36.9 | 33.1 / 32.8 / 28.6 | char.lanterna × olhos_preparo (tritanopia, média 4×4) | passa |
+| skins_estado | 15.9 / 15.8 / 14.4 | 12.7 / 12.8 / 12.5 | 12.9 / 12.8 / 11.5 | 12.7 / 12.8 / 12.3 | skin.our.b × fx.preso (tritanopia, exata) | passa (aviso) |
 | skins_classe | 13.3 / 13.2 / 11.3 | — | — | — | skin.fan.b × protetor (normal, média 4×4) | passa (aviso) |
 
-**Avisos (pior pixel, informativo):** 5
+**Avisos (pior pixel, informativo):** 4
 
 - contraste gráfico hunter.carcereiro sobre world.fog (pior pixel): 2.89
-- contraste de estado hunter.olhos_preparo sobre hunter.olhos (pior pixel): 2.97
 - grupo classes: class.mecanico × class.batedor em deuteranopia, pior pixel com ΔE00 11.1
-- grupo skins_estado: skin.our.b × hunter.olhos_preparo em protanopia, pior pixel com ΔE00 11.0
+- grupo skins_estado: skin.our.b × fx.ameaca em deuteranopia, pior pixel com ΔE00 11.5
 - grupo skins_classe: skin.fan.b × class.protetor em normal, pior pixel com ΔE00 11.3
 
 **Resultado:** todos os testes passam.

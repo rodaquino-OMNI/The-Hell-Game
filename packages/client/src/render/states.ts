@@ -3,7 +3,7 @@
 // `render.states`. O olho do caçador no preparo fica em characters/runtime.ts (`setTelegraph`).
 //
 // Padrões (Art Bible §4: "sem depender só de cor"):
-//  - pendente: feixe laranja-avermelhado que pisca devagar (render.states.pending_hz, aceso metade do ciclo);
+//  - pendente: feixe laranja-avermelhado que pisca devagar (render.states.pending_hz, aceso pending_duty do ciclo);
 //  - em progresso: feixe amarelo que pulsa na largura (progress_hz, amplitude progress_pulse);
 //  - pronto: feixe verde-água contínuo;
 //  - bônus: feixe magenta com espiral girando em volta e losango no topo.
@@ -26,9 +26,9 @@ export function genState(g: Generator): GenState {
   return g.n > 0 ? "progresso" : "pendente";
 }
 
-/** o feixe/lâmpada está aceso no instante `t` (só o pendente apaga: pisca a pending_hz) */
+/** o feixe/lâmpada está aceso no instante `t` (só o pendente apaga: pisca a pending_hz, aceso pending_duty do ciclo) */
 export function beamLit(state: GenState, t: number): boolean {
-  return state !== "pendente" || (t * st.pending_hz) % 1 < 0.5;
+  return state !== "pendente" || (t * st.pending_hz) % 1 < st.pending_duty;
 }
 
 /** multiplicador de largura do feixe no instante `t` (só o em progresso pulsa, a progress_hz) */

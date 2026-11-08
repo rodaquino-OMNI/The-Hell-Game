@@ -174,7 +174,6 @@ ai:
   target_switch_margin: 0.15
   isolated_radius: 8
   protected_radius: 4
-  injured_hp: 40                    # §8.3: ferido = 1 se a vida estiver abaixo de 40
   # Números técnicos da IA sem valor no GDD (LACUNA registrada no relatório do R3; valores conservadores):
   patrol_reach: 2                   # §8.2: chegou ao gerador/portão da patrulha (mesmo valor do protótipo, prototype_extras.patrol.reach)
   search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
@@ -240,9 +239,6 @@ render:
   tessellate: 2                     # m; GDD-v0.3 §10.1 item 2: chão e paredes subdivididos (limita a distorção afim e dá vértices ao Gouraud)
   fog: {near: 3, far: 30}
   camera: {near: 0.1, far: 60, eye_height: 1.5}   # prototype/the-hell.html L93 (near/far) e L188 (olho em 1ª pessoa)
-  # V3: em 3ª pessoa, quando o muro puxa a câmera para menos de hide_player_within m do jogador, o modelo do jogador
-  # some (o cajado e os acessórios não tapam a tela; mesma regra de visibilidade da 1ª pessoa)
-  hide_player_within: 1.5
   lights: {ambient: 0.9, player: 1.2, player_decay: 1, player_height: 2.5}   # prototype/the-hell.html L94 e L189 (paridade); × π no código (three.js atual sem unidades físicas)
   player_light_radius: 24
   anim_fps: 12
@@ -255,13 +251,17 @@ render:
     # tracejado, achado da revisão do V1); snap = intensidade do vertex snapping só no feixe (0: a linha não quebra de longe)
     beam: {width: 0.25, height: 14, min_px: 1.5, snap: 0}
     lamp: {size: [0.4, 0.3, 0.4], height: 1.2}       # lâmpada no topo do gerador (mesmo padrão do feixe)
-    pending_hz: 1                                    # pendente: pisca devagar, 1 vez por segundo (aceso metade do ciclo)
+    pending_hz: 1                                    # pendente: pisca devagar, 1 vez por segundo
+    pending_duty: 0.5                                # fração do ciclo do pendente com o feixe aceso
     progress_hz: 2                                   # em progresso: pulsa 2 vezes por segundo
     progress_pulse: 0.8                              # no pico do pulso a largura do feixe é × (1 + progress_pulse)
     # bônus: espiral de spiral_steps blocos (lado spiral_block) em spiral_turns voltas de raio spiral_radius, girando a
     # spiral_hz voltas por segundo, e losango (octaedro de raio diamond) no topo do feixe
     bonus: {spiral_hz: 0.5, spiral_turns: 3, spiral_steps: 18, spiral_radius: 0.5, spiral_block: 0.18, diamond: 0.45}
-    eyes_flare: [0.7, 0.07]                          # lampejo horizontal nos olhos do caçador durante o preparo (largura, altura em m)
+    # lampejo horizontal nos olhos do caçador durante o preparo: largura, altura e avanço para a câmera (m; o braço
+    # erguido no golpe não o tapa) e altura mínima em pixels da resolução interna (de longe a faixa fina não some;
+    # o lampejo, como o feixe, não usa vertex snapping)
+    eyes_flare: [0.7, 0.07, 0.35, 2]
     lock: {size: 0.5, above: 0.5}                    # cadeado sobre o aliado preso: lado (m) e altura acima da cabeça (m)
 
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------

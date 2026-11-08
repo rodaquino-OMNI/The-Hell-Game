@@ -18,14 +18,14 @@ describe("feixes de gerador (Art Bible §4)", () => {
     expect(genState(gen({ bonus: true, done: true }))).toBe("pronto");
   });
 
-  it("pendente pisca a pending_hz (aceso metade do ciclo); os outros ficam acesos", () => {
+  it("pendente pisca a pending_hz (aceso pending_duty do ciclo); os outros ficam acesos", () => {
     const period = 1 / st.pending_hz;
     let on = 0;
     const N = 1000;
     for (let i = 0; i < N; i++) if (beamLit("pendente", (i / N) * period)) on++;
-    expect(on / N).toBeCloseTo(0.5, 2);
-    expect(beamLit("pendente", 0.25 * period)).toBe(true);
-    expect(beamLit("pendente", 0.75 * period)).toBe(false);
+    expect(on / N).toBeCloseTo(st.pending_duty, 2);
+    expect(beamLit("pendente", 0.5 * st.pending_duty * period)).toBe(true);
+    expect(beamLit("pendente", (st.pending_duty + 0.5 * (1 - st.pending_duty)) * period)).toBe(false);
     for (const s of ["progresso", "pronto", "bonus"] as const) for (let i = 0; i < 20; i++) expect(beamLit(s, i * 0.137)).toBe(true);
   });
 
