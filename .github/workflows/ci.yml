@@ -5,9 +5,10 @@ on:
   pull_request:
 permissions:
   contents: read
+# Em PRs, um push novo cancela o run anterior. Em main nunca: cancelar ali interrompe o deploy de staging.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     name: Testes, build e fumaça
@@ -15,7 +16,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v6.1.0 # v6.1.1 (03/11/2026) tem menos de 2 semanas
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
