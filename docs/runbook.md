@@ -67,7 +67,13 @@ Preços de [docs.fly.io/about/pricing](https://docs.fly.io/about/pricing) (consu
 
 Conferir o uso: painel do Fly.io → *Billing*.
 
+## Histórico de produção
+
+| Data | Versão | Como | Aprovação | Verificação |
+| --- | --- | --- | --- | --- |
+| 08/11/2026 | `c2b08ff` (fase 0) | pela sessão, `--depot=false` | Rodrigo, na conversa ("publish it from here") | `/healthz` ok; `tools/smoke.mjs` contra https://the-hell.fly.dev ok |
+
 ## Pendências
 
 - **Segredo `FLY_API_TOKEN` no GitHub** (o Rodrigo cria; o agente não vê o valor): no Fly.io, *Tokens* da organização pessoal → criar token de deploy; no GitHub, *Settings* → *Secrets and variables* → *Actions* → *New repository secret* → nome `FLY_API_TOKEN`. Enquanto não existir, o deploy de staging é feito pela sessão.
-- **Primeiro deploy de produção:** aguarda aprovação do Rodrigo.
+
