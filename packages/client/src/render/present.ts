@@ -43,17 +43,23 @@ uvec3 pcg3d( uvec3 v ) {
   v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
   return v;
 }
-// brilho dos emissivos: média ponderada, num disco de BLOOM_R pixels internos, da cor dos pixels com alfa 0
+// brilho dos emissivos: média ponderada da cor dos pixels com alfa 0 em 13 amostras (centro e dois anéis de 6,
+// a meio raio e no raio BLOOM_R, em pixels internos), peso caindo com a distância. 13 amostras em vez do disco
+// cheio: o custo cabe no SwiftShader da CI e em GPU integrada
 vec3 bloom() {
-  vec3 sum = vec3( 0.0 );
-  float wsum = 0.0;
-  for ( int y = - BLOOM_R; y <= BLOOM_R; y ++ ) for ( int x = - BLOOM_R; x <= BLOOM_R; x ++ ) {
-    float d = length( vec2( x, y ) );
-    if ( d > float( BLOOM_R ) + 0.5 ) continue;
-    float w = 1.0 - d / ( float( BLOOM_R ) + 1.0 );
-    vec4 c = texture2D( tDiffuse, vUv + vec2( x, y ) / uRes );
-    sum += c.rgb * ( 1.0 - c.a ) * w;
-    wsum += w;
+  vec4 c0 = texture2D( tDiffuse, vUv );
+  vec3 sum = c0.rgb * ( 1.0 - c0.a );
+  float wsum = 1.0;
+  for ( int ring = 1; ring <= 2; ring ++ ) {
+    float r = float( BLOOM_R ) * float( ring ) * 0.5;
+    float w = 1.0 - r / ( float( BLOOM_R ) + 1.0 );
+    for ( int k = 0; k < 6; k ++ ) {
+      // anéis girados meio passo um do outro (ângulos de 60° em 60°)
+      float a = ( float( k ) + 0.5 * float( ring - 1 ) ) * 1.04719755;
+      vec4 c = texture2D( tDiffuse, vUv + vec2( cos( a ), sin( a ) ) * r / uRes );
+      sum += c.rgb * ( 1.0 - c.a ) * w;
+      wsum += w;
+    }
   }
   return sum / wsum;
 }
