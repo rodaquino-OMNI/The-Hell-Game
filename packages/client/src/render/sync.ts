@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { GameState } from "@thehell/sim";
 import { HUNTER_COLORS, WORLD_COLORS } from "../look.ts";
 import type { Ps1Material } from "./ps1.ts";
+import { animateHunter, animateSurvivor } from "./characters/actors.ts";
 import { basic, box, meshes, type RenderCtx } from "./scene.ts";
 
 /** posição e visibilidade de figuras, lâmpadas dos geradores e cor do portão */
@@ -10,10 +11,12 @@ export function syncActors(G: GameState, thirdPerson: boolean) {
   const P = G.survivors[0], H = G.hunter;
   for (const s of G.survivors) {
     const m = meshes.get("s" + s.id)!;
-    m.position.set(s.x, 0, s.z); m.rotation.y = s.a; m.scale.y = s.st === "cage" ? 0.6 : 1;
+    m.position.set(s.x, 0, s.z); m.rotation.y = s.a;
     m.visible = (s.st === "ok" || s.st === "cage") && (s !== P || thirdPerson);
+    animateSurvivor(m, s, G);
   }
   const hm = meshes.get("hunter")!; hm.position.set(H.x, 0, H.z); hm.rotation.y = H.a;
+  animateHunter(hm, H, G);
   G.gens.forEach((g, i) => {
     const c = g.bonus ? (g.done ? 0x555566 : 0x4da6ff) : g.done ? 0x33ff66 : g.n > 0 ? 0xffcc33 : 0xff3333;
     const lamp = meshes.get("lamp" + i) as THREE.Mesh, beam = meshes.get("beam" + i) as THREE.Mesh;

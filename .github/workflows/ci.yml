@@ -31,6 +31,8 @@ jobs:
       - name: Traduções pt-BR, en e es (GDD v0.3 §12.5)
         run: pnpm i18n:check
       - run: pnpm build
+      - name: Modelos (glTF-Validator, triângulos e clipes por personagem)
+        run: node tools/assets/validate.mjs
       - run: pnpm exec playwright install --with-deps chromium
       - name: WASM do recast no navegador (build do Vite, mesmo navmesh que o Node)
         run: pnpm maps:browser-check
