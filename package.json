@@ -20,6 +20,8 @@
     "check:palette": "node tools/art/palette-check.mjs",
     "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
     "smoke": "node tools/smoke.mjs",
+    "maps:validate": "tsx tools/maps/validate.ts",
+    "maps:browser-check": "pnpm data && node tools/maps/recast-browser-check.mjs",
     "visual": "node tools/visual/compare.mjs"
   },
   "devDependencies": {
