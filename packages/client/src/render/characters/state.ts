@@ -22,8 +22,8 @@ export const ACTIVE: Record<"sobrevivente" | "cacador", Record<ClipName, string>
     interagir: "INATIVO: o caçador não interage com objetos no sim",
     ferido: "INATIVO: sem estado ferido do caçador",
     preso: "INATIVO: o caçador nunca é preso",
-    golpe: "borda de subida de hunter.atk; o PREPARO do golpe (telegraph 0,4 s) depende do R1",
-    dash: "hunter.dashing > 0; o PREPARO do dash depende do R1",
+    golpe: "início do preparo (hunter.windup.kind = melee, telegraph de hunter.telegraph_min) ou borda de subida de hunter.atk",
+    dash: "preparo (hunter.windup.kind = dash) ou hunter.dashing > 0",
     atordoado: "hunter.stun > 0",
   },
 };
@@ -46,6 +46,8 @@ export interface ActorView {
   hp?: number;
   dashing?: boolean;
   stunned?: boolean;
+  /** preparo (telegraph) exposto pelo sim nas regras v1: o clipe começa junto do aviso (Art Bible §1.5) */
+  windup?: "golpe" | "dash" | null;
 }
 
 export interface ClipContext {
@@ -71,13 +73,14 @@ export function chooseClip(v: ActorView, mem: Memory, ctx: ClipContext): ClipCho
   } else if (dt < 0) { mem.x = v.x; mem.z = v.z; mem.t = ctx.t; mem.speed = 0; mem.working = false; mem.work = v.work ?? 0; }
   const attacked = v.atk > mem.atk;
   mem.atk = v.atk;
-  if (attacked) { mem.oneShot = "golpe"; mem.oneShotEnd = ctx.t + ctx.strikeDuration; }
+  // o golpe começa no preparo; o ataque que encerra esse preparo não reinicia o clipe
+  if ((attacked || v.windup === "golpe") && mem.oneShot !== "golpe") { mem.oneShot = "golpe"; mem.oneShotEnd = ctx.t + ctx.strikeDuration; }
   if (mem.oneShot && ctx.t >= mem.oneShotEnd) mem.oneShot = null;
 
   const speed = mem.speed;
   if (v.caged) return { clip: "preso", speed: 0 };
   if (v.stunned) return { clip: "atordoado", speed: 0 };
-  if (v.dashing) return { clip: "dash", speed };
+  if (v.dashing || v.windup === "dash") return { clip: "dash", speed };
   if (mem.oneShot) return { clip: mem.oneShot, speed };
   if (v.interacting || mem.working) return { clip: "interagir", speed: 0 };
   if (speed > 0) {

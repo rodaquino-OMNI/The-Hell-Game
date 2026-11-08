@@ -35,6 +35,15 @@ describe("estado → clipe", () => {
     expect(chooseClip({ x: 0, z: 0, atk: 1.5 }, m, ctx(0.8)).clip).toBe("idle");
   });
 
+  it("preparo do caçador: golpe começa no aviso e não reinicia no ataque; preparo de dash toca dash", () => {
+    const m = newMemory(0, 0, 0);
+    expect(chooseClip({ x: 0, z: 0, atk: 0, windup: "golpe" }, m, ctx(0.1)).clip).toBe("golpe");
+    expect(chooseClip({ x: 0, z: 0, atk: 1.7, windup: null }, m, ctx(0.5)).clip).toBe("golpe");
+    expect(m.oneShotEnd).toBeCloseTo(0.6);
+    expect(chooseClip({ x: 0, z: 0, atk: 1.6 }, m, ctx(0.7)).clip).toBe("idle");
+    expect(chooseClip({ x: 0, z: 0, atk: 1.5, windup: "dash" }, m, ctx(0.8)).clip).toBe("dash");
+  });
+
   it("bot interage enquanto `work` sobe; ferido só com limiar em dados", () => {
     const m = newMemory(0, 0, 0);
     chooseClip({ x: 0, z: 0, atk: 0, work: 0 }, m, ctx(0.1));

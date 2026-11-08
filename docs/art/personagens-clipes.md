@@ -31,8 +31,8 @@ Regenerar: `pnpm exec tsx tools/assets/build-characters.ts "<pasta Unreal-Godot 
 | `interagir` | `Fixing_Kneeling` (sobrev.), `Interact` (caçador) | direto | direto | não | sobrevivente: quebra-cabeça aberto, resgate, bot com `work` subindo; caçador: **inativo** |
 | `ferido` | `Walk_Loop` | 0,8× + tronco 18° e cabeça 12° curvados | igual | **sim** | **inativo**: falta `survivor.wounded_hp` em `balance.yaml` (GDD v0.3 §8.3 usa 40) |
 | `preso` | `Crouch_Idle_Loop` | direto | direto (sem uso) | não | `st = cage` |
-| `golpe` | `Punch_Cross`; Atacador `Sword_Attack` | direto | 1,2× | Espectro **sim** | borda de subida de `atk` (acabou de atacar); o **preparo** (telegraph 0,4 s) depende do R1 |
-| `dash` | `Sprint_Loop` | 1,5× + tronco 14° à frente | igual | **sim** | caçador: `dashing > 0`; sobrevivente: **inativo**. Preparo do dash depende do R1 |
+| `golpe` | `Punch_Cross`; Atacador `Sword_Attack` | direto | 1,2× | Espectro **sim** | caçador: começa no preparo (`hunter.windup.kind = melee`, regras v1); sem preparo, borda de subida de `atk` |
+| `dash` | `Sprint_Loop` | 1,5× + tronco 14° à frente | igual | **sim** | caçador: preparo (`hunter.windup.kind = dash`) ou `dashing > 0`; sobrevivente: **inativo** |
 | `atordoado` | `Hit_Head` | 0,35× em laço + cabeça tombada 10° | igual | **sim** | caçador: `stun > 0`; sobrevivente: **inativo** |
 
 A mesma tabela, com o critério de cada estado, está em `packages/client/src/render/characters/state.ts` (`ACTIVE`).

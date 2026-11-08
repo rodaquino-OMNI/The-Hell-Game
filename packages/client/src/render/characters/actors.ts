@@ -31,6 +31,7 @@ export function animateHunter(root: THREE.Object3D, H: Hunter, G: GameState) {
     x: H.x, z: H.z, atk: H.atk,
     dashing: H.dashing > 0,
     stunned: H.stun > 0,
+    windup: H.windup ? (H.windup.kind === "melee" ? "golpe" : "dash") : null,
   }, { t: G.t, walk: balance.hunter.patrol_speed, run: cfg.chaseSpeed });
 }
 
