@@ -8,7 +8,7 @@ Jogo assimétrico de fuga e perseguição para o navegador: 1 caçador contra 1 
 | --- | --- | --- |
 | [`docs/GDD-v0.2.md`](docs/GDD-v0.2.md) | Game Design Document original (07/11/2026), fonte canônica | congelado |
 | [`docs/GDD-v0.3.md`](docs/GDD-v0.3.md) | Delta sobre o v0.2: IA, mapas, gráficos, áudio, UI, arquitetura, contradições e decisões | aprovado (revisão 2) |
-| [`docs/art-bible.md`](docs/art-bible.md) | Direção de arte: paleta, silhuetas, testes de legibilidade, marcos de arte | marco A1, revisão 2 aguarda o filho |
+| [`docs/art-bible.md`](docs/art-bible.md) | Direção de arte: paleta, silhuetas, testes de legibilidade, marcos de arte | marco A1 aprovado |
 | [`docs/prototipo-paridade.md`](docs/prototipo-paridade.md) | Protótipo × GDD: paridade linha a linha e comportamentos fora do GDD | referência da fase 0 |
 | [`docs/plano-construcao.md`](docs/plano-construcao.md) | Fases, WBS, caminho crítico, orçamento, portões e decisões tomadas | aprovado |
 
@@ -19,6 +19,32 @@ Jogo assimétrico de fuga e perseguição para o navegador: 1 caçador contra 1 
 - `data/art/palette.json`: tokens de cor de 15 bits.
 - `node tools/art/palette-check.mjs --md`: testa contraste (WCAG 2.2) e distinção sob daltonismo simulado; sai com erro se falhar.
 - `node tools/art/silhouettes.mjs`: gera a folha de silhuetas-conceito em `docs/art/`.
+
+## Desenvolvimento
+
+Requer Node 22 e pnpm 10.
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm dev
+```
+
+```bash
+pnpm test
+```
+
+| Comando | O que faz |
+| --- | --- |
+| `pnpm dev` | jogo no navegador com recarga automática (http://localhost:5173) |
+| `pnpm test` / `pnpm coverage` | testes (paridade com o protótipo, determinismo, dados, servidor) |
+| `pnpm lint` / `pnpm typecheck` | ESLint (Math.random proibido na simulação) e TypeScript |
+| `pnpm build` / `pnpm start` | build de produção e servidor em http://localhost:8080 |
+| `pnpm smoke` | teste ponta a ponta no Chromium |
+
+Estrutura: `packages/sim` (regras determinísticas), `packages/shared` (schema e carga de `data/`), `packages/client` (three.js), `packages/server` (Node). Agentes especialistas em `.claude/agents/`. Operação e deploy: [`docs/runbook.md`](docs/runbook.md). Staging: https://the-hell-staging.fly.dev
 
 ## Stack decidida
 

@@ -7,6 +7,9 @@
 
 version: 0.3.1   # revisão 2: decisões D-01 a D-12 (08/11/2026)
 difficulty: normal
+# Conjunto de regras: "prototype" reproduz prototype/the-hell.html (paridade da fase 0, docs/prototipo-paridade.md);
+# "v1" liga as regras do GDD v0.3 (cone de visão, ruído de 18 m, D-01, D-03) a partir da fase 1.
+ruleset: prototype
 
 # ---------- 1. Sobrevivente (GDD-v0.2 §2.3) ----------
 survivor:
@@ -14,7 +17,7 @@ survivor:
   walk: 4.0
   run: 5.4
   stamina: {max: 100, drain: 15, regen: 14, regen_puzzle: 10}
-  bot: {walk: 3.8, flee: 4.2}
+  bot: {walk: 3.8, flee: 4.2, puzzle_time: 10}   # GDD-v0.2 §2.3: bot conserta em 10 s por quebra-cabeça (Mecânico: 6 s)
   radius: 0.45           # jogador; bots usam 0.5 (protótipo L129, L139 — docs/prototipo-paridade.md P-05)
   bot_radius: 0.5
   height: 1.75
@@ -121,6 +124,27 @@ prototype_extras:
   projectile_life: 2.0
   gate_exit_half_width: 3.2
   chase_speed: 3.9                                      # paridade da fase 0 (D-03 b muda o jogo para 4.3)
+  # números internos do protótipo, sem equivalente no GDD (docs/prototipo-paridade.md; L = linha do protótipo)
+  hunter_initial: {dash: 6, projectile: 6, trap: 14, reveal: 20}   # L106-107: recargas no início da partida
+  patrol: {range: 50, reach: 2}                         # L163: ponto de patrulha sorteado em ±25 m
+  projectile_hit_radius: 0.8                            # L146
+  sidestep: {time: 0.7, angle: 1.2, min_progress: 0.4}  # L129: desvio ao travar em parede
+  cage_slot_spacing: 0.7                                # L125
+  rescued_offset: 2.5                                   # L127
+  stamina_min_to_run: 5                                 # L138
+  bot:                                                  # L172-181
+    heal_threshold: 65
+    mechanic_bolt_dist: 8
+    fighter_block_dist: 4
+    fighter_engage_dist: 7
+    fighter_chase_stunned_dist: 8
+    fighter_strike_dist: 2.6
+    flee_dist: 9
+    rescue_min_hunter_dist: 16
+    reach: 1.9
+    gate_speed: 4
+    wait_point: [0, -24]
+    wait_reach: 3
 
 # ---------- 10. Partida (GDD-v0.3 §3.3 revisto) ----------
 match:

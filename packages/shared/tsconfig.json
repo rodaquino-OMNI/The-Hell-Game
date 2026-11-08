@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "../../dist/types/shared", "types": ["node"] },
+  "include": ["src", "test", "generated/*.json"]
+}

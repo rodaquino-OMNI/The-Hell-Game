@@ -32,7 +32,7 @@ Legenda (igual ao v0.2): **[Implementado]** · **[Especificado]** · **[Proposta
 | C-17 | §0 × §17.1 | A v1.0 tem 3 caçadores (§0), mas a fase 4 só prevê o "caçador 2". O "Jogar de caçador" aparece como modo opcional (§14.4), embora o multiplayer 1 contra 5 exija um caçador humano. | Os caçadores 2 e 3 (O Carcereiro e O Lamento, §4.2) entram na fase 4. O caçador controlado por pessoa entra na fase 3, junto com o multiplayer; na v1.0, "Jogar de caçador" é o papel de caçador nas filas casual e ranked. **Decidido (D-09 a).** | Rodrigo e filho, 08/11/2026 |
 | C-16 | §7.6 | Não há métrica para o pilar 3 "objetivos opcionais de risco/recompensa" (geradores bônus). | **LACUNA** registrada; proposta de métrica de telemetria "partidas com ≥ 1 bônus concluído" na fase 5, sem banda até haver dados. | — |
 
-O código do protótipo foi conferido linha a linha contra a tabela 2.3 em [`prototipo-paridade.md`](prototipo-paridade.md): todos os valores batem, e 11 comportamentos fora do GDD ficam registrados lá. Correção factual: o protótipo tem 22 KB, não ~45 KB (§2.5).
+O código do protótipo foi conferido linha a linha contra a tabela 2.3 em [`prototipo-paridade.md`](prototipo-paridade.md): todos os valores batem, e 11 comportamentos fora do GDD ficam registrados lá. Correção factual: o protótipo tem 22 KB, não ~45 KB (§2.5). Correção de pontos (P-12): no protótipo, um gerador completo vale 90 pontos (5 quebra-cabeças × 10 + 40 ao concluir), não 50 como diz o §2.3; o porte mantém 90.
 
 Itens vagos fora das seções 8 a 13, registrados para a fase 1 sem decisão aqui: tempo extra de gaiola no último resgate (§4.3, sem valor); categorias de pontos (§7.1, quase todas [Proposta]); evolução das classes (§5.2).
 

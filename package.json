@@ -1,0 +1,37 @@
+{
+  "name": "the-hell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "THE HELL — terror assimétrico 1 contra 1 a 5 no navegador",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "data": "tsx tools/data/build-data.ts",
+    "build": "pnpm data && pnpm --filter @thehell/client build && pnpm --filter @thehell/server build",
+    "dev": "pnpm data && pnpm --filter @thehell/client dev",
+    "start": "node packages/server/dist/server.mjs",
+    "test": "pnpm data && vitest run",
+    "coverage": "pnpm data && vitest run --coverage",
+    "typecheck": "pnpm data && tsc -b",
+    "lint": "eslint .",
+    "check:palette": "node tools/art/palette-check.mjs",
+    "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.5",
+    "@vitest/coverage-v8": "4.1.12",
+    "eslint": "9.39.5",
+    "globals": "17.13.0",
+    "playwright": "1.63.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "4.1.12",
+    "yaml": "2.9.1"
+  }
+}

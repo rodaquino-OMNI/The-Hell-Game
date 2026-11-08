@@ -2,7 +2,7 @@
 
 **08/11/2026 · `prototype/the-hell.html` (22.115 bytes, SHA-256 `83e9fc73…a59c0f9`)**
 
-O código do protótipo bate com a tabela 2.3 do GDD v0.2 em todos os valores conferidos (as 30 linhas da seção 1). Nenhum número do baseline precisa ser corrigido. O código mostra ainda 11 comportamentos que o GDD não registra, e 2 deles são defeitos. Esta tabela é a especificação dos testes de regressão do item F0-04: o porte para TypeScript tem que reproduzir cada linha.
+O código do protótipo bate com a tabela 2.3 do GDD v0.2 em todos os valores conferidos (as 30 linhas da seção 1). Nenhum número do baseline precisa ser corrigido. O código mostra ainda 12 comportamentos que o GDD não registra ou registra errado (P-12 foi achado no porte). Esta tabela é a especificação dos testes de regressão do item F0-04: o porte para TypeScript tem que reproduzir cada linha.
 
 **Origem do arquivo:** zip enviado pelo Rodrigo em 08/11/2026, exportado do artefato publicado na conversa de criação do jogo. Do zip, só entrou no repositório o `the-hell.html`. Os outros arquivos (visualizador do Claude Docs e fontes da Anthropic) não fazem parte do jogo.
 
@@ -60,8 +60,9 @@ Vão para `data/balance.yaml` (bloco `prototype_extras`) para o porte reproduzir
 | P-07 | O parafuso dos bots acerta sem precisar mirar | `s.bot\|\|…>.6` | 123 | mantém no porte; a IA nova (GDD-v0.3 §8.5) passa a mirar como o jogador |
 | P-08 | O golpe do Atacador gasta a recarga mesmo errando; o parafuso do Mecânico só gasta ao acertar | `s.atk=5;if(D(s,H)<3.2)` | 123 | registrar; decisão de balanceamento, não defeito |
 | P-09 | A 2ª derrubada mata na hora, sem passar pela gaiola | `if(s.cgn>=1){kill(s)…}` | 125 | confere com "2ª captura = morte" |
-| P-10 | Só o Shift esquerdo fecha o quebra-cabeça (o direito não) | `'ShiftLeft'` | 111 | defeito menor; corrigir no porte |
-| P-11 | Os textos do menu estão desatualizados: Curandeiro "(12 s)" e bloqueio do Atacador "(10 s)", mas o código usa 10 s e 8 s | descrição em `CL` | 53, 55 | **defeito**: o texto mostra os valores anteriores à mudança 2.4.2; no porte, o texto passa a ler os números de `data/` |
+| P-10 | Só o Shift esquerdo fecha o quebra-cabeça (o direito não) | `'ShiftLeft'` | 111 | defeito menor; **corrigido no porte** (o Shift direito também sai) |
+| P-11 | Os textos do menu estão desatualizados: Curandeiro "(12 s)" e bloqueio do Atacador "(10 s)", mas o código usa 10 s e 8 s | descrição em `CL` | 53, 55 | **defeito**: o texto mostra os valores anteriores à mudança 2.4.2; **corrigido no porte**: o texto lê os números de `data/` |
+| P-12 | Um gerador vale **90 pontos** (5 × 10 + 40), não 50 como diz o GDD §2.3; o bônus vale 200 (5 × 25 + 75), como o GDD diz. A mensagem "+50 pontos" mostra só o ganho do último passo | `G.pts+=pp` + `G.pts+=g.b?75:40` | 118 | **achado do porte (08/11/2026)**: o porte segue o código (90); o GDD v0.3 registra a correção |
 
 ## 3. Confirmações para o GDD v0.3
 

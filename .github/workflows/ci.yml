@@ -1,0 +1,62 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    name: Testes, build e fumaça
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Testes com cobertura (sim ≥ 90%)
+        run: pnpm coverage
+      - name: Paleta (contraste e daltonismo)
+        run: pnpm check:palette
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Fumaça ponta a ponta (servidor + jogo no navegador)
+        run: pnpm smoke
+      - name: Fumaça do protótipo original
+        run: pnpm smoke:prototype
+  secrets:
+    name: Varredura de segredos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  deploy-staging:
+    name: Deploy em staging
+    needs: [test, secrets]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: { group: deploy-staging, cancel-in-progress: false }
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+        if: env.FLY_API_TOKEN != ''
+      - run: flyctl deploy --config fly.staging.toml --remote-only --build-arg APP_VERSION=${{ github.sha }}
+        if: env.FLY_API_TOKEN != ''
+      - run: curl -fsS https://the-hell-staging.fly.dev/healthz
+        if: env.FLY_API_TOKEN != ''
+      - run: echo "FLY_API_TOKEN não configurado — deploy de staging feito pela sessão (docs/runbook.md)."
+        if: env.FLY_API_TOKEN == ''
