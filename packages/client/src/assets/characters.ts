@@ -3,7 +3,7 @@
 // a partir de `corpo`, os dedos modelados a partir de `dedosModelados` e os clipes a partir do conjunto nomeado.
 // Fontes: Art Bible §3 (formas-chave e alturas), §7 (orçamento, atlas, 12 FPS, nomes dos clipes); GDD v0.3 §10.3.
 // Quem consome: tools/assets/build-characters.ts (gera os .glb), testes e docs/art/personagens-clipes.md (tabela).
-import { CLIP_NAMES, resolveClips, type ClipName, type ClipRecipe, type Sheet, type SheetCharacter, type SheetPiece } from "@thehell/shared";
+import { CLIP_NAMES, resolveClips, variantIds, type ClipName, type ClipRecipe, type Sheet, type SheetCharacter, type SheetPiece } from "@thehell/shared";
 import sheetJson from "@thehell/shared/generated/personagens.json";
 
 export { CLIP_NAMES, type ClipName, type ClipRecipe };
@@ -32,6 +32,8 @@ export interface CharacterSpec {
   clipes: Record<ClipName, ClipRecipe>;
   /** ponto onde a skin prende o acessório pequeno (osso e deslocamento, unidade das peças) */
   acessorio?: { osso: string; desloc: V3 };
+  /** variante de arte assada (ficha `variantes`); ausente se o personagem não tem variantes */
+  variante?: string;
 }
 
 const side = (s: "l" | "r", x: number) => (s === "l" ? x : -x);
@@ -69,17 +71,30 @@ function fingers(d: NonNullable<SheetCharacter["dedosModelados"]>): Piece[] {
 
 const strip = <T extends { $comment?: string }>(o: T): Omit<T, "$comment"> => { const rest = { ...o }; delete rest.$comment; return rest; };
 
-/** ficha validada (data/art/personagens.json) → especificação de bake de cada personagem */
-export function expandSheet(sheet: Sheet): CharacterSpec[] {
-  return sheet.personagens.map(c => ({
+/** um personagem da ficha → especificação de bake, na variante pedida (padrão: `variantes.padrao`) */
+export function expandCharacter(sheet: Sheet, c: SheetCharacter, variante: string | undefined = c.variantes?.padrao): CharacterSpec {
+  const extra = variante === undefined ? [] : c.variantes?.lista[variante]?.pecas;
+  if (!extra) throw new Error(`${c.id}: variante '${variante}' inexistente`);
+  return {
     id: c.id, nome: c.nome, tipo: c.tipo, cor: c.cor, altura: c.altura,
     ...(c.bracos !== undefined ? { bracos: c.bracos } : {}),
     ...(c.dedos !== undefined ? { dedos: c.dedos } : {}),
     manterDedos: c.manterDedos,
-    pecas: [...humanoid(c.corpo), ...c.pecas.map(p => strip(p) as Piece), ...(c.dedosModelados ? fingers(c.dedosModelados) : [])],
+    pecas: [...humanoid(c.corpo), ...c.pecas.map(p => strip(p) as Piece), ...extra.map(p => strip(p) as Piece), ...(c.dedosModelados ? fingers(c.dedosModelados) : [])],
     clipes: resolveClips(sheet, c.clipes),
     ...(c.acessorio ? { acessorio: { osso: c.acessorio.osso, desloc: c.acessorio.desloc } } : {}),
-  }));
+    ...(variante !== undefined ? { variante } : {}),
+  };
+}
+
+/** ficha validada (data/art/personagens.json) → especificação de bake de cada personagem, na variante padrão */
+export function expandSheet(sheet: Sheet): CharacterSpec[] {
+  return sheet.personagens.map(c => expandCharacter(sheet, c));
+}
+
+/** todas as variantes de todos os personagens (a padrão primeiro): o bake mede o orçamento de cada uma */
+export function expandVariants(sheet: Sheet): CharacterSpec[][] {
+  return sheet.personagens.map(c => variantIds(c).map(v => expandCharacter(sheet, c, v)));
 }
 
 /** ficha validada que `pnpm data` copiou de data/art/personagens.json para packages/shared/generated/ */
