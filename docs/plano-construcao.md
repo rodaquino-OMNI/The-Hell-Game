@@ -205,6 +205,9 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-10 | resolvida | protótipo em `prototype/the-hell.html` |
 | D-11 | a) Rodrigo aprova cada mudança, **depois substituída** pela instrução do Rodrigo em 08/11/2026: os agentes fazem merge após testes e CI verdes | seção 5 |
 | D-12 | a) manter público | CI gratuita no GitHub Actions |
+| D-13 | a) modo opcional "Retro FPS" (Rodrigo, 08/11/2026) | 1ª pessoa com a ferramenta da classe na mão, barra de estado inferior e preset de paleta industrial; 3ª pessoa continua padrão; sem armas, sem gore, sem assets ou elementos de jogos comerciais (estilo do gênero, arte própria). Item V9 em `docs/handoff/plano-fases-1-2.md` |
+| D-14 | a) mockup antes de construir (Rodrigo, 08/11/2026) | mini marco de arte A2b: capturas das ferramentas na mão e da barra de estado + até 4 perguntas ao filho em issue; construção só depois da aprovação |
+| D-15 | c) variante industrial do Pátio (Rodrigo, 08/11/2026) | catálogo de mapas da v1.0 inalterado (D-06); o visual industrial é variante de texturas e iluminação do Pátio, sem layout novo |
 
 ## 8. Riscos principais
 
