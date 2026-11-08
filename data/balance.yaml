@@ -335,7 +335,7 @@ render:
       hand: {size: [0.075, 0.07, 0.11], forearm: [0.05, 0.045], forearm_sides: 6}   # forearm: raio no punho e no fim; lados do prisma
       classes:
         curandeiro:
-          grupos: [{osso: hand_r, origem: [0, 0, 0], pos: [0.3, -0.25, -0.62], rot: [-18, 8, 98], escala: 0.42}]
+          grupos: [{osso: hand_r, origem: [0, 0, 0], pos: [0.28, -0.24, -0.62], rot: [-48, -54, 60], escala: 0.32}]
           maos: [{pos: [0.3, -0.25, -0.62], rot: [-18, 8, 8], antebraco: [0.22, -0.3, 0.45]}]
         mecanico:
           grupos:

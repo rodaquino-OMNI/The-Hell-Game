@@ -18,11 +18,15 @@ const vm = rt.viewmodel;
 const SHEET = sheetJson as unknown as Sheet;
 type V3 = [number, number, number];
 
-/** triângulos das peças da ficha presas a `osso` (e com as `cores`, se dadas), em coordenadas da ficha */
+/**
+ * triângulos das peças da ficha presas a `osso` (e com as `cores`, se dadas), em coordenadas da ficha. Como no bake,
+ * entram as peças da variante padrão (`variantes.padrao`, ex.: cajado de mago do Curandeiro)
+ */
 export function pieceTris(ch: SheetCharacter, osso: string, cores?: readonly string[]): Tri[] {
   const out: Tri[] = [];
   const v = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
-  for (const pc of ch.pecas as SheetPiece[]) {
+  const variant = ch.variantes ? ch.variantes.lista[ch.variantes.padrao]?.pecas ?? [] : [];
+  for (const pc of [...ch.pecas, ...variant] as SheetPiece[]) {
     if (pc.forma === "seg" || pc.osso !== osso || (cores && !cores.includes(pc.cor))) continue;
     const paint = { token: pc.cor, joint: osso, glow: "brilho" in pc && !!pc.brilho };
     switch (pc.forma) {
