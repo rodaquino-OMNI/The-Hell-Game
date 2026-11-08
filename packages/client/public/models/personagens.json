@@ -1,0 +1,612 @@
+{
+ "$comment": "Gerado por tools/assets/build-characters.ts — não editar à mão.",
+ "anim_fps": 12,
+ "personagens": [
+  {
+   "id": "curandeiro",
+   "nome": "Curandeiro",
+   "arquivo": "models/curandeiro.glb",
+   "tipo": "sobrevivente",
+   "altura": 1.75,
+   "triangulos": 394,
+   "ossos": 25,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 5.125,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 7.893,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Fixing_Kneeling",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 5.166666666666667,
+     "velocidade_nativa": 0,
+     "nota": "direto (conserto ajoelhado no gerador)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 0.746,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto (agachado na gaiola)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Punch_Cross",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 1,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 11.839,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  },
+  {
+   "id": "mecanico",
+   "nome": "Mecânico",
+   "arquivo": "models/mecanico.glb",
+   "tipo": "sobrevivente",
+   "altura": 1.76,
+   "triangulos": 392,
+   "ossos": 25,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 5.155,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 7.938,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Fixing_Kneeling",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 5.166666666666667,
+     "velocidade_nativa": 0,
+     "nota": "direto (conserto ajoelhado no gerador)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 0.751,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto (agachado na gaiola)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Punch_Cross",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 1,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 11.907,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  },
+  {
+   "id": "atacador",
+   "nome": "Atacador",
+   "arquivo": "models/atacador.glb",
+   "tipo": "sobrevivente",
+   "altura": 1.76,
+   "triangulos": 356,
+   "ossos": 25,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 5.155,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 7.938,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Fixing_Kneeling",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 5.166666666666667,
+     "velocidade_nativa": 0,
+     "nota": "direto (conserto ajoelhado no gerador)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 0.751,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto (agachado na gaiola)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Sword_Attack",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 1.5,
+     "velocidade_nativa": 0.942,
+     "nota": "direto (golpe de espada)"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 11.907,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  },
+  {
+   "id": "batedor",
+   "nome": "Batedor",
+   "arquivo": "models/batedor.glb",
+   "tipo": "sobrevivente",
+   "altura": 1.72,
+   "triangulos": 358,
+   "ossos": 25,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 5.037,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 7.758,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Fixing_Kneeling",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 5.166666666666667,
+     "velocidade_nativa": 0,
+     "nota": "direto (conserto ajoelhado no gerador)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 0.733,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto (agachado na gaiola)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Punch_Cross",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 1,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 11.636,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  },
+  {
+   "id": "protetor",
+   "nome": "Protetor",
+   "arquivo": "models/protetor.glb",
+   "tipo": "sobrevivente",
+   "altura": 1.82,
+   "triangulos": 308,
+   "ossos": 25,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 5.33,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 8.209,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Fixing_Kneeling",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 5.166666666666667,
+     "velocidade_nativa": 0,
+     "nota": "direto (conserto ajoelhado no gerador)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 0.776,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto (agachado na gaiola)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Punch_Cross",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 1,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 12.313,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  },
+  {
+   "id": "espectro",
+   "nome": "Espectro",
+   "arquivo": "models/espectro.glb",
+   "tipo": "cacador",
+   "altura": 2.5,
+   "triangulos": 860,
+   "ossos": 65,
+   "clipes": [
+    {
+     "nome": "idle",
+     "fonte": "Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.5,
+     "velocidade_nativa": 0,
+     "nota": "direto"
+    },
+    {
+     "nome": "andar",
+     "fonte": "Jog_Fwd_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.9166666666666666,
+     "velocidade_nativa": 7.322,
+     "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote"
+    },
+    {
+     "nome": "correr",
+     "fonte": "Sprint_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 0.6666666666666666,
+     "velocidade_nativa": 11.276,
+     "nota": "direto"
+    },
+    {
+     "nome": "interagir",
+     "fonte": "Interact",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": false,
+     "duracao": 2,
+     "velocidade_nativa": 0,
+     "nota": "direto (pegar / armar armadilha)"
+    },
+    {
+     "nome": "ferido",
+     "fonte": "Walk_Loop",
+     "derivado": true,
+     "velocidade": 0.8,
+     "laco": true,
+     "duracao": 1.6666666666666667,
+     "velocidade_nativa": 1.066,
+     "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+    },
+    {
+     "nome": "preso",
+     "fonte": "Crouch_Idle_Loop",
+     "derivado": false,
+     "velocidade": 1,
+     "laco": true,
+     "duracao": 2.9166666666666665,
+     "velocidade_nativa": 0,
+     "nota": "direto; sem uso no caçador hoje, mantido pelos 9 clipes (Art Bible §7)"
+    },
+    {
+     "nome": "golpe",
+     "fonte": "Punch_Cross",
+     "derivado": true,
+     "velocidade": 1.2,
+     "laco": false,
+     "duracao": 0.8333333333333334,
+     "velocidade_nativa": 0,
+     "nota": "derivado: soco a 1,2× (braços longos alcançam mais)"
+    },
+    {
+     "nome": "dash",
+     "fonte": "Sprint_Loop",
+     "derivado": true,
+     "velocidade": 1.5,
+     "laco": true,
+     "duracao": 0.4166666666666667,
+     "velocidade_nativa": 16.913,
+     "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+    },
+    {
+     "nome": "atordoado",
+     "fonte": "Hit_Head",
+     "derivado": true,
+     "velocidade": 0.35,
+     "laco": true,
+     "duracao": 1.25,
+     "velocidade_nativa": 0,
+     "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+    }
+   ]
+  }
+ ]
+}

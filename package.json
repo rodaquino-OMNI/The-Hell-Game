@@ -27,6 +27,7 @@
     "@vitest/coverage-v8": "4.1.12",
     "eslint": "9.39.5",
     "globals": "17.13.0",
+    "gltf-validator": "2.0.0-dev.3.10",
     "playwright": "1.63.0",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
