@@ -21,3 +21,21 @@ export function advanceClock(clock: LoopClock, realDt: number, step: number, lim
   if (clock.acc < 0) clock.acc = 0;
   return { steps, dt };
 }
+
+/**
+ * cadeia única de quadros: `start` pode ser chamado a cada partida (reinício pelo menu), mas só a primeira chamada
+ * agenda `frame` em `raf`; as seguintes não criam uma segunda cadeia (que desenharia duas vezes por quadro)
+ */
+export function frameLoop(raf: (cb: (now: number) => void) => unknown, frame: (now: number) => void) {
+  let running = false;
+  const tick = (now: number) => { frame(now); raf(tick); };
+  return {
+    /** agenda o primeiro quadro; devolve false se a cadeia já estava rodando */
+    start(): boolean {
+      if (running) return false;
+      running = true;
+      raf(tick);
+      return true;
+    },
+  };
+}

@@ -7,7 +7,7 @@ import { $, balance, cfg } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
-import { advanceClock } from "./loop.ts";
+import { advanceClock, frameLoop } from "./loop.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
 import { installRenderHook } from "./render/debug.ts";
 import { urlPs1, urlSeed } from "./render/options.ts";
@@ -47,8 +47,10 @@ function start() {
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
   init();
+  clock.acc = 0;
   last = performance.now();
-  requestAnimationFrame(loop);
+  // uma só cadeia de quadros: a partir da 2ª partida o laço já está rodando
+  frames.start();
 }
 
 setupInput(() => G);
@@ -73,8 +75,8 @@ function loop(now: number) {
   }
   tickTimers(dt);
   draw(dt);
-  requestAnimationFrame(loop);
 }
+const frames = frameLoop(requestAnimationFrame, loop);
 
 function draw(dt: number) {
   syncActors(G, view.thirdPerson);
