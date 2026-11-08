@@ -44,6 +44,23 @@ function solvePuzzle(c: SimConfig, g: GameState) {
   tap(g, { puzzleSpace: true }, c);
 }
 
+describe("dados: valores base batem com difficulty_table.normal (evita divergência silenciosa)", () => {
+  it("hunter.*, cage.time e generator.gate_time = linha Normal da tabela", () => {
+    const n = b.difficulty_table.normal, h = b.hunter;
+    expect(h.hp_base).toBe(n.hunter_hp);
+    expect(h.chase_speed).toBe(n.chase);
+    expect(h.melee.cooldown).toBe(n.melee_cd);
+    expect(h.detect_radius).toBe(n.detect);
+    expect(h.reveal.interval).toBe(n.reveal);
+    expect(h.projectile.damage).toBe(n.projectile_dmg);
+    expect(h.trap.interval).toBe(n.trap_interval);
+    expect(b.cage.time).toBe(n.cage);
+    expect(b.generator.gate_time).toBe(n.gate);
+    expect(n.zone_mult).toBe(1);
+    expect(n.points_mult).toBe(1);
+  });
+});
+
 describe("configuração do ruleset", () => {
   it("o padrão em data/balance.yaml continua prototype", () => {
     expect(b.ruleset).toBe("prototype");
@@ -92,11 +109,15 @@ describe("1. cone de visão de 90° com linha de visão (GDD-v0.3 §8.1, C-06)",
     expect(g.hunter.target).toBe(0);
   });
   it("memória: ao perder o alvo, investiga a última posição vista por ai.by_difficulty.memory", () => {
-    const g = chase(8); tap(g, {}, v1);
-    expect(g.hunter.alertTime).toBeCloseTo(b.ai.by_difficulty.normal.memory, 5);
-    g.hunter.a = 0; P(g).x = SPOT.x + 3; tap(g, {}, v1); // vira de costas: perde de vista
+    // Difícil: memória (12 s) ≠ ai.hearing_investigate_time (8 s), para distinguir um parâmetro do outro
+    const mem = b.ai.by_difficulty.hard.memory;
+    expect(mem).not.toBe(b.ai.hearing_investigate_time);
+    const g = chase(8, hard); tap(g, {}, hard);
+    expect(g.hunter.alertTime).toBeCloseTo(mem, 5);
+    g.hunter.a = 0; P(g).x = SPOT.x + 3; tap(g, {}, hard); // vira de costas: perde de vista
     expect(g.hunter.target).toBe(-1);
     expect(g.hunter.alert).toEqual({ x: SPOT.x, z: SPOT.z });
+    expect(g.hunter.alertTime).toBeCloseTo(mem - 1 / 60, 5);
   });
 });
 
@@ -119,8 +140,16 @@ describe("2. ruído da tabela §3.4 e investigação de 8 s", () => {
     P(g).x = -20; P(g).z = 26; // sai de vista
     run(g, 1, {}, v1);
     expect(Math.hypot(g.hunter.x - spot.x, g.hunter.z - spot.z)).toBeLessThan(d0 - 2);
-    g.hunter.alertTime = 0.01; tap(g, {}, v1);
+    g.hunter.alertTime = 0.01; g.hunter.patrol = null; tap(g, {}, v1);
     expect(g.hunter.alertTime).toBeLessThanOrEqual(0);
+    // fim da investigação: volta a patrulhar e se move rumo ao ponto de patrulha, não ao som
+    const patrol = g.hunter.patrol!;
+    expect(patrol).not.toBeNull();
+    expect(patrol).not.toEqual(spot);
+    const dp0 = Math.hypot(g.hunter.x - patrol.x, g.hunter.z - patrol.z);
+    run(g, 0.5, {}, v1);
+    expect(g.hunter.patrol).toEqual(patrol);
+    expect(Math.hypot(g.hunter.x - patrol.x, g.hunter.z - patrol.z)).toBeCloseTo(dp0 - b.hunter.patrol_speed * 0.5, 1);
   });
   it("falha em quebra-cabeça = ruído de 18 m no gerador, não alerta global (C-08)", () => {
     const g = quiet(); openPuzzle(v1, g, 0); // gerador em (−22, −22); caçador em (25, 25)
@@ -153,6 +182,18 @@ describe("2. ruído da tabela §3.4 e investigação de 8 s", () => {
     expect(bot.rescue).toBeGreaterThan(0);
     expect(g.hunter.alert).toBeNull();
   });
+  it("bot resgatando com o caçador a < 6 m: o caçador investiga a posição do bot", () => {
+    const px = b.prototype_extras;
+    const c = makeConfig({ ...b, prototype_extras: { ...px, bot: { ...px.bot, rescue_min_hunter_dist: 3 } } }, map, { ruleset: "v1" });
+    const g = quiet(c); const bot = g.survivors[1], other = g.survivors[2]; // caçador atordoado: o bot não foge
+    bot.st = "ok"; other.st = "ok"; hit(c, g, other, 200);
+    bot.x = other.x + 1; bot.z = other.z; P(g).x = -20; P(g).z = 26;
+    g.hunter.x = bot.x + 5; g.hunter.z = bot.z;
+    tap(g, {}, c);
+    expect(bot.rescue).toBeGreaterThan(0);
+    expect(g.hunter.alert).toEqual({ x: bot.x, z: bot.z });
+    expect(g.hunter.alertTime).toBe(b.ai.hearing_investigate_time);
+  });
 });
 
 describe("3. fim de partida do §3.3 revisto (D-01 b, D-02 a)", () => {
@@ -180,6 +221,16 @@ describe("3. fim de partida do §3.3 revisto (D-01 b, D-02 a)", () => {
     expect(individualResult("dead")).toBe("dead");
     expect(individualResult("cage")).toBe("not_escaped");
     expect(individualResult("ok")).toBe("not_escaped");
+  });
+  it("casos escritos à mão (independentes do oráculo)", () => {
+    const L = b.match.hard_time_limit;
+    expect(matchEnd(v1, ["out", "dead", "dead"], 50, L)).toEqual({ team: "survivors", reason: "all_terminal", escaped: 1 });
+    expect(matchEnd(v1, ["out", "dead", "ok"], 50, L)).toEqual({ team: "survivors", reason: "time_limit", escaped: 1 });
+    expect(matchEnd(v1, ["ok", "cage", "dead"], 50, L)).toEqual({ team: "hunter", reason: "time_limit", escaped: 0 });
+    expect(matchEnd(v1, ["dead", "dead", "dead", "dead", "dead"], 50, 10)).toEqual({ team: "hunter", reason: "all_terminal", escaped: 0 });
+    expect(matchEnd(v1, ["cage"], 0, 10)).toEqual({ team: "survivors", reason: "hunter_down", escaped: 0 });
+    expect(matchEnd(v1, ["out", "ok"], 50, 10)).toBeNull();
+    expect(matchEnd(v1, ["cage", "cage", "cage", "cage"], 50, L - 1)).toBeNull();
   });
   it("jogador escapa: a partida continua até os outros chegarem a estado terminal", () => {
     const g = quiet(); g.survivors[1].st = "ok";
@@ -264,6 +315,11 @@ describe("5. perseguição de 4,3 m/s e tabela de dificuldade (D-03 b, GDD-v0.2 
     expect(z.puzzle!.zoneWidth).toBeCloseTo(b.puzzles.timing.zone * t.zone_mult, 10);
     solvePuzzle(hard, z);
     expect(z.points).toBeCloseTo(b.points.puzzle * t.points_mult, 10);
+    const full = quiet(hard); openPuzzle(hard, full, 0);
+    for (let k = 0; k < b.generator.puzzles_per_generator; k++) solvePuzzle(hard, full);
+    expect(full.gens[0].done).toBe(true);
+    expect(full.points).toBeCloseTo((b.generator.puzzles_per_generator * b.points.puzzle + b.points.generator) * t.points_mult, 10);
+    expect(full.points).toBeCloseTo((5 * 10 + 40) * 1.3, 10);
     const gate = quiet(hard);
     for (const x of gate.gens) if (!x.bonus) x.done = true;
     tap(gate, {}, hard);
@@ -401,7 +457,8 @@ describe("8. regras de gerador do §6.2", () => {
     for (let k = 0; k < b.generator.fails_to_regress - 1; k++) failPuzzle(v1, g);
     expect(g.gens[0].n).toBe(2);
     failPuzzle(v1, g);
-    expect(g.gens[0].n).toBe(1);
+    expect(g.gens[0].n).toBe(2 - b.generator.regress_amount);
+    expect(b.generator.regress_amount).toBe(1); // GDD-v0.2 §6.2
     expect(g.gens[0].spark).toBe(b.generator.fail_spark_time);
     expect(g.gens[0].fails).toBe(0);
   });

@@ -53,6 +53,7 @@ generator:
   puzzles_per_generator: 5
   gate_time: 45
   fails_to_regress: 3
+  regress_amount: 1                # GDD-v0.2 §6.2: "3 falhas seguidas no mesmo gerador: regride 1 quebra-cabeça"
   fail_spark_time: 3
   completed_reveal: 3
   # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).

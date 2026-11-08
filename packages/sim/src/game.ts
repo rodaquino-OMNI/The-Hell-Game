@@ -143,11 +143,11 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
       return;
     }
   } else if (cfg.v1) {
-    // v1: ruído de 18 m em vez de alerta global (GDD-v0.3 C-08); 3 falhas seguidas regridem 1 (GDD-v0.2 §6.2)
+    // v1: ruído de 18 m em vez de alerta global (GDD-v0.3 C-08); `generator.fails_to_regress` falhas seguidas regridem `regress_amount` (GDD-v0.2 §6.2)
     noise(cfg, g, "puzzle_fail", gen);
     gen.fails++;
     if (gen.fails >= b.generator.fails_to_regress) {
-      gen.n = Math.max(0, gen.n - 1);
+      gen.n = Math.max(0, gen.n - b.generator.regress_amount);
       gen.fails = 0;
       gen.spark = b.generator.fail_spark_time;
     }

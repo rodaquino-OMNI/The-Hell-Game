@@ -61,6 +61,7 @@ export const BalanceSchema = z.object({
   cage: z.object({ time: pos, rescue_time: pos, rescue_range: pos, rescue_hp: pos, immunity: pos, deaths_at_capture: z.number().int().positive() }).strict(),
   generator: z.object({
     puzzles_per_generator: z.number().int().positive(), gate_time: pos, fails_to_regress: z.number().int().positive(),
+    regress_amount: z.number().int().nonnegative(), // GDD-v0.2 §6.2
     fail_spark_time: pos, completed_reveal: pos,
     // LACUNA GDD-v0.2 §3.4 × §6.2: a revelação do gerador completo vale fora do raio de ruído? (padrão conservador: não)
     completed_reveal_global: z.boolean(),
