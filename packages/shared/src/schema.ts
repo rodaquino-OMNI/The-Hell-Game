@@ -1,6 +1,6 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (audio, ui, net) passam sem validação
-// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9).
+// as seções ainda não implementadas (audio, net) passam sem validação
+// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12).
 import { z } from "zod";
 
 const num = z.number().finite();
@@ -8,6 +8,16 @@ const pos = num.nonnegative();
 const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
+
+/** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
+const UiSchema = z.object({
+  threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
+  ping_types: z.array(z.string().regex(/^[a-z_]+$/)).min(1), ping_cooldown: pos, ping_lifetime: pos.positive(),
+  wounded_hp: pos,
+  fov: z.object({ min: pos, max: pos, default: pos }).strict(),
+  tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
+  locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+}).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
@@ -162,7 +172,7 @@ export const BalanceSchema = z.object({
   maps: MapsSchema,
   render,
   audio: z.record(z.string(), z.unknown()),
-  ui: z.record(z.string(), z.unknown()),
+  ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
 }).strict();
 

@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "../../dist/types/client", "lib": ["ES2022", "DOM", "DOM.Iterable"], "types": ["vite/client"] },
-  "include": ["src", "vite.config.ts"],
+  "include": ["src", "src/**/*.json", "test", "vite.config.ts"],
   "references": [{ "path": "../shared" }, { "path": "../sim" }]
 }
