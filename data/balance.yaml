@@ -53,8 +53,12 @@ generator:
   puzzles_per_generator: 5
   gate_time: 45
   fails_to_regress: 3
+  regress_amount: 1                # GDD-v0.2 §6.2: "3 falhas seguidas no mesmo gerador: regride 1 quebra-cabeça"
   fail_spark_time: 3
   completed_reveal: 3
+  # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).
+  # LACUNA: false = só o caçador dentro de noise.generator_done reage (leitura conservadora); true = alcança de qualquer distância.
+  completed_reveal_global: false
   by_team_size:                    # GDD-v0.2 §3.5
     1: {required: 2, bonus: 1}
     2: {required: 3, bonus: 2}
@@ -68,7 +72,7 @@ puzzles:
   sequence: {length: 4}
   accessible: {zone_mult: 1.6, timed: false}
 
-# ---------- 5. Ruído (GDD-v0.2 §3.4) ----------
+# ---------- 5. Ruído (GDD-v0.2 §3.4; usado com ruleset v1: o caçador no raio investiga por ai.hearing_investigate_time) ----------
 noise:
   walk: 0
   run: 10
@@ -186,23 +190,27 @@ nav:
   agent_height: 2.5
   walkable_climb: 0.3
   walkable_slope_deg: 40
-  fallback_grid: 0.5
+  fallback_grid: 0.5                # grade A* de reserva (GDD-v0.3 §8.6)
+  # Tolerância de consulta (técnica, GDD-v0.3 §8.6/§9.1): distância máxima entre um ponto pedido e o ponto
+  # mais próximo do navmesh/grade para valer como "no caminho". Igual à célula da grade de reserva.
+  query_snap: 0.5
 
 # ---------- 13. Mapas (GDD-v0.3 §9) ----------
 maps:
-  corridor_min: 1.6
+  corridor_min: 1.6                 # §9.1: navmesh com raio corridor_min/2 conecta todas as áreas jogáveis
   wall_height: 3.4
   side: [60, 80]
   loop_short_perimeter: [8, 12]
   loop_long_perimeter_min: 18
-  loop_advantage: [6, 10]
+  loop_advantage: [6, 10]           # §9.1: medido no simulador (R5); o validador não mede
   loop_coverage_radius: 20
   loop_coverage_min: 0.9
   hideouts_min: 3
-  generator_min_dist: 25
-  generator_layouts: [3, 4]
-  cage_positions: 2
-  exits: 2
+  generator_min_dist: 25            # §9.1: distância no navmesh entre geradores obrigatórios, em todos os layouts
+  generator_layouts: [3, 4]         # §9.3: 3 a 4 layouts de geradores por mapa
+  cage_positions: 2                 # §9.3
+  exits: 2                          # §9.3
+  layout_hunter_dist_spread_max: 0.2  # §9.3 aceite: (maior − menor) ÷ menor distância média caçador → geradores
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
