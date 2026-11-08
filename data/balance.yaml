@@ -159,6 +159,10 @@ match:
 
 # ---------- 11. IA (GDD-v0.3 §8) ----------
 ai:
+  # Caçador do ruleset v1 (item R3). "basic" = caçador mínimo do R1 (age a 60 Hz, sem tempo de reação; é o que a
+  # suíte rules-v1 fixa); "utility" = IA do GDD-v0.3 §8 (percepção e decisão a 10 Hz, estados do §8.2, utilidade do
+  # §8.3, dificuldade do §8.4, navegação do §8.6). Como `ruleset`, o padrão muda no marco MJ-B.
+  hunter_brain: basic
   decision_hz: 10
   perception_hz: 10
   hearing_investigate_time: 8
@@ -166,6 +170,12 @@ ai:
   target_switch_margin: 0.15
   isolated_radius: 8
   protected_radius: 4
+  injured_hp: 40                    # §8.3: ferido = 1 se a vida estiver abaixo de 40
+  # Números técnicos da IA sem valor no GDD (LACUNA registrada no relatório do R3; valores conservadores):
+  patrol_reach: 2                   # §8.2: chegou ao gerador/portão da patrulha (mesmo valor do protótipo, prototype_extras.patrol.reach)
+  search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
+  loop_band: 1.6                    # §8.4: alvo "no loop" se estiver a até isto da rota do loop (= maps.corridor_min, largura mínima da rota)
+  static_target_speed: 0.5          # §8.4 "alvo parado": velocidade percebida abaixo disto
   by_difficulty:
     easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
     normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}
