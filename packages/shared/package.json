@@ -1,0 +1,19 @@
+{
+  "name": "@thehell/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts",
+    "./generated/*": "./generated/*"
+  },
+  "scripts": {
+    "build": "echo shared: sem build (consumido como fonte)"
+  },
+  "dependencies": {
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  }
+}

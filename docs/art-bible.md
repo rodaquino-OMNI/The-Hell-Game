@@ -1,6 +1,6 @@
 # THE HELL — Art Bible v0.3
 
-**Anexo do GDD v0.3 · 08/11/2026 · revisão 2 (pedidos do marco A1) · aguarda a aprovação final do filho**
+**Anexo do GDD v0.3 · 08/11/2026 · revisão 2 · marco A1 aprovado pelo filho em 08/11/2026**
 
 THE HELL parece um jogo de PlayStation 1 achado num porão: pouca resolução, cor contada, névoa grossa e polígonos que tremem. O medo vem do que não se vê direito. Mas o que importa para jogar (quem é quem, onde está o gerador, de onde vem o perigo) tem que ser lido em menos de 1 segundo, mesmo com o granulado (GDD-v0.2 §1, pilar 5).
 
@@ -155,7 +155,7 @@ Cada marco é aprovado num comentário na issue do marco no GitHub. Sem aprovaç
 
 | Marco | O que ele vê | Quando |
 | --- | --- | --- |
-| A1 | Esta Art Bible: paleta, silhuetas-conceito, regras. Revisão 1 respondida em 08/11/2026 (Atacador com espada e em vermelho, Protetor com escudo no braço, bônus magenta); revisão 2 aguarda aprovação | agora |
+| A1 | Esta Art Bible: paleta, silhuetas-conceito, regras. Revisão 1 respondida e revisão 2 **aprovada pelo filho em 08/11/2026** | concluído |
 | A2 | Primeiro sobrevivente e o Espectro modelados e animados, no shader PS1 | fase 2 |
 | A3 | Mapa 1 (Pátio) com iluminação, névoa e feixes | fase 2 |
 | A4 | Interface completa (menu, lobby, HUD, loja, resumo) | fase 3 |
@@ -163,4 +163,4 @@ Cada marco é aprovado num comentário na issue do marco no GitHub. Sem aprovaç
 
 **Respostas da revisão 1 (08/11/2026):** formas mudadas (Atacador com corpo de Mecânico e espada nas costas; Protetor com escudo no braço), Atacador em vermelho, bônus em magenta, sem desenhos próprios.
 
-**Pergunta da revisão 2:** a nova folha de silhuetas (no topo deste documento) está do jeito que você queria?
+**Revisão 2:** aprovada pelo filho em 08/11/2026 (registrada pelo Rodrigo na conversa de construção). A direção de arte está travada; mudanças de forma-chave ou cor dominante passam a exigir novo marco.
