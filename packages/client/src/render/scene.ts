@@ -118,6 +118,9 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
     const sx = Math.cos(yaw) * c.shoulder, sz = -Math.sin(yaw) * c.shoulder;
     while (d > 0.7 && insideWall(cfg, P.x + Math.sin(yaw) * d + sx, P.z + Math.cos(yaw) * d + sz)) d -= c.wall_step;
     cam.position.set(P.x + Math.sin(yaw) * d + sx, c.height, P.z + Math.cos(yaw) * d + sz);
+    // câmera puxada pelo muro para perto do jogador: esconde o modelo (o cajado não tapa a tela)
+    const pm = meshes.get("s" + P.id);
+    if (pm && d < rc.hide_player_within) pm.visible = false;
   } else cam.position.set(P.x, rc.camera.eye_height, P.z);
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
   PL.position.set(P.x, rc.lights.player_height, P.z);

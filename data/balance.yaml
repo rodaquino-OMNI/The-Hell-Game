@@ -22,7 +22,8 @@ survivor:
   bot_radius: 0.5
   height: 1.75
   # GDD-v0.3 §8.3 ("ferido = 1 se a vida estiver abaixo de 40") e GDD-v0.2 §3.2 ([Proposta] estado Ferido, menos de 40 de vida).
-  # Hoje só liga o clipe `ferido` (Art Bible §7); a IA (R3) e as pegadas luminosas (Art Bible §4) leem o mesmo limiar.
+  # Fonte única do limiar: clipe `ferido` (Art Bible §7), retrato "ferido" do HUD (GDD-v0.3 §12.1); a IA (R3) e as
+  # pegadas luminosas (Art Bible §4) leem o mesmo campo.
   wounded_hp: 40
 
 # ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
@@ -229,6 +230,9 @@ render:
   tessellate: 2                     # m; GDD-v0.3 §10.1 item 2: chão e paredes subdivididos (limita a distorção afim e dá vértices ao Gouraud)
   fog: {near: 3, far: 30}
   camera: {near: 0.1, far: 60, eye_height: 1.5}   # prototype/the-hell.html L93 (near/far) e L188 (olho em 1ª pessoa)
+  # V3: em 3ª pessoa, quando o muro puxa a câmera para menos de hide_player_within m do jogador, o modelo do jogador
+  # some (o cajado e os acessórios não tapam a tela; mesma regra de visibilidade da 1ª pessoa)
+  hide_player_within: 1.5
   lights: {ambient: 0.9, player: 1.2, player_decay: 1, player_height: 2.5}   # prototype/the-hell.html L94 e L189 (paridade); × π no código (three.js atual sem unidades físicas)
   player_light_radius: 24
   anim_fps: 12
@@ -265,9 +269,14 @@ audio:
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:
-  threat_radius: 15
-  ping_types: [generator_here, hunter_here, need_help, going_to_rescue]
-  ping_cooldown: 2
+  threat_radius: 15                 # GDD-v0.3 §12.1: seta de ameaça a < 15 m (ou caçador revelado)
+  threat_sectors: 8                 # GDD-v0.3 §12.1: só a direção, quantizada em 8 setores
+  ping_types: [generator_here, hunter_here, need_help, going_to_rescue]   # GDD-v0.2 §12.1 (4 tipos)
+  ping_cooldown: 2                  # GDD-v0.3 §12.1
+  # LACUNA (GDD v0.2/v0.3 não definem): tempo que um ping fica visível. Proposta de 4 s, igual à marcação do
+  # ping do Batedor (GDD-v0.2 §5.2); decisão do Rodrigo pendente.
+  ping_lifetime: 4
+  # Retrato "ferido" no HUD: lê survivor.wounded_hp (fonte única do limiar de ferido, GDD-v0.3 §8.3).
   fov: {min: 60, max: 100, default: 75}
   tutorial_time: 60
   ftue_target_min: 10

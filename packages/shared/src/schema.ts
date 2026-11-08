@@ -1,6 +1,6 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (audio, ui, net) passam sem validação
-// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9).
+// as seções ainda não implementadas (audio, net) passam sem validação
+// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12).
 import { z } from "zod";
 
 const num = z.number().finite();
@@ -8,6 +8,15 @@ const pos = num.nonnegative();
 const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
+
+/** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
+const UiSchema = z.object({
+  threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
+  ping_types: z.array(z.string().regex(/^[a-z_]+$/)).min(1), ping_cooldown: pos, ping_lifetime: pos.positive(),
+  fov: z.object({ min: pos, max: pos, default: pos }).strict(),
+  tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
+  locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+}).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
@@ -40,6 +49,8 @@ const render = z.object({
   tessellate: num.positive(),
   fog: z.object({ near: pos, far: pos }).strict().refine(f => f.far > f.near, "render.fog: far deve ser maior que near"),
   camera: z.object({ near: num.positive(), far: num.positive(), eye_height: pos }).strict().refine(c => c.far > c.near, "render.camera: far deve ser maior que near"),
+  /** V3: distância (m) câmera–jogador abaixo da qual o modelo do jogador some em 3ª pessoa */
+  hide_player_within: pos,
   lights: z.object({ ambient: pos, player: pos, player_decay: pos, player_height: pos }).strict(),
   player_light_radius: pos,
   anim_fps: num.positive(),
@@ -162,7 +173,7 @@ export const BalanceSchema = z.object({
   maps: MapsSchema,
   render,
   audio: z.record(z.string(), z.unknown()),
-  ui: z.record(z.string(), z.unknown()),
+  ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
 }).strict();
 
