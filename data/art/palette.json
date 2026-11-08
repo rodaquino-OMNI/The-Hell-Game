@@ -1,6 +1,7 @@
 {
   "$comment": "Paleta THE HELL — fonte única dos tokens de cor (Art Bible §2). Valores em 5 bits por canal (0–31) = cor de 15 bits do PS1 (GDD-v0.2 §10.1). O hex é derivado (round(v*255/31)). Verificação: node tools/art/palette-check.mjs",
-  "version": "0.3.0",
+  "version": "0.4.0",
+  "$comment_v3": "V3 (F2-03): tokens char.*, hunter.olhos_preparo, hunter.farrapos, world.gerador*, world.portao, world.gaiola, fx.armadilha e light.* são secundárias de personagem, mundo e luzes; nenhuma é cor dominante (as dominantes aprovadas no marco A1 não mudaram). skin.<id>.a = calça, skin.<id>.b = sapatos e acessório (GDD-v0.2 §10.3: 'Skins por troca de paleta e acessórios'; Art Bible §3 e §7).",
   "tokens": {
     "ui.bg":            { "rgb5": [2, 2, 3],    "uso": "fundo de menus" },
     "ui.panel":         { "rgb5": [4, 4, 6],    "uso": "molduras 9-slice, painéis" },
@@ -13,7 +14,7 @@
     "world.wall":       { "rgb5": [6, 6, 7],   "uso": "paredes (concreto frio)" },
     "world.ground":     { "rgb5": [6, 6, 5],    "uso": "chão" },
 
-    "class.curandeiro": { "rgb5": [0, 19, 14],  "forma": "caduceu nas costas + capuz arredondado", "uso": "Curandeiro" },
+    "class.curandeiro": { "rgb5": [0, 19, 14],  "forma": "cajado com caduceu, mais alto que a cabeça + capuz arredondado", "uso": "Curandeiro" },
     "class.mecanico":   { "rgb5": [28, 19, 0],  "forma": "chave inglesa grande + capacete com lanterna", "uso": "Mecânico" },
     "class.atacador":   { "rgb5": [28, 8, 8],   "forma": "corpo como o do Mecânico, sem capacete + espada nas costas (cabo acima do ombro)", "uso": "Atacador" },
     "class.batedor":    { "rgb5": [29, 28, 8],  "forma": "corpo esguio + cachecol esvoaçante", "uso": "Batedor (fase 4)" },
@@ -30,7 +31,39 @@
     "hunter.lamento":   { "rgb5": [18, 12, 28],  "forma": "véu longo, sem pernas visíveis, cabeça inclinada", "uso": "O Lamento" },
 
     "fx.ameaca":        { "rgb5": [31, 9, 5],   "uso": "seta de ameaça na borda (GDD §12.1)" },
-    "fx.preso":         { "rgb5": [31, 22, 6],  "uso": "marcador de aliado preso" }
+    "fx.preso":         { "rgb5": [31, 22, 6],  "uso": "marcador de aliado preso" },
+
+    "char.pele":        { "rgb5": [27, 22, 18], "uso": "pele (rosto e mãos) dos sobreviventes" },
+    "char.calca":       { "rgb5": [8, 8, 10],   "uso": "calça e quadril (secundária: a skin troca)" },
+    "char.sapato":      { "rgb5": [3, 3, 4],    "uso": "sapatos (secundária: a skin troca)" },
+    "char.metal":       { "rgb5": [19, 19, 21], "uso": "chave inglesa, bossa do escudo" },
+    "char.madeira":     { "rgb5": [22, 16, 9],  "uso": "haste do cajado do Curandeiro" },
+    "char.lamina":      { "rgb5": [24, 25, 27], "uso": "lâmina da espada, asas do caduceu" },
+    "char.couro":       { "rgb5": [8, 5, 3],    "uso": "guarda da espada" },
+    "char.cachecol":    { "rgb5": [8, 16, 28],  "uso": "cachecol do Batedor (não pode ser ui.accent: é a cor de fx.preso)" },
+    "char.lanterna":    { "rgb5": [20, 27, 31], "uso": "lanterna do capacete do Mecânico, emissiva (não pode ser ui.accent)" },
+    "hunter.olhos_preparo": { "rgb5": [31, 29, 22], "uso": "olhos e lampejo do caçador durante o preparo de golpe e dash (Art Bible §1.5, §4)" },
+    "hunter.farrapos":  { "rgb5": [5, 5, 7],    "uso": "farrapos e pés do Espectro" },
+    "world.gerador":    { "rgb5": [10, 10, 12], "uso": "corpo do gerador" },
+    "world.gerador_bonus": { "rgb5": [13, 11, 4], "uso": "corpo do gerador bônus" },
+    "world.portao":     { "rgb5": [8, 2, 2],    "uso": "portão fechado" },
+    "world.gaiola":     { "rgb5": [15, 15, 15], "uso": "grade da gaiola" },
+    "fx.armadilha":     { "rgb5": [19, 0, 0],   "uso": "armadilha do caçador no chão" },
+    "light.ambiente":   { "rgb5": [8, 8, 11],   "uso": "cor da luz ambiente (protótipo 0x404058)" },
+    "light.jogador":    { "rgb5": [31, 27, 19], "uso": "cor da luz que segue o jogador (protótipo 0xffe0a0)" },
+
+    "skin.abo.a":       { "rgb5": [16, 6, 0],   "uso": "skin Abóbora: calça" },
+    "skin.abo.b":       { "rgb5": [4, 9, 3],    "uso": "skin Abóbora: sapatos e acessório" },
+    "skin.som.a":       { "rgb5": [3, 3, 4],    "uso": "skin Sombra: calça" },
+    "skin.som.b":       { "rgb5": [11, 11, 13], "uso": "skin Sombra: sapatos e acessório" },
+    "skin.neo.a":       { "rgb5": [2, 13, 18],  "uso": "skin Neon Ciano: calça" },
+    "skin.neo.b":       { "rgb5": [14, 29, 31], "uso": "skin Neon Ciano: sapatos e acessório" },
+    "skin.car.a":       { "rgb5": [13, 1, 4],   "uso": "skin Carmesim: calça" },
+    "skin.car.b":       { "rgb5": [6, 0, 2],    "uso": "skin Carmesim: sapatos e acessório" },
+    "skin.our.a":       { "rgb5": [11, 8, 2],   "uso": "skin Ouro: calça" },
+    "skin.our.b":       { "rgb5": [23, 21, 15], "uso": "skin Ouro: sapatos e acessório" },
+    "skin.fan.a":       { "rgb5": [18, 17, 24], "uso": "skin Fantasma: calça" },
+    "skin.fan.b":       { "rgb5": [24, 22, 31], "uso": "skin Fantasma: sapatos e acessório" }
   },
   "tests": {
     "cvd_groups": {
@@ -53,8 +86,23 @@
         ["class.curandeiro", "world.wall"], ["class.mecanico", "world.wall"], ["class.atacador", "world.wall"], ["class.batedor", "world.wall"], ["class.protetor", "world.wall"],
         ["gen.pendente", "world.fog"], ["gen.progresso", "world.fog"], ["gen.pronto", "world.fog"], ["gen.bonus", "world.fog"],
         ["hunter.olhos", "world.fog"], ["hunter.espectro", "world.fog"], ["hunter.carcereiro", "world.fog"], ["hunter.lamento", "world.fog"],
-        ["fx.ameaca", "world.fog"], ["fx.preso", "world.fog"]
+        ["fx.ameaca", "world.fog"], ["fx.preso", "world.fog"],
+        ["char.madeira", "world.fog"], ["char.lamina", "world.fog"], ["char.cachecol", "world.fog"], ["char.lanterna", "world.fog"],
+        ["hunter.olhos_preparo", "world.fog"], ["hunter.olhos_preparo", "world.wall"]
       ]
+    },
+    "contrast_state": {
+      "$comment": "V3: olhos do caçador acendem no preparo (Art Bible §1.5, §4): o brilho muda o bastante para ler sem depender de matiz. Elementos pequenos (2 olhos): o pior pixel do dither também é portão",
+      "min": 3.0,
+      "pior_pixel_portao": true,
+      "pairs": [["hunter.olhos_preparo", "hunter.olhos"]]
+    },
+    "distinct": {
+      "$comment": "V3: cores que aparecem no corpo do personagem (acessórios e skins) não podem ser lidas como estado (preso, ameaça, olhos) nem como cor dominante de outra classe. CIEDE2000 >= min em visão normal e nas 3 simulações. 'prefixo.*' = todos os tokens com o prefixo.",
+      "min_de2000": 12,
+      "acessorios": { "tokens": ["char.cachecol", "char.lanterna"], "contra": ["fx.preso", "fx.ameaca", "hunter.olhos", "hunter.olhos_preparo"] },
+      "skins_estado": { "tokens": ["skin.*"], "contra": ["fx.preso", "fx.ameaca", "hunter.olhos", "hunter.olhos_preparo"] },
+      "skins_classe": { "tokens": ["skin.*"], "contra": ["class.*"], "visoes": ["normal"], "$comment": "só visão normal: para quem tem daltonismo a classe se lê pela forma (Art Bible §1.2)" }
     }
   }
 }

@@ -4,12 +4,13 @@
 // Puro (sem Node nem DOM): a E/S fica em tools/assets/build-characters.ts.
 import { Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { CLIP_NAMES, type CharacterSpec, type ClipName, type Piece, type V3 } from "../../assets/characters.ts";
+import { atlasLayout, type Palette } from "./atlas.ts";
 import { box, ellipsoid, prism, pyramid, type Paint, type Tri } from "./geometry.ts";
+
+export { atlasLayout, atlasPixels, rgb5ToRgb8, type Palette } from "./atlas.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON do glTF de origem é dado externo */
 export interface SourceGlb { json: any; bin: Uint8Array }
-
-export interface Palette { tokens: Record<string, { rgb5: [number, number, number] }> }
 
 export interface BakeInput {
   spec: CharacterSpec;
@@ -27,37 +28,14 @@ export interface BakeInput {
 
 export interface BakedClip { nome: ClipName; fonte: string; derivado: boolean; velocidade: number; laco: boolean; duracao: number; velocidade_nativa: number; nota: string }
 
-export interface BakeOutput { glb: Uint8Array; triangles: number; joints: number; clips: BakedClip[]; scale: number }
+/** ponto do acessório de skin: osso e centro em espaço do modelo na pose de ligação (metros finais) */
+export interface AccessoryAnchor { osso: string; centro: [number, number, number] }
+
+export interface BakeOutput { glb: Uint8Array; triangles: number; joints: number; clips: BakedClip[]; scale: number; acessorio?: AccessoryAnchor }
 
 const FINGER = /^(index|middle|ring|pinky|thumb)_/;
 const FINGER_BASE = /^(index|middle|ring|pinky|thumb)_01_/;
 const ARM = /^(lowerarm|hand)_[lr]$/;
-
-// ---------- atlas ----------
-
-/** grade do atlas: um bloco por token da paleta, na ordem de palette.json */
-export function atlasLayout(palette: Palette, size: number) {
-  const names = Object.keys(palette.tokens);
-  const cols = Math.ceil(Math.sqrt(names.length)), cell = Math.floor(size / cols);
-  const uv = new Map<string, [number, number]>();
-  names.forEach((n, i) => uv.set(n, [((i % cols) * cell + cell / 2) / size, (Math.floor(i / cols) * cell + cell / 2) / size]));
-  return { names, cols, cell, uv };
-}
-
-export const rgb5ToRgb8 = (v: number) => Math.round((v * 255) / 31);
-
-/** pixels RGBA do atlas (cores chapadas dos tokens; o resto em preto) */
-export function atlasPixels(palette: Palette, size: number): Uint8Array {
-  const { names, cols, cell } = atlasLayout(palette, size);
-  const px = new Uint8Array(size * size * 4);
-  for (let i = 3; i < px.length; i += 4) px[i] = 255;
-  names.forEach((n, i) => {
-    const [r, g, b] = palette.tokens[n].rgb5.map(rgb5ToRgb8);
-    const x0 = (i % cols) * cell, y0 = Math.floor(i / cols) * cell;
-    for (let y = y0; y < y0 + cell; y++) for (let x = x0; x < x0 + cell; x++) px.set([r, g, b, 255], (y * size + x) * 4);
-  });
-  return px;
-}
 
 // ---------- leitura do glb de origem ----------
 
@@ -213,6 +191,13 @@ export function bakeCharacter(input: BakeInput): BakeOutput {
     }
   }
 
+  // ponto do acessório de skin (V3): o cliente prende ali a caixa da skin equipada (manifesto personagens.json)
+  let acessorio: AccessoryAnchor | undefined;
+  if (spec.acessorio) {
+    const c = world(spec.acessorio.osso).add(v3(spec.acessorio.desloc));
+    acessorio = { osso: spec.acessorio.osso, centro: [+c.x.toFixed(4), +c.y.toFixed(4), +c.z.toFixed(4)] };
+  }
+
   const bw = new BinWriter();
   const { uv } = atlasLayout(palette, input.atlasSize);
   const primitives: any[] = [];
@@ -351,5 +336,5 @@ export function bakeCharacter(input: BakeInput): BakeOutput {
   if (!primitives.some(p => p.material === 1)) json.materials.pop();
   const bin = bw.bytes();
   json.buffers[0].byteLength = bin.byteLength;
-  return { glb: glb(json, bin), triangles: tris.length, joints: kept.length, clips, scale: s };
+  return { glb: glb(json, bin), triangles: tris.length, joints: kept.length, clips, scale: s, ...(acessorio ? { acessorio } : {}) };
 }

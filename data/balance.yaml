@@ -21,6 +21,10 @@ survivor:
   radius: 0.45           # jogador; bots usam 0.5 (protótipo L129, L139 — docs/prototipo-paridade.md P-05)
   bot_radius: 0.5
   height: 1.75
+  # GDD-v0.3 §8.3 ("ferido = 1 se a vida estiver abaixo de 40") e GDD-v0.2 §3.2 ([Proposta] estado Ferido, menos de 40 de vida).
+  # Fonte única do limiar: clipe `ferido` (Art Bible §7), retrato "ferido" do HUD (GDD-v0.3 §12.1); a IA (R3) e as
+  # pegadas luminosas (Art Bible §4) leem o mesmo campo.
+  wounded_hp: 40
 
 # ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
 hunter:
@@ -170,7 +174,6 @@ ai:
   target_switch_margin: 0.15
   isolated_radius: 8
   protected_radius: 4
-  injured_hp: 40                    # §8.3: ferido = 1 se a vida estiver abaixo de 40
   # Números técnicos da IA sem valor no GDD (LACUNA registrada no relatório do R3; valores conservadores):
   patrol_reach: 2                   # §8.2: chegou ao gerador/portão da patrulha (mesmo valor do protótipo, prototype_extras.patrol.reach)
   search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
@@ -242,6 +245,24 @@ render:
   shadow_map: 256
   budgets: {fps: 60, draw_calls: 150, triangles: 60000, initial_download_mb: 15, map_download_mb: 40, time_to_play_s: 5}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
+  # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
+  states:
+    # feixe do gerador: largura e altura (m); min_px = largura mínima na resolução interna (o feixe distante não vira
+    # tracejado, achado da revisão do V1); snap = intensidade do vertex snapping só no feixe (0: a linha não quebra de longe)
+    beam: {width: 0.25, height: 14, min_px: 1.5, snap: 0}
+    lamp: {size: [0.4, 0.3, 0.4], height: 1.2}       # lâmpada no topo do gerador (mesmo padrão do feixe)
+    pending_hz: 1                                    # pendente: pisca devagar, 1 vez por segundo
+    pending_duty: 0.5                                # fração do ciclo do pendente com o feixe aceso
+    progress_hz: 2                                   # em progresso: pulsa 2 vezes por segundo
+    progress_pulse: 0.8                              # no pico do pulso a largura do feixe é × (1 + progress_pulse)
+    # bônus: espiral de spiral_steps blocos (lado spiral_block) em spiral_turns voltas de raio spiral_radius, girando a
+    # spiral_hz voltas por segundo, e losango (octaedro de raio diamond) no topo do feixe
+    bonus: {spiral_hz: 0.5, spiral_turns: 3, spiral_steps: 18, spiral_radius: 0.5, spiral_block: 0.18, diamond: 0.45}
+    # lampejo horizontal nos olhos do caçador durante o preparo: largura, altura e avanço para a câmera (m; o braço
+    # erguido no golpe não o tapa) e altura mínima em pixels da resolução interna (de longe a faixa fina não some;
+    # o lampejo, como o feixe, não usa vertex snapping)
+    eyes_flare: [0.7, 0.07, 0.35, 2]
+    lock: {size: 0.5, above: 0.5}                    # cadeado sobre o aliado preso: lado (m) e altura acima da cabeça (m)
 
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------
 audio:
@@ -265,9 +286,7 @@ ui:
   # LACUNA (GDD v0.2/v0.3 não definem): tempo que um ping fica visível. Proposta de 4 s, igual à marcação do
   # ping do Batedor (GDD-v0.2 §5.2); decisão do Rodrigo pendente.
   ping_lifetime: 4
-  # Retrato "ferido" no HUD: vida abaixo de 40 (estado Ferido, GDD-v0.2 §3.2 [Proposta]; GDD-v0.3 §8.3 usa o mesmo
-  # limiar na escolha de alvo). Se a regra Ferido entrar no sim, este valor passa para `survivor`.
-  wounded_hp: 40
+  # Retrato "ferido" no HUD: lê survivor.wounded_hp (fonte única do limiar de ferido, GDD-v0.3 §8.3).
   fov: {min: 60, max: 100, default: 75}
   tutorial_time: 60
   ftue_target_min: 10

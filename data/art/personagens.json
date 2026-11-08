@@ -1,0 +1,137 @@
+{
+  "$comment": "Ficha de arte dos personagens (dados de arte, não regra de jogo): proporções, peças da forma-chave, receita dos 9 clipes e skins. Fontes: Art Bible §3 (formas-chave e alturas), §7 (orçamento, atlas, 12 FPS, nomes dos clipes, skins); GDD v0.3 §10.3; GDD v0.2 §10.3 (skins por troca de paleta e acessórios). Cores: só tokens de data/art/palette.json. Medidas das peças em metros do manequim de origem (Quaternius UAL1, 1,83 m), em pose T, +Y para cima, personagem olhando para +Z, +X à esquerda do personagem; o bake escala tudo para a altura do personagem. Schema: packages/shared/src/art.ts (validado por pnpm data). Lida por tools/assets/build-characters.ts (bake), tools/assets/validate.mjs (validador) e pelo cliente (skins).",
+  "version": 1,
+  "$comment_clipes": "Pacote de origem: Quaternius Universal Animation Library [Standard] (UAL1_Standard.glb), CC0 (creditos.csv). O pacote tem 43 clipes; nenhum se chama como os nossos. Fonte direta = clipe do pacote sem alteração além da amostragem a render.anim_fps; derivado = tempo ou pose alterados (velocidade, curvar). Um conjunto com 'base' herda os clipes da base e troca os listados.",
+  "conjuntos_clipes": {
+    "sobrevivente": {
+      "clipes": {
+        "idle": { "fonte": "Idle_Loop", "laco": true, "nota": "direto" },
+        "andar": { "fonte": "Jog_Fwd_Loop", "laco": true, "nota": "direto; o passo do protótipo (4 m/s) é de trote, por isso o trote do pacote" },
+        "correr": { "fonte": "Sprint_Loop", "laco": true, "nota": "direto" },
+        "interagir": { "fonte": "Fixing_Kneeling", "laco": true, "nota": "direto (conserto ajoelhado no gerador)" },
+        "ferido": {
+          "fonte": "Walk_Loop", "velocidade": 0.8, "laco": true,
+          "curvar": [{ "osso": "spine_02", "graus": [18, 0, 0] }, { "osso": "Head", "graus": [12, 0, 0] }],
+          "nota": "derivado: caminhada a 0,8× com tronco e cabeça curvados (sem sangue, Art Bible §1.3)"
+        },
+        "preso": { "fonte": "Crouch_Idle_Loop", "laco": true, "nota": "direto (agachado na gaiola)" },
+        "golpe": { "fonte": "Punch_Cross", "laco": false, "nota": "direto" },
+        "dash": {
+          "fonte": "Sprint_Loop", "velocidade": 1.5, "laco": true,
+          "curvar": [{ "osso": "spine_01", "graus": [14, 0, 0] }],
+          "nota": "derivado: corrida a 1,5× com o tronco inclinado para a frente"
+        },
+        "atordoado": {
+          "fonte": "Hit_Head", "velocidade": 0.35, "laco": true,
+          "curvar": [{ "osso": "Head", "graus": [0, 0, 10] }],
+          "nota": "derivado: reação a golpe na cabeça a 0,35× em laço, cabeça tombada"
+        }
+      }
+    },
+    "cacador": {
+      "base": "sobrevivente",
+      "clipes": {
+        "interagir": { "fonte": "Interact", "laco": false, "nota": "direto (pegar / armar armadilha)" },
+        "preso": { "fonte": "Crouch_Idle_Loop", "laco": true, "nota": "direto; sem uso no caçador hoje, mantido pelos 9 clipes (Art Bible §7)" },
+        "golpe": { "fonte": "Punch_Cross", "velocidade": 1.2, "laco": false, "nota": "derivado: soco a 1,2× (braços longos alcançam mais)" }
+      }
+    },
+    "atacador": {
+      "base": "sobrevivente",
+      "clipes": {
+        "golpe": { "fonte": "Sword_Attack", "laco": false, "nota": "direto (golpe de espada)" }
+      }
+    }
+  },
+  "personagens": [
+    {
+      "id": "curandeiro", "nome": "Curandeiro", "tipo": "sobrevivente", "cor": "class.curandeiro", "altura": 1.75, "manterDedos": false, "clipes": "sobrevivente",
+      "acessorio": { "$comment": "acessório de skin no peito", "osso": "spine_03", "desloc": [0, 0.06, 0.16] },
+      "corpo": { "tronco": "class.curandeiro", "bracos": "class.curandeiro", "pernas": "char.calca", "pele": "char.pele", "sapato": "char.sapato", "peito": [0.17, 0.11], "abdome": [0.14, 0.1], "membro": 0.08, "lados": 6 },
+      "pecas": [
+        { "$comment": "capuz arredondado (cobre cabeça e nuca)", "forma": "elipse", "osso": "Head", "desloc": [0, 0.13, -0.015], "r": [0.13, 0.15, 0.135], "lados": 6, "aneis": 4, "cor": "class.curandeiro" },
+        { "$comment": "manto que abre embaixo. V3: topo de 0,17×0,13 para 0,20×0,15 e giro de 30° para 45° (o mesmo do tronco), para as arestas do tronco não atravessarem o manto", "forma": "seg", "de": "spine_02", "ate": "pelvis", "osso": "pelvis", "ateDesloc": [0, -0.5, 0], "r": [[0.2, 0.15], [0.32, 0.27]], "lados": 6, "cor": "class.curandeiro", "giro": 45 },
+        { "$comment": "cajado mais alto que a cabeça: na pose T fica ao longo do braço direito; com o braço baixado fica de pé. V3: raio 0,028 → 0,07 (2,5×) para o cajado não sumir a 384×216", "forma": "cilindro", "osso": "hand_r", "de": [-0.75, 0, 0.02], "ate": [1.45, 0, 0.02], "r": [0.07, 0.07], "lados": 4, "cor": "char.madeira", "giro": 45 },
+        { "$comment": "caduceu no topo: losango. V3: raio 0,08 → 0,12, ponta 1,64 → 1,7", "forma": "piramide", "osso": "hand_r", "base": [1.45, 0, 0.02], "ponta": [1.7, 0, 0.02], "r": 0.12, "cor": "class.curandeiro" },
+        { "$comment": "caduceu no topo: asas. V3: 0,06×0,04×0,36 → 0,1×0,09×0,44", "forma": "caixa", "osso": "hand_r", "desloc": [1.36, 0, 0.02], "tam": [0.1, 0.09, 0.44], "cor": "char.lamina" }
+      ]
+    },
+    {
+      "id": "mecanico", "nome": "Mecânico", "tipo": "sobrevivente", "cor": "class.mecanico", "altura": 1.76, "manterDedos": false, "clipes": "sobrevivente",
+      "acessorio": { "$comment": "acessório de skin no peito", "osso": "spine_03", "desloc": [0, 0.06, 0.16] },
+      "corpo": { "tronco": "class.mecanico", "bracos": "class.mecanico", "pernas": "char.calca", "pele": "char.pele", "sapato": "char.sapato", "peito": [0.18, 0.11], "abdome": [0.14, 0.1], "membro": 0.085, "lados": 6 },
+      "pecas": [
+        { "$comment": "capacete quadrado no topo da cabeça", "forma": "caixa", "osso": "Head", "desloc": [0, 0.2, 0.01], "tam": [0.27, 0.14, 0.28], "cor": "class.mecanico" },
+        { "$comment": "aba do capacete", "forma": "caixa", "osso": "Head", "desloc": [0, 0.135, 0.03], "tam": [0.31, 0.03, 0.33], "cor": "class.mecanico" },
+        { "$comment": "lanterna na frente do capacete (emissiva)", "forma": "caixa", "osso": "Head", "desloc": [0, 0.2, 0.17], "tam": [0.09, 0.07, 0.05], "cor": "char.lanterna", "brilho": true },
+        { "$comment": "chave inglesa grande na mão direita: cabo ao longo do braço", "forma": "caixa", "osso": "hand_r", "desloc": [-0.33, 0, 0.02], "tam": [0.46, 0.07, 0.08], "cor": "char.metal" },
+        { "$comment": "chave: cabeça", "forma": "caixa", "osso": "hand_r", "desloc": [-0.6, 0, 0.02], "tam": [0.1, 0.09, 0.3], "cor": "char.metal" },
+        { "$comment": "chave: boca em U", "forma": "caixa", "osso": "hand_r", "desloc": [-0.7, 0, 0.13], "tam": [0.16, 0.09, 0.08], "cor": "char.metal" },
+        { "$comment": "chave: boca em U", "forma": "caixa", "osso": "hand_r", "desloc": [-0.7, 0, -0.09], "tam": [0.16, 0.09, 0.08], "cor": "char.metal" }
+      ]
+    },
+    {
+      "id": "atacador", "nome": "Atacador", "tipo": "sobrevivente", "cor": "class.atacador", "altura": 1.76, "manterDedos": false, "clipes": "atacador",
+      "$comment": "corpo igual ao do Mecânico, na cor do Atacador, sem capacete (Art Bible §3, pedido A1-1); cabeça livre e redonda é o que separa a silhueta da do Mecânico (ponto de atenção 2)",
+      "acessorio": { "$comment": "acessório de skin no peito", "osso": "spine_03", "desloc": [0, 0.06, 0.16] },
+      "corpo": { "tronco": "class.atacador", "bracos": "class.atacador", "pernas": "char.calca", "pele": "char.pele", "sapato": "char.sapato", "peito": [0.18, 0.11], "abdome": [0.14, 0.1], "membro": 0.085, "lados": 6 },
+      "pecas": [
+        { "$comment": "espada nas costas, na diagonal: lâmina. V3: espessura 0,012 → 0,03 (2,5×), largura 0,05 → 0,06", "forma": "cilindro", "osso": "spine_03", "em": "spine_03", "de": [0.24, -0.5, -0.19], "ate": [-0.14, 0.24, -0.19], "r": [[0.06, 0.03], [0.045, 0.03]], "lados": 4, "cor": "char.lamina" },
+        { "$comment": "espada: guarda. V3: 0,2×0,04×0,05 → 0,28×0,09×0,1", "forma": "caixa", "osso": "spine_03", "em": "spine_03", "desloc": [-0.155, 0.27, -0.19], "tam": [0.28, 0.09, 0.1], "rot": [0, 0, -27], "cor": "char.couro" },
+        { "$comment": "espada: cabo acima do ombro direito. V3: raio 0,025 → 0,06 (2,4×)", "forma": "cilindro", "osso": "spine_03", "em": "spine_03", "de": [-0.165, 0.29, -0.19], "ate": [-0.25, 0.46, -0.19], "r": [0.06, 0.06], "lados": 4, "cor": "class.atacador" }
+      ]
+    },
+    {
+      "id": "batedor", "nome": "Batedor", "tipo": "sobrevivente", "cor": "class.batedor", "altura": 1.72, "manterDedos": false, "clipes": "sobrevivente",
+      "acessorio": { "$comment": "acessório de skin no peito", "osso": "spine_03", "desloc": [0, 0.05, 0.13] },
+      "corpo": { "tronco": "class.batedor", "bracos": "class.batedor", "pernas": "char.calca", "pele": "char.pele", "sapato": "char.sapato", "peito": [0.14, 0.09], "abdome": [0.11, 0.08], "membro": 0.068, "lados": 6 },
+      "pecas": [
+        { "$comment": "cabeça com ponta (capuz pontudo)", "forma": "piramide", "osso": "Head", "base": [0, 0.2, -0.01], "ponta": [0, 0.42, -0.07], "r": 0.11, "cor": "class.batedor" },
+        { "$comment": "cachecol: volta no pescoço. V3: raio 0,085 → 0,1", "forma": "seg", "de": "neck_01", "ate": "Head", "osso": "neck_01", "r": [[0.1, 0.1], [0.09, 0.09]], "lados": 6, "cor": "char.cachecol" },
+        { "$comment": "cachecol: ponta que voa para trás. V3: 0,1×0,05×0,4 → 0,17×0,1×0,52, aberta 22° para a esquerda", "forma": "caixa", "osso": "spine_03", "em": "neck_01", "desloc": [0.12, -0.06, -0.3], "tam": [0.17, 0.1, 0.52], "rot": [-14, -22, 0], "cor": "char.cachecol" },
+        { "$comment": "cachecol: segunda ponta. V3: 0,09×0,05×0,34 → 0,16×0,1×0,46, aberta 24° para a direita", "forma": "caixa", "osso": "spine_03", "em": "neck_01", "desloc": [-0.12, -0.13, -0.27], "tam": [0.16, 0.1, 0.46], "rot": [-26, 24, 0], "cor": "char.cachecol" }
+      ]
+    },
+    {
+      "id": "protetor", "nome": "Protetor", "tipo": "sobrevivente", "cor": "class.protetor", "altura": 1.82, "manterDedos": false, "clipes": "sobrevivente",
+      "$comment": "corpo largo e reto (seção de 4 lados), armadura prata",
+      "acessorio": { "$comment": "acessório de skin no peito", "osso": "spine_03", "desloc": [0, 0.06, 0.2] },
+      "corpo": { "tronco": "class.protetor", "bracos": "class.protetor", "pernas": "char.calca", "pele": "char.pele", "sapato": "char.sapato", "peito": [0.27, 0.15], "abdome": [0.24, 0.14], "membro": 0.1, "lados": 4 },
+      "pecas": [
+        { "$comment": "ombreira esquerda", "forma": "caixa", "osso": "upperarm_l", "desloc": [0.04, 0.05, 0], "tam": [0.16, 0.08, 0.17], "cor": "class.protetor" },
+        { "$comment": "ombreira direita", "forma": "caixa", "osso": "upperarm_r", "desloc": [-0.04, 0.05, 0], "tam": [0.16, 0.08, 0.17], "cor": "class.protetor" },
+        { "$comment": "escudo redondo preso no braço esquerdo (na pose T a face aponta para +Y; com o braço baixado, para fora). V3: eixo girado 40° para a frente (+Z), de (0, 1, 0) para (0, 0,766, 0,643), e raio 0,3 → 0,33: de frente o escudo deixa de ser uma linha", "forma": "cilindro", "osso": "lowerarm_l", "de": [0.14, 0.06, 0], "ate": [0.14, 0.0906, 0.0257], "r": [0.33, 0.33], "lados": 10, "cor": "class.protetor" },
+        { "$comment": "bossa do escudo (mesmo eixo girado do escudo)", "forma": "cilindro", "osso": "lowerarm_l", "de": [0.14, 0.0906, 0.0257], "ate": [0.14, 0.1213, 0.0514], "r": [[0.1, 0.1], [0.05, 0.05]], "lados": 6, "cor": "char.metal" }
+      ]
+    },
+    {
+      "id": "espectro", "nome": "Espectro", "tipo": "cacador", "cor": "hunter.espectro", "altura": 2.5, "bracos": 2.15, "dedos": 1.7, "manterDedos": true, "clipes": "cacador",
+      "$comment": "alto e magro; cabeça oval alongada, sem rosto; dois olhos vermelhos emissivos (Art Bible §3). V3: bracos 1,6 → 2,15 para as mãos passarem claramente do joelho no idle",
+      "corpo": { "tronco": "hunter.espectro", "bracos": "hunter.espectro", "pernas": "hunter.espectro", "pele": "hunter.espectro", "sapato": "hunter.farrapos", "peito": [0.13, 0.08], "abdome": [0.09, 0.07], "membro": 0.06, "lados": 8, "cabeca": false },
+      "pecas": [
+        { "$comment": "cabeça oval alongada", "forma": "elipse", "osso": "Head", "desloc": [0, 0.16, 0.01], "r": [0.085, 0.19, 0.1], "lados": 8, "aneis": 7, "cor": "hunter.espectro" },
+        { "$comment": "olho esquerdo", "forma": "caixa", "osso": "Head", "desloc": [0.035, 0.18, 0.1], "tam": [0.035, 0.022, 0.02], "cor": "hunter.olhos", "brilho": true },
+        { "$comment": "olho direito", "forma": "caixa", "osso": "Head", "desloc": [-0.035, 0.18, 0.1], "tam": [0.035, 0.022, 0.02], "cor": "hunter.olhos", "brilho": true },
+        { "$comment": "farrapos do manto pendurados do quadril", "forma": "seg", "de": "spine_01", "ate": "pelvis", "osso": "pelvis", "ateDesloc": [0, -0.32, -0.02], "r": [[0.1, 0.08], [0.15, 0.12]], "lados": 8, "cor": "hunter.farrapos", "giro": 22.5 }
+      ],
+      "dedosModelados": {
+        "$comment": "dedos longos: 4 dedos + polegar, 3 falanges cada, nas duas mãos (raios de cada falange: base e ponta)",
+        "falanges": [[[0.012, 0.012], [0.011, 0.011]], [[0.011, 0.011], [0.009, 0.009]], [[0.009, 0.009], [0.004, 0.004]]],
+        "lados": 4, "cor": "hunter.espectro", "giro": 45
+      }
+    }
+  ],
+  "skins": {
+    "$comment": "Skins só trocam cores secundárias (slots) e põem um acessório pequeno (uma caixa de 12 triângulos no ponto 'acessorio' do personagem); forma-chave e cor dominante ficam fixas (Art Bible §3 e §7; GDD v0.2 §10.3). As 7 skins são as da loja (data/balance.yaml skins). Valem para o sobrevivente do jogador.",
+    "slots": ["char.calca", "char.sapato"],
+    "lista": {
+      "std": { "trocas": {}, "acessorio": null },
+      "abo": { "$comment": "Abóbora: calça laranja-queimado, broche em losango verde", "trocas": { "char.calca": "skin.abo.a", "char.sapato": "skin.abo.b" }, "acessorio": { "tam": [0.09, 0.09, 0.03], "rot": [0, 0, 45], "cor": "skin.abo.b" } },
+      "som": { "$comment": "Sombra: tudo escuro, faixa cinza no peito", "trocas": { "char.calca": "skin.som.a", "char.sapato": "skin.som.b" }, "acessorio": { "tam": [0.16, 0.04, 0.03], "cor": "skin.som.b" } },
+      "neo": { "$comment": "Neon Ciano: calça azul-petróleo, placa ciano clara", "trocas": { "char.calca": "skin.neo.a", "char.sapato": "skin.neo.b" }, "acessorio": { "tam": [0.1, 0.07, 0.03], "cor": "skin.neo.b" } },
+      "car": { "$comment": "Carmesim: calça vinho, broche em losango vinho-escuro", "trocas": { "char.calca": "skin.car.a", "char.sapato": "skin.car.b" }, "acessorio": { "tam": [0.08, 0.08, 0.03], "rot": [0, 0, 45], "cor": "skin.car.b" } },
+      "our": { "$comment": "Ouro: calça bronze, medalha champanhe", "trocas": { "char.calca": "skin.our.a", "char.sapato": "skin.our.b" }, "acessorio": { "tam": [0.09, 0.09, 0.03], "cor": "skin.our.b" } },
+      "fan": { "$comment": "Fantasma: calça lilás-acinzentada, faixa lilás clara", "trocas": { "char.calca": "skin.fan.a", "char.sapato": "skin.fan.b" }, "acessorio": { "tam": [0.14, 0.05, 0.03], "rot": [0, 0, -20], "cor": "skin.fan.b" } }
+    }
+  }
+}
