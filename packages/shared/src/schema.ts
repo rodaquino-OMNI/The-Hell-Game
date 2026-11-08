@@ -36,6 +36,8 @@ const MapsSchema = z.object({
 
 const unit = num.min(0).max(1);
 const preset = z.object({ internal: z.tuple([z.number().int().positive(), z.number().int().positive()]), layers: z.array(z.enum(["A", "B", "C"])), shadows: z.boolean() }).strict();
+/** nome de token de data/art/palette.json (a existência é conferida em packages/shared/test/render-layers.test.ts) */
+const token = z.string().regex(/^[a-z_]+\.[a-z_]+$/);
 const minMax = z.tuple([z.number().int().positive(), z.number().int().positive()]);
 
 /** render (GDD-v0.3 §10.1, §10.2, §10.6): presets de resolução interna, intensidades PS1 de 0 a 1, névoa e orçamentos */
@@ -53,6 +55,32 @@ const render = z.object({
   player_light_radius: pos,
   anim_fps: num.positive(),
   shadow_map: z.number().int().positive(),
+  layer_a: z.object({
+    grain: unit, grain_amount: pos, grain_fps: num.positive(),
+    vignette: unit, vignette_radius: range.refine(r => r[1] > r[0], "vignette_radius: fim deve ser maior que início"), vignette_amount: unit,
+    scanlines: unit, scanline_amount: unit,
+    aberration: unit, aberration_px: pos, aberration_time: num.positive(),
+    bloom: unit, bloom_radius_px: z.number().int().min(1).max(8), bloom_amount: pos,
+    lut: unit, lut_size: z.number().int().min(2).max(64), lut_tint: token, lut_tint_amount: pos, lut_shadow_pivot: num.positive(),
+    lut_gain: z.tuple([pos, pos, pos]), lut_saturation: pos,
+  }).strict(),
+  reduce_flicker: z.object({ grain: unit, aberration: unit }).strict(),
+  layer_b: z.object({
+    lantern: z.object({
+      color: token, intensity: pos, distance: pos.positive(), decay: pos, angle_deg: num.positive().max(89), penumbra: unit,
+      height: pos, forward: pos, side: num, shadow_bias: num,
+    }).strict(),
+    caster_radius: pos.positive(),
+    bake: z.object({ ao_min: unit, ao_radius: pos.positive(), light_color: token, light_intensity: pos, light_radius: pos.positive(), light_height: pos }).strict(),
+  }).strict(),
+  layer_c: z.object({
+    fog_billboards: z.object({
+      color: token, count: z.number().int().nonnegative(), size: range, height: range, opacity: unit, drift: pos, drift_speed: pos, near_fade: pos,
+    }).strict(),
+    dust: z.object({ count: z.number().int().nonnegative(), box: pos.positive(), size_px: pos.positive(), opacity: unit, ambient: unit, color: token, fall: pos, sway: pos }).strict(),
+  }).strict(),
+  layer_cost_factor: num.min(1),
+  legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
