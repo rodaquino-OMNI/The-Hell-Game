@@ -22,7 +22,8 @@ try {
   const health = await (await fetch(url + "/healthz")).json();
   if (!health.ok) fail("/healthz sem ok");
   const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  // idioma do navegador fixo em pt-BR: o HUD sai no idioma detectado (GDD v0.3 §12.5) e o texto conferido é o pt-BR
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, locale: "pt-BR" });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });

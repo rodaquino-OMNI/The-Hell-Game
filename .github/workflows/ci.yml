@@ -28,6 +28,8 @@ jobs:
         run: pnpm check:palette
       - name: Validador de mapa (GDD v0.3 §9.1, todas as combinações de layout)
         run: pnpm maps:validate
+      - name: Traduções pt-BR, en e es (GDD v0.3 §12.5)
+        run: pnpm i18n:check
       - run: pnpm build
       - name: Modelos (glTF-Validator, triângulos e clipes por personagem)
         run: node tools/assets/validate.mjs
@@ -36,6 +38,8 @@ jobs:
         run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
+      - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
+        run: pnpm a11y
       - name: Fumaça do protótipo original
         run: pnpm smoke:prototype
       - name: Capturas de referência do material PS1 (V1)
