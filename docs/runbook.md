@@ -51,7 +51,15 @@ fly deploy --config fly.staging.toml --image <imagem da versão anterior> --ha=f
 
 Para produção, o mesmo com `--app the-hell` e `fly.production.toml`, com aprovação do Rodrigo.
 
-**Teste do rollback:** registro abaixo.
+**Teste do rollback (08/11/2026, staging):**
+
+| Passo | Versão no `/healthz` |
+| --- | --- |
+| v2 publicada (commit `495069a`) | `495069a` |
+| rollback para a imagem da v1 | `dev` (versão anterior) |
+| volta para a imagem da v2 | `495069a` |
+
+Cada troca levou menos de 1 minuto, sem rebuild.
 
 ## Custos
 
