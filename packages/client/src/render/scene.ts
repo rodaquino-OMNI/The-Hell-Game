@@ -27,8 +27,8 @@ export interface RenderCtx {
   baked: THREE.Mesh[];
   /** camada C: névoa em billboards e poeira */
   ambience: Ambience;
-  /** pulso de aberração: vida do jogador no quadro anterior e instante do último dano (relógio da simulação) */
-  fx: { lastHp: number | null; hitT: number | null };
+  /** pulso de aberração: sobrevivente seguido, vida dele no quadro anterior e instante do último dano (relógio da simulação) */
+  fx: { id: number | null; lastHp: number | null; hitT: number | null };
   /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
 }
@@ -101,7 +101,7 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.add(lantern, lantern.target);
   const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
   S.add(ambience.group);
-  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { lastHp: null, hitT: null }, info: { calls: 0, triangles: 0 } };
+  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { id: null, lastHp: null, hitT: null }, info: { calls: 0, triangles: 0 } };
   onLayersChange(l => applyLayers(ctx, l));
   setLayers(presetLayers(presenter.preset));
   return ctx;
@@ -142,7 +142,7 @@ export function buildActors(ctx: RenderCtx, G: GameState, _skin: string) {
   const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
   // camada B: luz assada com as lâmpadas dos geradores desta partida (o layout muda a posição)
   bakeVertexLight(ctx.baked, G.gens);
-  ctx.fx = { lastHp: null, hitT: null };
+  ctx.fx = { id: null, lastHp: null, hitT: null };
   // personagens projetam e recebem a sombra da lanterna; o próprio jogador não (a lanterna sai do corpo dele)
   const own = meshes.get("s" + G.survivors[0].id);
   void charactersReady().then(() => {
@@ -168,7 +168,9 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   PL.position.set(P.x, rc.lights.player_height, P.z);
   aimLantern(ctx.lantern, cam, P.x, P.z);
   // camada A: pulso de aberração quando a vida do jogador cai; grão e camada C no relógio da simulação
-  if (ctx.fx.lastHp !== null && P.hp < ctx.fx.lastHp) ctx.fx.hitT = G.t;
+  // só o dano do mesmo sobrevivente conta: trocar o alvo da câmera (modo espectador) não dispara o pulso
+  if (ctx.fx.id === P.id && ctx.fx.lastHp !== null && P.hp < ctx.fx.lastHp) ctx.fx.hitT = G.t;
+  ctx.fx.id = P.id;
   ctx.fx.lastHp = P.hp;
   tickLayers(G.t, ctx.fx.hitT);
   ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
