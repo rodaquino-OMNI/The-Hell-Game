@@ -178,6 +178,26 @@ const FRAGMENT = /* glsl */ `
 #ifdef PS1_LIT
 #include <lights_pars_begin>
 #include <shadowmap_pars_fragment>
+#if defined( USE_SHADOWMAP ) && NUM_SPOT_LIGHT_SHADOWS > 0
+// sombra da lanterna: o mesmo teste do getShadow BASIC do three.js, com textureLod (sem cálculo de LOD, que pesa no
+// SwiftShader dentro de desvio) e sem o filtro, que o BASIC não usa
+float ps1Shadow( vec4 coord ) {
+  coord.xyz /= coord.w;
+  #ifdef USE_REVERSED_DEPTH_BUFFER
+  coord.z -= spotLightShadows[ 0 ].shadowBias;
+  #else
+  coord.z += spotLightShadows[ 0 ].shadowBias;
+  #endif
+  if ( coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z > 1.0 ) return 1.0;
+  float depth = textureLod( spotShadowMap[ 0 ], coord.xy, 0.0 ).r;
+  #ifdef USE_REVERSED_DEPTH_BUFFER
+  float lit = step( depth, coord.z );
+  #else
+  float lit = step( coord.z, depth );
+  #endif
+  return mix( 1.0, lit, spotLightShadows[ 0 ].shadowIntensity );
+}
+#endif
 #endif
 #include <fog_pars_fragment>
 ${SHARED_GLSL}
@@ -193,16 +213,13 @@ void main() {
 #endif
   vec3 outgoing = diffuseColor.rgb;
 #ifdef PS1_LIT
-  // normal da face (flatShading do three.js) para a iluminação por fragmento
-  vec3 fdx = dFdx( vViewPosition );
-  vec3 fdy = dFdy( vViewPosition );
-  vec3 faceNormal = normalize( cross( fdx, fdy ) );
   vec3 perVertex = vLight;
   #if NUM_SPOT_LIGHTS > 0
   // sombra da lanterna: shadow map de render.shadow_map px, filtro nearest (pixelado), por fragmento
   float shadow = 1.0;
   #if defined( USE_SHADOWMAP ) && NUM_SPOT_LIGHT_SHADOWS > 0
-  if ( receiveShadow ) shadow = getShadow( spotShadowMap[ 0 ], spotLightShadows[ 0 ].shadowMapSize, spotLightShadows[ 0 ].shadowIntensity, spotLightShadows[ 0 ].shadowBias, spotLightShadows[ 0 ].shadowRadius, vSpotLightCoord[ 0 ] );
+  // fora do cone (vSpot = 0 nos três vértices) não há o que sombrear: pula a leitura do shadow map
+  if ( receiveShadow && vSpot.r + vSpot.g + vSpot.b > 0.0 ) shadow = ps1Shadow( vSpotLightCoord[ 0 ] );
   #endif
   perVertex += vSpot * shadow;
   #endif
@@ -210,6 +227,8 @@ void main() {
   // laço de luzes por fragmento não roda (uniforme: o desvio é o mesmo para todos os fragmentos)
   vec3 perFragment = perVertex;
   if ( uGouraud < 1.0 ) {
+    // normal da face (flatShading do three.js); derivadas em desvio uniforme
+    vec3 faceNormal = normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) );
     perFragment = ps1Irradiance( - vViewPosition, faceNormal, vBakeAo, vBakeLight );
     #if NUM_SPOT_LIGHTS > 0
     perFragment += ps1Spot( - vViewPosition, faceNormal ) * shadow;

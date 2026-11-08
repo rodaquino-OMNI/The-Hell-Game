@@ -247,3 +247,21 @@ export function createAmbience(rand: () => number): Ambience {
     },
   };
 }
+
+const sphere = new THREE.Sphere(), center = new THREE.Vector3();
+/**
+ * personagens projetam a sombra da lanterna só quando a esfera que os envolve (`layer_b.caster_radius`, centrada
+ * a essa altura) cruza o frustum da sombra. Os muros o three.js já recorta; os personagens têm
+ * frustumCulled = false (pose T, runtime.ts) e sem este recorte entram todos no passe de sombra
+ */
+export function cullShadowCasters(s: THREE.SpotLight, roots: readonly THREE.Object3D[]) {
+  s.shadow.updateMatrices(s);
+  const fr = s.shadow.getFrustum();
+  for (const r of roots) {
+    r.getWorldPosition(center);
+    center.y += lb.caster_radius;
+    sphere.set(center, lb.caster_radius);
+    const on = r.visible && fr.intersectsSphere(sphere);
+    r.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = on; });
+  }
+}

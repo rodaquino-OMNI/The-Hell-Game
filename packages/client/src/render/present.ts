@@ -3,7 +3,7 @@
 // quantização para `render.ps1.color_bits` por canal com intensidade `render.ps1.dither`; um quad final leva o
 // resultado à tela com escala inteira (filtro nearest) e as scanlines.
 // Camada A (GDD-v0.3 §10.2, itens do GDD-v0.2 §10.2), na ordem: aberração cromática (pulso de dano), bloom só nos
-// emissivos (máscara no alfa do alvo; passe próprio em meia resolução interna), LUT fria (textura 3D), vinheta e grão, ANTES da quantização (o dither
+// emissivos (máscara no alfa do alvo, dilatada em 1/4 da resolução interna e lida uma vez), LUT fria (textura 3D), vinheta e grão, ANTES da quantização (o dither
 // absorve o grão). As scanlines ficam no quad final: com escala ≥ 2 escurecem a última linha de tela de cada linha
 // interna (o vão entre linhas de um CRT é menor que um pixel interno); com escala 1, linhas internas alternadas.
 // O pós na resolução interna custa o mesmo em qualquer janela (SwiftShader e GPU integrada).
@@ -20,32 +20,27 @@ varying vec2 vUv;
 void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }
 `;
 
-/** bloom em meia resolução interna (o brilho é suave: 1/4 dos fragmentos do passe de pós) */
+/**
+ * bloom, passo 1: máscara emissiva em 1/4 da resolução interna (1/16 dos fragmentos). Cada texel guarda o máximo
+ * por canal da cor dos pixels emissivos (alfa 0) em 16 amostras de uma janela de 4 + 2·BLOOM_R pixels internos em
+ * volta do seu bloco 4×4: dilata feixes de 1 pixel em vez de diluí-los. O passo 2 lê a máscara uma vez, com
+ * filtro linear, e a interpolação entre texels dá a borda suave
+ */
 const BLOOM_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec2 uRes;
 varying vec2 vUv;
-// brilho dos emissivos: média ponderada da cor dos pixels com alfa 0 em 13 amostras (centro e dois anéis de 6,
-// a meio raio e no raio BLOOM_R, em pixels internos), peso caindo com a distância. 13 amostras em vez do disco
-// cheio: o custo cabe no SwiftShader da CI e em GPU integrada
-vec3 bloom() {
-  vec4 c0 = texture2D( tDiffuse, vUv );
-  vec3 sum = c0.rgb * ( 1.0 - c0.a );
-  float wsum = 1.0;
-  for ( int ring = 1; ring <= 2; ring ++ ) {
-    float r = float( BLOOM_R ) * float( ring ) * 0.5;
-    float w = 1.0 - r / ( float( BLOOM_R ) + 1.0 );
-    for ( int k = 0; k < 6; k ++ ) {
-      // anéis girados meio passo um do outro (ângulos de 60° em 60°)
-      float a = ( float( k ) + 0.5 * float( ring - 1 ) ) * 1.04719755;
-      vec4 c = texture2D( tDiffuse, vUv + vec2( cos( a ), sin( a ) ) * r / uRes );
-      sum += c.rgb * ( 1.0 - c.a ) * w;
-      wsum += w;
-    }
+void main() {
+  vec2 base = floor( vUv * uRes / 4.0 ) * 4.0 + 2.0;   // centro do bloco 4×4 em pixels internos
+  float step = ( 4.0 + 2.0 * float( BLOOM_R ) ) / 4.0;
+  vec3 m = vec3( 0.0 );
+  for ( int y = 0; y < 4; y ++ ) for ( int x = 0; x < 4; x ++ ) {
+    vec2 o = ( vec2( x, y ) - 1.5 ) * step;
+    vec4 c = texture2D( tDiffuse, ( floor( base + o ) + 0.5 ) / uRes );
+    m = max( m, c.rgb * ( 1.0 - c.a ) );
   }
-  return sum / wsum;
+  gl_FragColor = vec4( m, 1.0 );
 }
-void main() { gl_FragColor = vec4( bloom(), 1.0 ); }
 `;
 
 const POST_FRAGMENT = /* glsl */ `
@@ -81,6 +76,7 @@ void main() {
     c.r = texture2D( tDiffuse, vUv + off ).r;
     c.b = texture2D( tDiffuse, vUv - off ).b;
   }
+  // bloom, passo 2: uma leitura com filtro linear da máscara dilatada em 1/4
   if ( uBloom > 0.0 ) c.rgb += texture2D( tBloom, vUv ).rgb * uBloom * uBloomAmount;
   if ( uLut > 0.0 ) {
     vec3 l = texture( tLut, clamp( c.rgb, 0.0, 1.0 ) * ( ( uLutSize - 1.0 ) / uLutSize ) + 0.5 / uLutSize ).rgb;
@@ -166,7 +162,7 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
       self.preset = name;
       target.setSize(w, h);
       postTarget.setSize(w, h);
-      bloomTarget.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
+      bloomTarget.setSize(Math.ceil(w / 4), Math.ceil(h / 4));
       ps1Uniforms.uRes.value.set(w, h);
       lastKey = "";
     },

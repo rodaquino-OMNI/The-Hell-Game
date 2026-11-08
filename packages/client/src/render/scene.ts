@@ -7,7 +7,7 @@ import { balance, cfg, map, px } from "../data.ts";
 import { WORLD_COLORS } from "../look.ts";
 import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
 import { charactersReady } from "./characters/runtime.ts";
-import { aimLantern, bakeVertexLight, createAmbience, createLantern, neutralBake, type Ambience } from "./environment.ts";
+import { aimLantern, bakeVertexLight, createAmbience, createLantern, cullShadowCasters, neutralBake, type Ambience } from "./environment.ts";
 import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
 import { clientRandom, urlPreset } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
@@ -29,6 +29,10 @@ export interface RenderCtx {
   ambience: Ambience;
   /** pulso de aberração: sobrevivente seguido, vida dele no quadro anterior e instante do último dano (relógio da simulação) */
   fx: { id: number | null; lastHp: number | null; hitT: number | null };
+  /** personagens que podem projetar a sombra da lanterna (o próprio jogador não) */
+  casters: THREE.Object3D[];
+  /** passo (em 1/render.anim_fps) da última atualização do shadow map; NaN força a próxima */
+  shadowStep: number;
   /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
 }
@@ -71,6 +75,8 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // camada B: sombra da lanterna em shadow map sem filtro (BasicShadowMap: texel nearest, sombra pixelada)
   R.shadowMap.enabled = true;
   R.shadowMap.type = THREE.BasicShadowMap;
+  // o shadow map é redesenhado a render.anim_fps (12 Hz, o passo PS1 da animação), não a cada quadro
+  R.shadowMap.autoUpdate = false;
   setGrainSeed(Math.floor(clientRandom(GRAIN_SALT)() * 65536));
   const presenter = createPresenter(R, canvas, urlPreset);
   const [iw, ih] = rc.presets[presenter.preset].internal;
@@ -101,7 +107,7 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.add(lantern, lantern.target);
   const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
   S.add(ambience.group);
-  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { id: null, lastHp: null, hitT: null }, info: { calls: 0, triangles: 0 } };
+  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { id: null, lastHp: null, hitT: null }, casters: [], shadowStep: NaN, info: { calls: 0, triangles: 0 } };
   onLayersChange(l => applyLayers(ctx, l));
   setLayers(presetLayers(presenter.preset));
   return ctx;
@@ -112,6 +118,7 @@ function applyLayers(ctx: RenderCtx, l: LayerSet) {
   ctx.lantern.visible = l.B;
   ps1Uniforms.uBake.value = l.B ? 1 : 0;
   ctx.ambience.group.visible = l.C;
+  ctx.shadowStep = NaN;
 }
 
 /** troca o preset de resolução interna (low/medium/high) */
@@ -143,13 +150,18 @@ export function buildActors(ctx: RenderCtx, G: GameState, _skin: string) {
   // camada B: luz assada com as lâmpadas dos geradores desta partida (o layout muda a posição)
   bakeVertexLight(ctx.baked, G.gens);
   ctx.fx = { id: null, lastHp: null, hitT: null };
-  // personagens projetam e recebem a sombra da lanterna; o próprio jogador não (a lanterna sai do corpo dele)
+  // personagens recebem a sombra da lanterna e projetam quando estão no cone (cullShadowCasters); o próprio
+  // jogador não projeta (a lanterna sai do corpo dele)
   const own = meshes.get("s" + G.survivors[0].id);
+  ctx.casters = [];
+  ctx.shadowStep = NaN;
   void charactersReady().then(() => {
     for (const s of G.survivors.map(v => meshes.get("s" + v.id)).concat(hm)) {
-      if (!s || s === own) continue;
-      s.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true; });
+      if (!s) continue;
+      s.traverse(o => { if ((o as THREE.Mesh).isMesh) o.receiveShadow = true; });
+      if (s !== own) ctx.casters.push(s);
     }
+    ctx.shadowStep = NaN;
   });
 }
 
@@ -167,6 +179,13 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
   PL.position.set(P.x, rc.lights.player_height, P.z);
   aimLantern(ctx.lantern, cam, P.x, P.z);
+  // camada B: shadow map a render.anim_fps no relógio da simulação, só com os projetores dentro do cone
+  const shadowStep = Math.floor(fxTime(G.t) * rc.anim_fps);
+  if (ctx.lantern.visible && shadowStep !== ctx.shadowStep) {
+    cullShadowCasters(ctx.lantern, ctx.casters);
+    ctx.R.shadowMap.needsUpdate = true;
+    ctx.shadowStep = shadowStep;
+  }
   // camada A: pulso de aberração quando a vida do jogador cai; grão e camada C no relógio da simulação
   // só o dano do mesmo sobrevivente conta: trocar o alvo da câmera (modo espectador) não dispara o pulso
   if (ctx.fx.id === P.id && ctx.fx.lastHp !== null && P.hp < ctx.fx.lastHp) ctx.fx.hitT = G.t;

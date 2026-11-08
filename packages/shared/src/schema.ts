@@ -37,7 +37,7 @@ const MapsSchema = z.object({
 
 const unit = num.min(0).max(1);
 const preset = z.object({ internal: z.tuple([z.number().int().positive(), z.number().int().positive()]), layers: z.array(z.enum(["A", "B", "C"])), shadows: z.boolean() }).strict();
-/** nome de token de data/art/palette.json (a existência é conferida em packages/shared/test/render-data.test.ts) */
+/** nome de token de data/art/palette.json (a existência é conferida em packages/shared/test/render-layers.test.ts) */
 const token = z.string().regex(/^[a-z_]+\.[a-z_]+$/);
 const minMax = z.tuple([z.number().int().positive(), z.number().int().positive()]);
 
@@ -71,6 +71,7 @@ const render = z.object({
       color: token, intensity: pos, distance: pos.positive(), decay: pos, angle_deg: num.positive().max(89), penumbra: unit,
       height: pos, forward: pos, side: num, shadow_bias: num,
     }).strict(),
+    caster_radius: pos.positive(),
     bake: z.object({ ao_min: unit, ao_radius: pos.positive(), light_color: token, light_intensity: pos, light_radius: pos.positive(), light_height: pos }).strict(),
   }).strict(),
   layer_c: z.object({
@@ -79,6 +80,7 @@ const render = z.object({
     }).strict(),
     dust: z.object({ count: z.number().int().nonnegative(), box: pos.positive(), size_px: pos.positive(), opacity: unit, ambient: unit, color: token, fall: pos, sway: pos }).strict(),
   }).strict(),
+  layer_cost_factor: num.min(1),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
 }).strict();

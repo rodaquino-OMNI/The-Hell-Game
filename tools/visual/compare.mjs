@@ -12,14 +12,15 @@
 //   - o dither ligado produz o padrão Bayer; cada efeito sozinho muda a imagem em relação a tudo em 0;
 //   - renderer.info (draw calls e triângulos) dentro de render.budgets em cada preset com as camadas dele;
 //   - camada A com intensidades em 0 = camadas desligadas (pixel a pixel); cada efeito da camada A muda a imagem;
-//   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo.
+//   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
+//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720).
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [url]
 //   --update  regrava as referências (revisar as imagens antes de commitar)
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
 //   --shots   grava também v1-ligado.png, v1-desligado.png e v4-patio-<preset>.png em 1280×720 com deviceScaleFactor 2
 //             (revisão humana; marco A3)
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,14 +119,32 @@ function bayerStrength(img) {
   const means = [...sum].map((s, k) => s / n[k]);
   return Math.max(...means) - Math.min(...means);
 }
+/** processos de GPU do Chromium lançado por este script (Linux: /proc), para medir o custo em tempo de CPU */
+function gpuProcesses() {
+  const ppid = (p) => { try { return Number(readFileSync(`/proc/${p}/stat`, "utf8").split(") ")[1].split(" ")[1]); } catch { return 0; } };
+  const mine = (p) => { for (let q = Number(p), i = 0; q > 1 && i < 16; q = ppid(q), i++) if (q === process.pid) return true; return false; };
+  try {
+    return readdirSync("/proc").filter(d => /^\d+$/.test(d)).filter(d => {
+      try { return readFileSync(`/proc/${d}/cmdline`, "utf8").includes("--type=gpu-process") && mine(d); } catch { return false; }
+    });
+  } catch { return []; }
+}
+/** tempo de CPU (usuário + sistema, em ms) somado dos processos dados; tiques de 10 ms (USER_HZ = 100) */
+function cpuMs(pids) {
+  let ticks = 0;
+  for (const p of pids) {
+    try { const f = readFileSync(`/proc/${p}/stat`, "utf8").split(") ")[1].split(" "); ticks += Number(f[11]) + Number(f[12]); } catch { /* saiu */ }
+  }
+  return ticks * 10;
+}
 /** limiar da força Bayer: sem dither fica perto de 0; com dither de 5 bits passa bem disso */
 const BAYER_MIN = 3;
 /** intensidades padrão da camada A (data/balance.yaml render.layer_a) */
 const layerADefaults = Object.fromEntries(LAYER_A.map(e => [e, balance.render.layer_a[e]]));
 
-async function openGame(browser, preset) {
+async function openGame(browser, preset, viewport) {
   const [w, h] = balance.render.presets[preset].internal;
-  const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: viewport ?? { width: w, height: h }, deviceScaleFactor: 1 });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -248,6 +267,32 @@ try {
     const info = shots[name].info;
     console.log(`renderer.info (${name}): ${info.calls} draw calls, ${info.triangles} triângulos (orçamento ${b.draw_calls} / ${b.triangles})`);
     if (info.calls > b.draw_calls || info.triangles > b.triangles) fail(`renderer.info acima do orçamento em ${name}`);
+  }
+
+  // custo das camadas (render.layer_cost_factor): preset médio, 1280×720 (escala 3), custo síncrono por quadro
+  // (hook bench: readPixels de 1 pixel a cada quadro) com A+B e sem camadas, em pares; vale a mediana das razões.
+  // Mede o tempo de CPU do processo de GPU do Chromium (o SwiftShader rasteriza na CPU): bem menos sensível à carga
+  // da máquina que o relógio de parede, que fica como reserva fora do Linux
+  {
+    const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
+    const NONE_L = { A: false, B: false, C: false };
+    const AB = { A: true, B: true, C: false };
+    const FRAMES = 16, ROUNDS = 9;
+    const gpu = gpuProcesses();
+    const clock = gpu.length ? () => cpuMs(gpu) : () => performance.now();
+    const run = async (layers) => {
+      await cost.page.evaluate(([l, view, a]) => { const h = window.__thehellRender; h.setLayers(l); h.setLayerA(a); h.bench(view, 2); }, [layers, VIEW, layerADefaults]);
+      const t0 = clock();
+      await cost.page.evaluate(([view, n]) => window.__thehellRender.bench(view, n), [VIEW, FRAMES]);
+      return (clock() - t0) / FRAMES;
+    };
+    // rodadas pareadas (sem camadas, A+B): a razão de cada par cancela a variação lenta de carga; vale a mediana
+    const none = [], ab = [], ratio = [];
+    for (let r = 0; r < ROUNDS; r++) { none.push(await run(NONE_L)); ab.push(await run(AB)); ratio.push(ab[r] / none[r]); }
+    const med = (v) => [...v].sort((x, y) => x - y)[v.length >> 1], k = balance.render.layer_cost_factor;
+    console.log(`custo (medium, 1280×720, ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}): sem camadas ${med(none).toFixed(1)} ms, A+B ${med(ab).toFixed(1)} ms por quadro (medianas); razão pareada ${med(ratio).toFixed(2)}× (teto ${k}×)`);
+    if (med(ratio) > k) fail(`camadas A+B custam ${med(ratio).toFixed(2)}× o preset sem camadas (teto ${k}×)`);
+    await cost.page.close();
   }
 
   for (const { errors } of Object.values(pages)) if (errors.length) fail("erros no console: " + errors.join(" | "));
