@@ -3,7 +3,7 @@
 // quantização para `render.ps1.color_bits` por canal com intensidade `render.ps1.dither`; um quad final leva o
 // resultado à tela com escala inteira (filtro nearest) e as scanlines.
 // Camada A (GDD-v0.3 §10.2, itens do GDD-v0.2 §10.2), na ordem: aberração cromática (pulso de dano), bloom só nos
-// emissivos (máscara no alfa do alvo), LUT fria (textura 3D), vinheta e grão, ANTES da quantização (o dither
+// emissivos (máscara no alfa do alvo; passe próprio em meia resolução interna), LUT fria (textura 3D), vinheta e grão, ANTES da quantização (o dither
 // absorve o grão). As scanlines ficam no quad final: com escala ≥ 2 escurecem a última linha de tela de cada linha
 // interna (o vão entre linhas de um CRT é menor que um pixel interno); com escala 1, linhas internas alternadas.
 // O pós na resolução interna custa o mesmo em qualquer janela (SwiftShader e GPU integrada).
@@ -20,8 +20,37 @@ varying vec2 vUv;
 void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }
 `;
 
+/** bloom em meia resolução interna (o brilho é suave: 1/4 dos fragmentos do passe de pós) */
+const BLOOM_FRAGMENT = /* glsl */ `
+uniform sampler2D tDiffuse;
+uniform vec2 uRes;
+varying vec2 vUv;
+// brilho dos emissivos: média ponderada da cor dos pixels com alfa 0 em 13 amostras (centro e dois anéis de 6,
+// a meio raio e no raio BLOOM_R, em pixels internos), peso caindo com a distância. 13 amostras em vez do disco
+// cheio: o custo cabe no SwiftShader da CI e em GPU integrada
+vec3 bloom() {
+  vec4 c0 = texture2D( tDiffuse, vUv );
+  vec3 sum = c0.rgb * ( 1.0 - c0.a );
+  float wsum = 1.0;
+  for ( int ring = 1; ring <= 2; ring ++ ) {
+    float r = float( BLOOM_R ) * float( ring ) * 0.5;
+    float w = 1.0 - r / ( float( BLOOM_R ) + 1.0 );
+    for ( int k = 0; k < 6; k ++ ) {
+      // anéis girados meio passo um do outro (ângulos de 60° em 60°)
+      float a = ( float( k ) + 0.5 * float( ring - 1 ) ) * 1.04719755;
+      vec4 c = texture2D( tDiffuse, vUv + vec2( cos( a ), sin( a ) ) * r / uRes );
+      sum += c.rgb * ( 1.0 - c.a ) * w;
+      wsum += w;
+    }
+  }
+  return sum / wsum;
+}
+void main() { gl_FragColor = vec4( bloom(), 1.0 ); }
+`;
+
 const POST_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
+uniform sampler2D tBloom;
 uniform highp sampler3D tLut;
 uniform vec2 uRes;
 uniform float uDither;
@@ -43,26 +72,6 @@ uvec3 pcg3d( uvec3 v ) {
   v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
   return v;
 }
-// brilho dos emissivos: média ponderada da cor dos pixels com alfa 0 em 13 amostras (centro e dois anéis de 6,
-// a meio raio e no raio BLOOM_R, em pixels internos), peso caindo com a distância. 13 amostras em vez do disco
-// cheio: o custo cabe no SwiftShader da CI e em GPU integrada
-vec3 bloom() {
-  vec4 c0 = texture2D( tDiffuse, vUv );
-  vec3 sum = c0.rgb * ( 1.0 - c0.a );
-  float wsum = 1.0;
-  for ( int ring = 1; ring <= 2; ring ++ ) {
-    float r = float( BLOOM_R ) * float( ring ) * 0.5;
-    float w = 1.0 - r / ( float( BLOOM_R ) + 1.0 );
-    for ( int k = 0; k < 6; k ++ ) {
-      // anéis girados meio passo um do outro (ângulos de 60° em 60°)
-      float a = ( float( k ) + 0.5 * float( ring - 1 ) ) * 1.04719755;
-      vec4 c = texture2D( tDiffuse, vUv + vec2( cos( a ), sin( a ) ) * r / uRes );
-      sum += c.rgb * ( 1.0 - c.a ) * w;
-      wsum += w;
-    }
-  }
-  return sum / wsum;
-}
 void main() {
   vec4 c = texture2D( tDiffuse, vUv );
   ivec2 p = ivec2( floor( vUv * uRes ) );          // pixel da resolução interna
@@ -72,7 +81,7 @@ void main() {
     c.r = texture2D( tDiffuse, vUv + off ).r;
     c.b = texture2D( tDiffuse, vUv - off ).b;
   }
-  if ( uBloom > 0.0 ) c.rgb += bloom() * uBloom * uBloomAmount;
+  if ( uBloom > 0.0 ) c.rgb += texture2D( tBloom, vUv ).rgb * uBloom * uBloomAmount;
   if ( uLut > 0.0 ) {
     vec3 l = texture( tLut, clamp( c.rgb, 0.0, 1.0 ) * ( ( uLutSize - 1.0 ) / uLutSize ) + 0.5 / uLutSize ).rgb;
     c.rgb = mix( c.rgb, l, uLut );
@@ -130,13 +139,15 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
   const nearest = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter };
   const target = new THREE.WebGLRenderTarget(1, 1, { ...nearest, depthBuffer: true });
   const postTarget = new THREE.WebGLRenderTarget(1, 1, { ...nearest, depthBuffer: false });
+  const bloomTarget = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
   postUniforms.tLut.value ??= coldLutTexture();
   const scaleUniform = { value: 1 };
   const { uScanlines, uScanlineAmount, ...postOnly } = postUniforms;
   const post = quadMaterial(
-    { tDiffuse: { value: target.texture }, uRes: ps1Uniforms.uRes, uDither: ditherUniform, uBits: { value: balance.render.ps1.color_bits }, ...postOnly },
-    POST_FRAGMENT, { BLOOM_R: balance.render.layer_a.bloom_radius_px },
+    { tDiffuse: { value: target.texture }, tBloom: { value: bloomTarget.texture }, uRes: ps1Uniforms.uRes, uDither: ditherUniform, uBits: { value: balance.render.ps1.color_bits }, ...postOnly },
+    POST_FRAGMENT,
   );
+  const bloomMat = quadMaterial({ tDiffuse: { value: target.texture }, uRes: ps1Uniforms.uRes }, BLOOM_FRAGMENT, { BLOOM_R: balance.render.layer_a.bloom_radius_px });
   const blit = quadMaterial({ tPost: { value: postTarget.texture }, uScale: scaleUniform, uScanlines, uScanlineAmount }, BLIT_FRAGMENT);
   const geo = new THREE.PlaneGeometry(2, 2);
   const scene = (m: THREE.Material) => {
@@ -144,7 +155,7 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
     q.frustumCulled = false; s.add(q);
     return s;
   };
-  const postScene = scene(post), blitScene = scene(blit);
+  const postScene = scene(post), blitScene = scene(blit), bloomScene = scene(bloomMat);
   const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   let lastKey = "";
 
@@ -155,6 +166,7 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
       self.preset = name;
       target.setSize(w, h);
       postTarget.setSize(w, h);
+      bloomTarget.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
       ps1Uniforms.uRes.value.set(w, h);
       lastKey = "";
     },
@@ -162,6 +174,7 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
       fit();
       R.setRenderTarget(target);
       R.render(s, camera);
+      if (postUniforms.uBloom.value > 0) { R.setRenderTarget(bloomTarget); R.render(bloomScene, quadCam); }
       R.setRenderTarget(postTarget);
       R.render(postScene, quadCam);
       R.setRenderTarget(null);

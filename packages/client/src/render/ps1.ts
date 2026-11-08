@@ -197,7 +197,6 @@ void main() {
   vec3 fdx = dFdx( vViewPosition );
   vec3 fdy = dFdy( vViewPosition );
   vec3 faceNormal = normalize( cross( fdx, fdy ) );
-  vec3 perFragment = ps1Irradiance( - vViewPosition, faceNormal, vBakeAo, vBakeLight );
   vec3 perVertex = vLight;
   #if NUM_SPOT_LIGHTS > 0
   // sombra da lanterna: shadow map de render.shadow_map px, filtro nearest (pixelado), por fragmento
@@ -205,9 +204,17 @@ void main() {
   #if defined( USE_SHADOWMAP ) && NUM_SPOT_LIGHT_SHADOWS > 0
   if ( receiveShadow ) shadow = getShadow( spotShadowMap[ 0 ], spotLightShadows[ 0 ].shadowMapSize, spotLightShadows[ 0 ].shadowIntensity, spotLightShadows[ 0 ].shadowBias, spotLightShadows[ 0 ].shadowRadius, vSpotLightCoord[ 0 ] );
   #endif
-  perFragment += ps1Spot( - vViewPosition, faceNormal ) * shadow;
   perVertex += vSpot * shadow;
   #endif
+  // caminho por fragmento só quando entra na mistura: com uGouraud = 1 (padrão) mix devolve perVertex exato e o
+  // laço de luzes por fragmento não roda (uniforme: o desvio é o mesmo para todos os fragmentos)
+  vec3 perFragment = perVertex;
+  if ( uGouraud < 1.0 ) {
+    perFragment = ps1Irradiance( - vViewPosition, faceNormal, vBakeAo, vBakeLight );
+    #if NUM_SPOT_LIGHTS > 0
+    perFragment += ps1Spot( - vViewPosition, faceNormal ) * shadow;
+    #endif
+  }
   outgoing = mix( perFragment, perVertex, uGouraud ) * BRDF_Lambert( diffuseColor.rgb );
 #endif
   // alfa = máscara de emissivo para o bloom da camada A (0 = emissivo); o passe final escreve alfa 1 na tela
