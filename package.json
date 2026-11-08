@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "check:palette": "node tools/art/palette-check.mjs",
     "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "visual": "node tools/visual/compare.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

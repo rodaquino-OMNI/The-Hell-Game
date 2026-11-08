@@ -2,7 +2,8 @@
 import * as THREE from "three";
 import type { GameState } from "@thehell/sim";
 import { HUNTER_COLORS, WORLD_COLORS } from "../look.ts";
-import { basic, box, meshes, S } from "./scene.ts";
+import type { Ps1Material } from "./ps1.ts";
+import { basic, box, meshes, type RenderCtx } from "./scene.ts";
 
 /** posição e visibilidade de figuras, lâmpadas dos geradores e cor do portão */
 export function syncActors(G: GameState, thirdPerson: boolean) {
@@ -16,14 +17,14 @@ export function syncActors(G: GameState, thirdPerson: boolean) {
   G.gens.forEach((g, i) => {
     const c = g.bonus ? (g.done ? 0x555566 : 0x4da6ff) : g.done ? 0x33ff66 : g.n > 0 ? 0xffcc33 : 0xff3333;
     const lamp = meshes.get("lamp" + i) as THREE.Mesh, beam = meshes.get("beam" + i) as THREE.Mesh;
-    (lamp.material as THREE.MeshBasicMaterial).color.set(c); (beam.material as THREE.MeshBasicMaterial).color.set(c);
+    (lamp.material as Ps1Material).color.set(c); (beam.material as Ps1Material).color.set(c);
     lamp.visible = Math.sin(G.t * 6) > -0.3;
   });
-  if (G.gateOpen) ((meshes.get("gate") as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(WORLD_COLORS.gateOpen);
+  if (G.gateOpen) ((meshes.get("gate") as THREE.Mesh).material as Ps1Material).color.set(WORLD_COLORS.gateOpen);
 }
 
 /** cria e remove malhas de projéteis e armadilhas conforme o estado */
-export function syncDynamic(G: GameState) {
+export function syncDynamic({ S }: RenderCtx, G: GameState) {
   const alive = new Set<string>();
   for (const p of G.projectiles) {
     const key = "p" + p.id; alive.add(key);
