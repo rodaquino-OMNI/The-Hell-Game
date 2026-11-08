@@ -2,12 +2,14 @@
 // Referências "L" apontam para as linhas do protótipo; números vêm de SimConfig (data/balance.yaml).
 // Com `ruleset: v1` (cfg.v1) entram as regras do GDD v0.3 (item R1): cone de visão, ruído, fim de partida do §3.3
 // revisto, vida escalada, tabela de dificuldade, anti-tunnel, recuo, telegraph e regras de gerador do §6.2.
+import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
 import { hunterMaxHp, type SimConfig } from "./config.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
+import { chooseLayout, crossedExit, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
 import {
-  ARROWS, CLASSES, type ClassName, type GameEvent, type GameState, type Generator, type Hunter,
+  ARROWS, CLASSES, type Arena, type ClassName, type GameEvent, type GameState, type Generator, type Hunter,
   type MsgKey, type NoiseKind, type Outcome, type PlayerInput, type Survivor, type Vec,
 } from "./types.ts";
 
@@ -18,10 +20,14 @@ const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.z - b.z);
 // ---------- criação ----------
 
 export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number): GameState {
-  const b = cfg.balance, m = cfg.map, px = b.prototype_extras;
+  const b = cfg.balance, px = b.prototype_extras;
+  // v1: a semente escolhe a combinação de geradores, gaiola e saída (GDD-v0.3 §9.3); o protótipo usa o topo do mapa
+  const layout = cfg.v1 ? chooseLayout(cfg.map, seed) : { generators: 0, cage: 0, exit: 0 };
+  const m = cfg.v1 ? resolveLayout(cfg.map, layout) : cfg.map;
   const order: ClassName[] = [playerClass, ...CLASSES.filter(c => c !== playerClass)];
+  const spawn = spawnPoints(cfg, order.length);
   const survivors: Survivor[] = order.map((cls, i) => ({
-    id: i, cls, bot: i > 0, x: m.survivor_spawn.origin[0] + (i - 1) * m.survivor_spawn.spacing, z: m.survivor_spawn.origin[1],
+    id: i, cls, bot: i > 0, x: spawn[i][0], z: spawn[i][1],
     hp: b.survivor.hp, st: "ok", cage: 0, captures: 0, cd: 0, atk: 0, block: 0, slow: 0, revealed: 0, immune: 0,
     stamina: b.survivor.stamina.max, a: 0, rescue: 0, work: 0, sidestep: 0, sidestepDir: 1, antiTunnel: 0,
   }));
@@ -35,10 +41,24 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
     dash: px.hunter_initial.dash, dashing: 0, projectile: px.hunter_initial.projectile, trap: px.hunter_initial.trap,
     a: 0, alert: null, alertTime: 0, patrol: null, sidestep: 0, sidestepDir: 1, target: -1, windup: null, recoil: 0,
   };
+  if (cfg.brain === "utility") hunter.ai = newHunterAi();
+  const arena: Arena = { layout, cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] }, exitZ: m.exit_z };
   return {
     t: 0, seed: seed | 0, points: 0, reveal: px.hunter_initial.reveal, gateTimer: 0, gateStarted: false, gateOpen: false,
-    over: false, gens, survivors, hunter, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
+    over: false, gens, survivors, hunter, arena, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
   };
+}
+
+/**
+ * Pontos de nascimento. Protótipo: a fórmula do mapa (origem + (i − 1) × espaçamento). v1: `survivor_spawns`
+ * do mapa (GDD-v0.3 §9.4, R2); se a lista tiver menos pontos que sobreviventes, os pontos se repetem em ciclo
+ * (personagens não colidem entre si, então dividir um ponto é seguro).
+ */
+export function spawnPoints(cfg: SimConfig, n: number): (readonly [number, number])[] {
+  const m = cfg.map;
+  if (!cfg.v1) return Array.from({ length: n }, (_, i) => [m.survivor_spawn.origin[0] + (i - 1) * m.survivor_spawn.spacing, m.survivor_spawn.origin[1]] as const);
+  const list = survivorSpawns(m, n);
+  return Array.from({ length: n }, (_, i) => list[i % list.length]);
 }
 
 export const player = (g: GameState) => g.survivors[0];
@@ -93,7 +113,10 @@ function move(cfg: SimConfig, g: GameState, e: Survivor | Hunter, dx: number, dz
 function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = true): boolean {
   const radius = cfg.balance.noise[kind], H = g.hunter;
   const heard = dist(H, at) <= radius;
-  if (heard) { H.alert = { x: at.x, z: at.z }; H.alertTime = cfg.balance.ai.hearing_investigate_time; }
+  if (heard) {
+    H.alert = { x: at.x, z: at.z }; H.alertTime = cfg.balance.ai.hearing_investigate_time;
+    if (H.ai) H.ai.heard = { x: at.x, z: at.z, at: g.t, dur: cfg.balance.ai.hearing_investigate_time };
+  }
   if (event) emit(g, { type: "noise", kind, x: at.x, z: at.z, radius, heard });
   return heard;
 }
@@ -107,6 +130,7 @@ function finishGenerator(cfg: SimConfig, g: GameState, gen: Generator) {
   // LACUNA (GDD-v0.2 §3.4 × §6.2): a revelação alcança o caçador fora do raio de 25 m? Padrão conservador: não.
   if (!noise(cfg, g, "generator_done", gen) && gb.completed_reveal_global) {
     H.alert = { x: gen.x, z: gen.z }; H.alertTime = gb.completed_reveal;
+    if (H.ai) H.ai.heard = { x: gen.x, z: gen.z, at: g.t, dur: gb.completed_reveal };
   }
 }
 
@@ -225,7 +249,7 @@ export function hit(cfg: SimConfig, g: GameState, s: Survivor, damage: number) {
 }
 
 function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
-  const b = cfg.balance, m = cfg.map;
+  const b = cfg.balance, cage = g.arena.cage;
   if (!s.bot) g.puzzle = null;
   if (s.captures >= b.cage.deaths_at_capture - 1) { kill(g, s); return; }
   s.st = "cage";
@@ -233,8 +257,8 @@ function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
   s.cage = cfg.cageTime;
   if (cfg.v1) s.antiTunnel = b.hunter.anti_tunnel;
   s.hp = 0;
-  s.x = m.cage[0] + (s.id - 1) * b.prototype_extras.cage_slot_spacing;
-  s.z = m.cage[1];
+  s.x = cage.x + (s.id - 1) * b.prototype_extras.cage_slot_spacing;
+  s.z = cage.z;
   if (!s.bot) msg(g, "caged", { n: cfg.cageTime });
 }
 
@@ -245,13 +269,31 @@ function free(cfg: SimConfig, g: GameState, c: Survivor) {
   c.st = "ok";
   c.hp = b.cage.rescue_hp;
   c.immune = b.cage.immunity;
-  c.z = cfg.map.cage[1] + b.prototype_extras.rescued_offset;
+  c.z = g.arena.cage.z + b.prototype_extras.rescued_offset;
   msg(g, "rescued", { cls: c.cls });
 }
 
 // ---------- caçador (L159–L169) ----------
 
+/** revelação periódica (GDD-v0.2 §2.3, `hunter.reveal.*`): os `targets` vivos mais próximos ficam visíveis */
+function periodicReveal(cfg: SimConfig, g: GameState, alive: Survivor[]) {
+  const h = cfg.balance.hunter, H = g.hunter;
+  if (g.reveal > 0) return;
+  g.reveal = cfg.revealInterval;
+  [...alive].sort((a, c) => dist(a, H) - dist(c, H)).slice(0, h.reveal.targets).forEach(s => { s.revealed = h.reveal.duration; });
+  if (player(g).st === "ok" && player(g).revealed > 0) msg(g, "revealed");
+}
+
+function hunterEffects(cfg: SimConfig, g: GameState): HunterEffects {
+  return {
+    hit: (s, damage) => hit(cfg, g, s, damage),
+    collide: (p, r) => collide(cfg, p, r),
+    reveal: alive => periodicReveal(cfg, g, alive),
+  };
+}
+
 function updateHunter(cfg: SimConfig, g: GameState, dt: number) {
+  if (cfg.brain === "utility" && g.hunter.ai) { updateHunterAi(cfg, g, dt, hunterEffects(cfg, g)); return; }
   if (cfg.v1) { updateHunterV1(cfg, g, dt); return; }
   const b = cfg.balance, h = b.hunter, px = b.prototype_extras, H = g.hunter;
   if (H.stun > 0) { H.stun -= dt; return; }
@@ -385,7 +427,7 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
     return;
   }
   s.rescue = 0;
-  const gate = { x: cfg.map.gate[0], z: cfg.map.gate[1] };
+  const gate = g.arena.gate;
   if (g.gateOpen) { move(cfg, g, s, gate.x - s.x, gate.z - s.z, bt.gate_speed, dt); return; }
   const gen = g.gens.filter(x => !x.bonus && !x.done).sort((a, c) => dist(a, s) - dist(c, s))[0];
   if (gen) {
@@ -486,8 +528,10 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     g.gateStarted = true; g.gateTimer = cfg.gateTime; msg(g, "gate_countdown", { n: cfg.gateTime });
   }
   if (g.gateStarted && !g.gateOpen) { g.gateTimer -= dt; if (g.gateTimer <= 0) { g.gateOpen = true; msg(g, "gate_open"); } }
+  // saída: lado do portão em relação à linha exit_z (norte ou sul, R2 `crossedExit`); no protótipo, z < exit_z
+  const exit = { gate: [g.arena.gate.x, g.arena.gate.z] as [number, number], exit_z: g.arena.exitZ };
   for (const s of g.survivors) {
-    if (g.gateOpen && s.st === "ok" && s.z < cfg.map.exit_z && Math.abs(s.x - cfg.map.gate[0]) < px.gate_exit_half_width) s.st = "out";
+    if (g.gateOpen && s.st === "ok" && crossedExit(exit, s.x, s.z, px.gate_exit_half_width)) s.st = "out";
   }
   if (cfg.v1) {
     const r = matchEnd(cfg, g.survivors.map(s => s.st), H.hp, g.t);
