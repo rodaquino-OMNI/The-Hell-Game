@@ -1,1 +1,1 @@
-export { BalanceSchema, MapSchema, type Balance, type GameMap } from "./schema.ts";
+export { BalanceSchema, MapSchema, type Balance, type GameMap, type MapExit, type MapLoop, type GeneratorLayout } from "./schema.ts";

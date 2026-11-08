@@ -1,12 +1,29 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (ai, nav, maps, render, audio, ui, net) passam sem validação
-// detalhada até o agente dono implementá-las.
+// as seções ainda não implementadas (ai, render, audio, ui, net) passam sem validação
+// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9).
 import { z } from "zod";
 
 const num = z.number().finite();
 const pos = num.nonnegative();
 const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
+const int = z.number().int();
+
+/** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
+const NavSchema = z.object({
+  cell_size: pos.positive(), cell_height: pos.positive(), agent_radius: pos.positive(), agent_height: pos.positive(),
+  walkable_climb: pos, walkable_slope_deg: pos, fallback_grid: pos.positive(), query_snap: pos,
+}).strict();
+
+/** GDD v0.3 §9.1 (métricas do validador) e §9.3 (variação de layouts) */
+const MapsSchema = z.object({
+  corridor_min: pos.positive(), wall_height: pos, side: range,
+  loop_short_perimeter: range, loop_long_perimeter_min: pos, loop_advantage: range,
+  loop_coverage_radius: pos, loop_coverage_min: z.number().min(0).max(1),
+  hideouts_min: int.nonnegative(), generator_min_dist: pos,
+  generator_layouts: z.tuple([int.positive(), int.positive()]), cage_positions: int.positive(), exits: int.positive(),
+  layout_hunter_dist_spread_max: pos,
+}).strict();
 
 const difficulty = z.object({
   hunter_hp: pos, chase: pos, melee_cd: pos, detect: pos, reveal: pos, cage: pos, gate: pos,
@@ -93,8 +110,8 @@ export const BalanceSchema = z.object({
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
   ai: z.record(z.string(), z.unknown()),
-  nav: z.record(z.string(), z.unknown()),
-  maps: z.record(z.string(), z.unknown()),
+  nav: NavSchema,
+  maps: MapsSchema,
   render: z.record(z.string(), z.unknown()),
   audio: z.record(z.string(), z.unknown()),
   ui: z.record(z.string(), z.unknown()),
@@ -102,6 +119,17 @@ export const BalanceSchema = z.object({
 }).strict();
 
 export type Balance = z.infer<typeof BalanceSchema>;
+
+/** saída: portão e linha que o sobrevivente cruza para escapar (lado do portão em relação à linha) */
+const ExitSchema = z.object({ gate: vec, exit_z: num }).strict();
+/** um layout de geradores (GDD v0.3 §9.3): obrigatórios e bônus */
+const GeneratorLayoutSchema = z.object({ generators: z.array(vec).min(1), bonus: z.array(vec) }).strict();
+/** loop marcado nos metadados (GDD v0.3 §9.1, §9.4): rota em volta de um obstáculo, polígono fechado */
+const LoopSchema = z.object({ id: z.string(), kind: z.enum(["short", "long"]), polygon: z.array(vec).min(3) }).strict();
+
+const sameVec = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+const sameVecs = (a: readonly (readonly number[])[], b: readonly (readonly number[])[]) =>
+  a.length === b.length && a.every((v, i) => sameVec(v, b[i]));
 
 export const MapSchema = z.object({
   id: z.string(),
@@ -116,6 +144,35 @@ export const MapSchema = z.object({
   gate: vec,
   exit_z: num,
   survivor_spawn: z.object({ origin: vec, spacing: pos }).strict(),
+  /**
+   * GDD v0.3 §9.4 (spawns): pontos explícitos de nascimento dos sobreviventes, 1 por jogador (até 5, §3.5).
+   * Os primeiros repetem a fórmula de survivor_spawn usada pelo protótipo (origem + (i − 1) × espaçamento).
+   */
+  survivor_spawns: z.array(vec).min(1).optional(),
   hunter_spawn: vec,
-}).strict();
+  /**
+   * GDD v0.3 §9.3: variações escolhidas pela semente. O índice 0 de cada lista é o mapa de topo
+   * (generators/bonus, cage, gate/exit_z), para que o layout 0 reproduza o mapa da paridade.
+   */
+  layouts: z.object({
+    generators: z.array(GeneratorLayoutSchema).min(1),
+    cages: z.array(vec).min(1),
+    exits: z.array(ExitSchema).min(1),
+  }).strict().optional(),
+  /** GDD v0.3 §9.4: loops (polígono) e esconderijos nos metadados do mapa */
+  loops: z.array(LoopSchema).optional(),
+  hideouts: z.array(vec).optional(),
+}).strict().superRefine((m, ctx) => {
+  const l = m.layouts;
+  if (!l) return;
+  if (!sameVecs(l.generators[0].generators, m.generators) || !sameVecs(l.generators[0].bonus, m.bonus))
+    ctx.addIssue({ code: "custom", path: ["layouts", "generators", 0], message: "layout 0 deve repetir generators/bonus do topo" });
+  if (!sameVec(l.cages[0], m.cage))
+    ctx.addIssue({ code: "custom", path: ["layouts", "cages", 0], message: "gaiola 0 deve repetir cage do topo" });
+  if (!sameVec(l.exits[0].gate, m.gate) || l.exits[0].exit_z !== m.exit_z)
+    ctx.addIssue({ code: "custom", path: ["layouts", "exits", 0], message: "saída 0 deve repetir gate/exit_z do topo" });
+});
 export type GameMap = z.infer<typeof MapSchema>;
+export type MapExit = z.infer<typeof ExitSchema>;
+export type MapLoop = z.infer<typeof LoopSchema>;
+export type GeneratorLayout = z.infer<typeof GeneratorLayoutSchema>;
