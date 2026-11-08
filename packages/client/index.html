@@ -1,51 +1,81 @@
 <!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>THE HELL</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--
+  Cores: só variáveis dos tokens de data/art/palette.json (Art Bible §2, §8), aplicadas por src/hud/palette.ts.
+  Textos: só chaves de tradução (data-i18n, src/i18n/locales), conferidas por `pnpm i18n:check`.
+-->
 <style>
-:root{color-scheme:dark;--bg:#050507;--fg:#d8d2c4;--ac:#b3202a;--pn:#101014d9;--ok:#3fbf6a;--ye:#e0b030}
-@media (prefers-color-scheme:dark){:root{--bg:#050507;--fg:#d8d2c4}}
-:root[data-theme="dark"]{--bg:#050507;--fg:#d8d2c4}
-*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 "Courier New",monospace;overflow:hidden}
-#c{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated;background:var(--bg)}
-#vg{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 160px 50px #c00;opacity:0}
-.p{position:fixed;background:var(--pn);padding:6px 10px;border:1px solid #333}
+:root{color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--ui-bg);color:var(--ui-text);font:13px/1.4 "Courier New",monospace;overflow:hidden}
+:focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#c{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated;background:var(--ui-bg)}
+#vg{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 160px 50px var(--fx-ameaca);opacity:0}
+.p{position:fixed;background:var(--ui-panel);padding:6px 10px;border:2px solid var(--ui-text-dim)}
 #hud>*{position:fixed}
 #me{left:calc(8px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px))}
 #top{left:50%;transform:translateX(-50%);top:calc(8px + env(safe-area-inset-top,0px));text-align:center}
-#tm{right:calc(8px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:190px}
+#top .hb .b{margin:4px auto}
+#tm{right:calc(8px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:210px;margin:0;list-style:none}
+.pt{display:grid;grid-template-columns:20px 1fr;grid-template-areas:"ic nm" "ic st";column-gap:6px;padding:3px 0 3px 6px;border-left:4px solid var(--cc)}
+.pt+.pt{margin-top:4px}
+.pt .ci{grid-area:ic;color:var(--cc);align-self:center}.pt .nm{grid-area:nm;font-weight:bold}.pt .st{grid-area:st;display:flex;gap:4px;align-items:center}
+.pt .you{font-weight:normal;color:var(--ui-text-dim)}
+.c-healer{--cc:var(--class-curandeiro)}.c-mechanic{--cc:var(--class-mecanico)}.c-fighter{--cc:var(--class-atacador)}
+.pt.wounded .st{color:var(--ui-danger)}.pt.caged .st{color:var(--fx-preso)}.pt.dead .st,.pt.escaped .st{color:var(--ui-text-dim)}
+.pt.dead .nm{text-decoration:line-through}
 #hint{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;max-width:90vw}
-#msg{left:50%;transform:translateX(-50%);top:30%;font-size:18px;color:#ff5a5a;text-shadow:0 0 6px #000;text-align:center}
-.b{height:8px;background:#222;margin:3px 0;width:170px}.b i{display:block;height:100%}
+#msg{left:50%;transform:translateX(-50%);top:30%;font-size:18px;color:var(--ui-danger);text-shadow:0 0 6px var(--ui-bg);text-align:center}
+#pings{left:calc(8px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:40vw}
+#pf{margin:0;padding:0;list-style:none}#pf li{color:var(--ui-accent)}
+#threat{color:var(--fx-ameaca);width:48px;height:48px;filter:drop-shadow(0 0 3px var(--ui-bg));animation:pulse 1s steps(2) infinite}
+@keyframes pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){#threat{animation:none}}
+#spec{left:50%;transform:translateX(-50%);bottom:calc(60px + env(safe-area-inset-bottom,0px));text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
+#spec h2{margin:0;font-size:20px;color:var(--ui-danger)}
+.b{height:8px;background:var(--ui-bg);margin:3px 0;width:170px}.b i{display:block;height:100%}
+.danger{color:var(--ui-danger)}
 #pz{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;text-align:center;min-width:300px}
-.bar{position:relative;height:22px;background:#222;margin:10px 0}.bar i{position:absolute;top:0;height:100%}
-.zn{background:var(--ok)}.cu{background:#fff;width:4px}
-.sq span{display:inline-block;font-size:30px;width:44px;margin:4px;border:1px solid #555}.sq .ok{color:var(--ok);border-color:var(--ok)}
-#menu,#end,#shop{position:fixed;inset:0;background:#050507f2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px}
+.bar{position:relative;height:22px;background:var(--ui-bg);margin:10px 0}.bar i{position:absolute;top:0;height:100%}
+.zn{background:var(--gen-pronto)}.cu{background:var(--ui-text);width:4px}
+.sq span{display:inline-block;font-size:30px;width:44px;margin:4px;border:2px solid var(--ui-text-dim)}.sq .ok{color:var(--gen-pronto);border-color:var(--gen-pronto)}
+#menu,#end,#shop{position:fixed;inset:0;background:var(--ui-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px;overflow:auto}
 #end,#shop{display:none}
-h1{margin:0;font-size:46px;letter-spacing:8px;color:var(--ac)}
-button{background:#1a1a1f;color:var(--fg);border:1px solid #555;padding:8px 16px;font:inherit;cursor:pointer;margin:3px}
-button.on{border-color:var(--ac);background:#2a0d10}button:hover{border-color:#999}
-small{opacity:.75}
-.sk{border:1px solid #444;padding:8px;width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;background:#101014}.sk.on{border-color:var(--ac)}#sg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:720px;margin:20px 0}.sw{position:relative;width:46px;height:64px;margin-top:22px}.sw i{position:absolute;left:11px;top:-14px;width:24px;height:24px}.sw u{position:absolute;left:8px;top:-22px;width:30px;height:9px}button:disabled{opacity:.4;cursor:default}
+#menu p,#end p,#shop p{margin:0}
+h1{margin:0;font-size:46px;letter-spacing:8px;color:var(--ui-danger)}
+#shop h1{font-size:30px}
+button{background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:8px 16px;font:inherit;cursor:pointer;margin:3px}
+button.on,button[aria-pressed="true"]{border-color:var(--ui-accent);color:var(--ui-accent)}button:hover{border-color:var(--ui-text)}
+small,.dim{color:var(--ui-text-dim)}
+#langs{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center}
+.sk{border:2px solid var(--ui-text-dim);padding:8px;width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--ui-panel)}.sk.on{border-color:var(--ui-accent)}#sg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:720px;margin:20px 0}.sw{position:relative;width:46px;height:64px;margin-top:22px}.sw i{position:absolute;left:11px;top:-14px;width:24px;height:24px}.sw u{position:absolute;left:8px;top:-22px;width:30px;height:9px}
+button:disabled{cursor:default;border-style:dashed}
 </style></head><body>
-<canvas id="c"></canvas><div id="vg"></div>
-<div id="hud">
+<canvas id="c" role="img" data-i18n-aria-label="app.canvas"></canvas><div id="vg"></div>
+<div id="hud" hidden>
 <div id="me" class="p"></div>
 <div id="top" class="p"></div>
-<div id="tm" class="p"></div>
-<div id="hint" class="p">&nbsp;</div>
-<div id="msg"></div>
+<ul id="tm" class="p" data-i18n-aria-label="team.title"></ul>
+<div id="hint" class="p" hidden></div>
+<div id="msg" role="status" aria-live="polite"></div>
+<div id="threat" role="img" hidden></div>
+<div id="pings" class="p" role="group" data-i18n-aria-label="ping.title"><div id="pcd"></div><ul id="pf"></ul></div>
+<div id="spec" class="p" hidden><h2 id="spt"></h2><div id="spw"></div><button type="button" id="spn" data-i18n="spec.next"></button><small data-i18n="spec.note"></small></div>
 </div>
-<div id="pz" class="p"><div id="pzc"></div><button id="pzx">Sair do gerador (E / Esc)</button></div>
-<div id="menu">
-<h1>THE HELL</h1>
-<div>Versão 0.1 · offline com bots · 3 sobreviventes vs 1 caçador</div>
-<div>Escolha sua classe:</div><div id="cls"></div><div id="desc"></div>
-<button id="go">▶ COMEÇAR</button><button id="sh">🛒 LOJA DE SKINS</button><div>Moedas: <b id="co"></b> ⛁</div>
-<small>WASD mover · Shift correr · mouse/setas ← → olhar · E interagir (segure para resgatar) · Q habilidade · Clique golpe (Atacador) · V alterna câmera 3ª/1ª pessoa</small>
-<small><span id="goal"></span> Ou derrote o caçador. Os 3 geradores azuis são opcionais e só dão pontos.</small>
-</div>
-<div id="shop"></div>
-<div id="end"><h1 id="et"></h1><div id="es"></div><button id="again">Jogar de novo</button></div>
+<div id="pz" class="p"><div id="pzc"></div><button type="button" id="pzx" data-i18n="puzzle.exit"></button></div>
+<main id="menu">
+<h1 data-i18n="app.title"></h1>
+<p id="sub"></p>
+<div id="langs" role="group" data-i18n-aria-label="lang.label"></div>
+<p id="choose" data-i18n="menu.choose_class"></p><div id="cls" role="group" aria-labelledby="choose"></div><p id="desc" aria-live="polite"></p>
+<div><button type="button" id="go"><span aria-hidden="true">▶ </span><span data-i18n="menu.start"></span></button><button type="button" id="sh" data-i18n="menu.shop"></button></div>
+<p id="co"></p>
+<small data-i18n="menu.controls"></small>
+<small id="goal"></small>
+</main>
+<div id="shop" role="dialog" aria-modal="true" aria-labelledby="shopt"></div>
+<div id="end" role="dialog" aria-modal="true" aria-labelledby="et" aria-describedby="es"><h1 id="et"></h1><p id="es"></p><p id="est"></p><button type="button" id="again" data-i18n="end.again"></button></div>
 <script type="module" src="/src/main.ts"></script>
 </body></html>
