@@ -32,10 +32,20 @@ export function allLayoutChoices(map: GameMap): LayoutChoice[] {
   return out;
 }
 
-/** a semente da partida escolhe a combinação (GDD v0.3 §9.3); usa o PRNG da simulação */
+/**
+ * Sal fixo (constante técnica, não é número de jogo) para derivar a sub-semente do layout: sem ele, a escolha
+ * do layout repetiria o primeiro sorteio da partida feito com a mesma semente (mesmo PRNG mulberry32).
+ * Valor: parte fracionária da razão áurea × 2^32, usual para descorrelacionar sementes.
+ */
+export const LAYOUT_SEED_SALT = 0x9e3779b9;
+
+/**
+ * A semente da partida escolhe a combinação (GDD v0.3 §9.3); usa o PRNG da simulação com a sub-semente
+ * `seed ^ LAYOUT_SEED_SALT`. createGame não chama esta função: o ruleset "prototype" usa sempre o layout 0.
+ */
 export function chooseLayout(map: GameMap, seed: number): LayoutChoice {
   const all = allLayoutChoices(map);
-  const state = { seed: seed | 0 };
+  const state = { seed: (seed ^ LAYOUT_SEED_SALT) | 0 };
   return all[Math.floor(nextRandom(state) * all.length)];
 }
 

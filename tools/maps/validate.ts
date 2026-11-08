@@ -1,7 +1,8 @@
 // Validador de mapas (GDD v0.3 §9.1 e §9.3; item R2/F1-04). Roda todas as regras da tabela de métricas
 // em todos os mapas de data/maps e em todas as combinações de layout (geradores × gaiola × saída),
 // com o navmesh do recast e com a grade A* de reserva. Falha (código 1) se alguma regra falhar.
-// Uso: pnpm maps:validate [--nav=recast|grid|both] [mapa...]
+// Uso: pnpm maps:validate [--nav=recast|grid|both] [--strict] [mapa...]
+// Com CI definido (ou --strict), falha se o WASM do recast não carregar, em vez de cair na grade.
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadBalanceFile, loadMapFile } from "../../packages/shared/src/node.ts";
@@ -25,8 +26,10 @@ if (navArg !== "grid") {
     backends.push(recastBackend(balance));
   } catch (e) {
     // GDD v0.3 §8.6: a grade de 0,5 m é a reserva quando o navmesh não está disponível
-    console.warn(`AVISO: WASM do recast indisponível (${(e as Error).message}); usando só a grade A* de reserva`);
-    if (navArg === "recast") process.exit(1);
+    // Na CI (variável CI) ou com --strict, a falta do WASM é erro: o navmesh é o backend de referência.
+    const strict = !!process.env.CI || args.includes("--strict");
+    console[strict ? "error" : "warn"](`${strict ? "ERRO" : "AVISO"}: WASM do recast indisponível (${(e as Error).message}); ${strict ? "modo estrito (CI)" : "usando só a grade A* de reserva"}`);
+    if (strict || navArg === "recast") process.exit(1);
   }
 }
 if (navArg !== "recast") backends.push(gridBackend(balance));

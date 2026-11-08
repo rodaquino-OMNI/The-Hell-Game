@@ -1,9 +1,9 @@
 // R2: layouts de geradores, gaiolas e saídas (GDD v0.3 §9.3) e compatibilidade do layout 0 com a paridade.
 import { MapSchema } from "@thehell/shared";
 import { describe, expect, it } from "vitest";
-import { createGame, makeConfig } from "../src/index.ts";
+import { createGame, makeConfig, nextRandom } from "../src/index.ts";
 import {
-  allLayoutChoices, chooseLayout, crossedExit, formulaSpawns, layoutCounts, maxTeamSize, resolveLayout, survivorSpawns,
+  allLayoutChoices, chooseLayout, crossedExit, LAYOUT_SEED_SALT, formulaSpawns, layoutCounts, maxTeamSize, resolveLayout, survivorSpawns,
 } from "../src/nav/index.ts";
 import { balance, closedRoom, patio } from "./nav-helpers.ts";
 
@@ -50,6 +50,19 @@ describe("layouts do mapa", () => {
       seen.add(JSON.stringify(c));
     }
     expect(seen.size).toBe(all.length);
+  });
+
+  it("a escolha usa sub-semente com sal fixo, descorrelacionada do primeiro sorteio da partida", () => {
+    const all = allLayoutChoices(patio);
+    let same = 0;
+    for (let s = 0; s < 400; s++) {
+      const c = chooseLayout(patio, s);
+      // com o sal: igual a sortear com a semente seed ^ LAYOUT_SEED_SALT
+      expect(c).toEqual(all[Math.floor(nextRandom({ seed: (s ^ LAYOUT_SEED_SALT) | 0 }) * all.length)]);
+      // sem o sal, o índice seria o do primeiro nextRandom da partida
+      if (JSON.stringify(c) === JSON.stringify(all[Math.floor(nextRandom({ seed: s }) * all.length)])) same++;
+    }
+    expect(same).toBeLessThan(400 / 4);
   });
 
   it("saída ao norte (protótipo) e ao sul", () => {

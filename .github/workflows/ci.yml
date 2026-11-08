@@ -30,6 +30,8 @@ jobs:
         run: pnpm maps:validate
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
+      - name: WASM do recast no navegador (build do Vite, mesmo navmesh que o Node)
+        run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
       - name: Fumaça do protótipo original

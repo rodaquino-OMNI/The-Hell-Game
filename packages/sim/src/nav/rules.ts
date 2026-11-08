@@ -116,6 +116,9 @@ export function validateMap(map: GameMap, balance: Balance, backend: NavBackend)
   }
 
   // --- cobertura de loops (§9.1): ≥ loop_coverage_min da área caminhável a menos de loop_coverage_radius ---
+  // Usa SEMPRE a grade A* de reserva (nav.fallback_grid), qualquer que seja o backend: a área caminhável é
+  // contada em células e a distância é a percorrida na grade (Dijkstra a partir das arestas dos loops),
+  // mais exigente que a distância em linha reta; o §9.1 não diz qual distância usar.
   {
     const g = gridFromMap(map, balance);
     const src: number[] = [];

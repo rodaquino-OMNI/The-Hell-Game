@@ -34,7 +34,12 @@ try {
   }
   navInfo = `navmesh: ${sizes.join(", ")}`;
 } catch (e) {
+  // Na CI (variável CI) ou com --strict, navmesh ausente é erro de build.
+  if (process.env.CI || process.argv.includes("--strict")) {
+    console.error(`ERRO: navmesh não gerado (${(e as Error).message}); modo estrito (CI)`);
+    process.exit(1);
+  }
   // GDD v0.3 §8.6: sem WASM, a navegação usa a grade A* de reserva (nav.fallback_grid), gerada em tempo de execução
-  navInfo = `AVISO: navmesh não gerado (${(e as Error).message}); a navegação usa a grade A* de reserva`;
+  navInfo =`AVISO: navmesh não gerado (${(e as Error).message}); a navegação usa a grade A* de reserva`;
 }
 console.log(`dados ok: balance ${balance.version} (${balance.ruleset}), mapas: ${Object.keys(maps).join(", ")}; ${navInfo}`);
