@@ -3,10 +3,11 @@
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
 import { createGame, drainEvents, step, STEP, type GameState } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
-import { $, cfg } from "./data.ts";
+import { $, balance, cfg } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
+import { advanceClock } from "./loop.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
 import { installRenderHook } from "./render/debug.ts";
 import { urlPs1, urlSeed } from "./render/options.ts";
@@ -20,7 +21,8 @@ import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
 let ctx: RenderCtx;
-let acc = 0, last = 0;
+const clock = { acc: 0 };
+let last = 0;
 
 applyPalette(document.documentElement);
 initLocale();
@@ -55,10 +57,10 @@ setupPuzzlePanel(requestPuzzleExit);
 
 // ---------- quadro ----------
 function loop(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // passo fixo em tempo real (GDD-v0.3 §13.3), com os tetos de `client` (loop.ts)
+  const { steps, dt } = advanceClock(clock, (now - last) / 1000, STEP, balance.client);
   last = now;
-  acc += dt;
-  while (acc >= STEP && !G.over) { step(cfg, G, readInput(G, STEP)); acc -= STEP; }
+  for (let i = 0; i < steps && !G.over; i++) step(cfg, G, readInput(G, STEP));
   for (const e of drainEvents(G)) {
     if (e.type === "msg") showMessage(messageText(e));
     else if (e.type === "sound") beep(...SOUNDS[e.name]);

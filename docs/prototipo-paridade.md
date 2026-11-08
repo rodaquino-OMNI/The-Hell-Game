@@ -63,6 +63,7 @@ Vão para `data/balance.yaml` (bloco `prototype_extras`) para o porte reproduzir
 | P-10 | Só o Shift esquerdo fecha o quebra-cabeça (o direito não) | `'ShiftLeft'` | 111 | defeito menor; **corrigido no porte** (o Shift direito também sai) |
 | P-11 | Os textos do menu estão desatualizados: Curandeiro "(12 s)" e bloqueio do Atacador "(10 s)", mas o código usa 10 s e 8 s | descrição em `CL` | 53, 55 | **defeito**: o texto mostra os valores anteriores à mudança 2.4.2; **corrigido no porte**: o texto lê os números de `data/` |
 | P-12 | Um gerador vale **90 pontos** (5 × 10 + 40), não 50 como diz o GDD §2.3; o bônus vale 200 (5 × 25 + 75), como o GDD diz. A mensagem "+50 pontos" mostra só o ganho do último passo | `G.pts+=pp` + `G.pts+=g.b?75:40` | 118 | **achado do porte (08/11/2026)**: o porte segue o código (90); o GDD v0.3 registra a correção |
+| P-13 | O laço limita o tempo de cada quadro a 0,05 s e avança a simulação por esse tempo: abaixo de 20 fps a partida anda em câmera lenta | `const dt=Math.min(.05,(n-last)/1000)` | 202 | **divergência do porte (08/11/2026)**: passo fixo de 1/60 s em tempo real (GDD-v0.3 §13.3), com tetos `client.max_frame_dt` e `client.max_steps_per_frame` em `data/balance.yaml` contra a espiral da morte; acima de 20 fps o comportamento é o mesmo |
 
 ## 3. Confirmações para o GDD v0.3
 
