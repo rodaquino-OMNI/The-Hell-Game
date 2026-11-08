@@ -38,7 +38,12 @@ export interface Survivor extends Vec {
   work: number;
   sidestep: number;
   sidestepDir: number;
+  /** v1: anti-tunnel (GDD-v0.2 §4.3) — tempo restante em que o caçador não pode capturar este sobrevivente de novo */
+  antiTunnel: number;
 }
+
+/** Preparo visível de um golpe ou dash (telegraph, GDD-v0.2 §4.1). `t` = segundos até soltar; `total` = duração do preparo. */
+export interface Windup { kind: "melee" | "dash"; t: number; total: number }
 
 export interface Hunter extends Vec {
   hp: number;
@@ -57,9 +62,25 @@ export interface Hunter extends Vec {
   sidestepDir: number;
   /** alvo atual (id do sobrevivente) ou -1, exposto para o cliente */
   target: number;
+  /** vida máxima da partida (v1: dificuldade × tamanho do time, GDD-v0.3 C-03) */
+  maxHp: number;
+  /** v1: preparo de golpe ou dash em andamento (telegraph exposto ao cliente; null fora do preparo) */
+  windup: Windup | null;
+  /** v1: recuo pós-golpe restante (GDD-v0.2 §4.3, `hunter.melee.recoil`): parado e sem agir */
+  recoil: number;
 }
 
-export interface Generator extends Vec { n: number; done: boolean; bonus: boolean }
+export interface Generator extends Vec {
+  n: number;
+  done: boolean;
+  bonus: boolean;
+  /** v1: falhas seguidas neste gerador (GDD-v0.2 §6.2) */
+  fails: number;
+  /** v1: faísca visível restante após regressão (`generator.fail_spark_time`) */
+  spark: number;
+  /** v1: luz de gerador completo revelando a posição (`generator.completed_reveal`) */
+  revealed: number;
+}
 
 export interface Trap extends Vec { id: number }
 export interface Projectile extends Vec { id: number; vx: number; vz: number; t: number }
@@ -84,12 +105,23 @@ export type MsgKey =
   | "strike_hit" | "blocked" | "caged" | "died" | "rescued" | "trap_caught" | "trap_disarmed" | "revealed"
   | "gate_countdown" | "gate_open";
 export type Outcome = "escaped" | "hunter_down" | "died";
+/** v1 (GDD-v0.3 §3.3 revisto) */
+export type Team = "survivors" | "hunter";
+export type EndReason = "all_terminal" | "hunter_down" | "time_limit";
+export type Individual = "escaped" | "dead" | "not_escaped";
+/** fonte de ruído da tabela GDD-v0.2 §3.4 (chave em `noise.*`) */
+export type NoiseKind = "run" | "puzzle_fail" | "rescue" | "heal" | "generator_done";
 
 export type GameEvent =
   | { type: "msg"; key: MsgKey; n?: number; cls?: ClassName }
   | { type: "sound"; name: "puzzle_ok" | "puzzle_fail" | "hit" | "stun" | "bolt" }
   | { type: "flash" }
-  | { type: "end"; win: boolean; outcome: Outcome; coins: number; time: number };
+  | { type: "noise"; kind: NoiseKind; x: number; z: number; radius: number; heard: boolean }
+  | {
+      type: "end"; win: boolean; outcome: Outcome; coins: number; time: number;
+      /** só no v1: resultado da equipe, motivo do fim e resultado individual do jogador */
+      team?: Team; reason?: EndReason; individual?: Individual;
+    };
 
 export interface GameState {
   t: number;

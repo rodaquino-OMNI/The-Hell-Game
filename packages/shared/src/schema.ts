@@ -1,5 +1,5 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (ai, render, audio, ui, net) passam sem validação
+// as seções ainda não implementadas (audio, ui, net) passam sem validação
 // detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9).
 import { z } from "zod";
 
@@ -23,6 +23,29 @@ const MapsSchema = z.object({
   hideouts_min: int.nonnegative(), generator_min_dist: pos,
   generator_layouts: z.tuple([int.positive(), int.positive()]), cage_positions: int.positive(), exits: int.positive(),
   layout_hunter_dist_spread_max: pos,
+}).strict();
+
+const unit = num.min(0).max(1);
+const preset = z.object({ internal: z.tuple([z.number().int().positive(), z.number().int().positive()]), layers: z.array(z.enum(["A", "B", "C"])), shadows: z.boolean() }).strict();
+const minMax = z.tuple([z.number().int().positive(), z.number().int().positive()]);
+
+/** render (GDD-v0.3 §10.1, §10.2, §10.6): presets de resolução interna, intensidades PS1 de 0 a 1, névoa e orçamentos */
+const render = z.object({
+  default_preset: z.enum(["low", "medium", "high"]),
+  presets: z.object({ low: preset, medium: preset, high: preset }).strict(),
+  ps1: z.object({
+    snap: unit, snap_grid: z.number().int().positive(), affine: unit, gouraud: unit, dither: unit,
+    color_bits: z.number().int().min(1).max(8),
+  }).strict(),
+  tessellate: num.positive(),
+  fog: z.object({ near: pos, far: pos }).strict().refine(f => f.far > f.near, "render.fog: far deve ser maior que near"),
+  camera: z.object({ near: num.positive(), far: num.positive(), eye_height: pos }).strict().refine(c => c.far > c.near, "render.camera: far deve ser maior que near"),
+  lights: z.object({ ambient: pos, player: pos, player_decay: pos, player_height: pos }).strict(),
+  player_light_radius: pos,
+  anim_fps: num.positive(),
+  shadow_map: z.number().int().positive(),
+  budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
+  models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
 }).strict();
 
 const difficulty = z.object({
@@ -55,7 +78,10 @@ export const BalanceSchema = z.object({
   cage: z.object({ time: pos, rescue_time: pos, rescue_range: pos, rescue_hp: pos, immunity: pos, deaths_at_capture: z.number().int().positive() }).strict(),
   generator: z.object({
     puzzles_per_generator: z.number().int().positive(), gate_time: pos, fails_to_regress: z.number().int().positive(),
+    regress_amount: z.number().int().nonnegative(), // GDD-v0.2 §6.2
     fail_spark_time: pos, completed_reveal: pos,
+    // LACUNA GDD-v0.2 §3.4 × §6.2: a revelação do gerador completo vale fora do raio de ruído? (padrão conservador: não)
+    completed_reveal_global: z.boolean(),
     by_team_size: z.record(z.string(), z.object({ required: z.number().int().positive(), bonus: z.number().int().nonnegative() }).strict()),
     puzzle_time_target: z.object({ full: range, solo: range }).strict(),
   }).strict(),
@@ -64,7 +90,8 @@ export const BalanceSchema = z.object({
     sequence: z.object({ length: z.number().int().positive() }).strict(),
     accessible: z.object({ zone_mult: pos, timed: z.boolean() }).strict(),
   }).strict(),
-  noise: z.record(z.string(), pos),
+  // raios de ruído em metros (GDD-v0.2 §3.4; ruleset v1)
+  noise: z.object({ walk: pos, run: pos, puzzle_fail: pos, rescue: pos, heal: pos, generator_done: pos }).strict(),
   points: z.object({ puzzle: pos, generator: pos, bonus_puzzle: pos, bonus_generator: pos }).strict(),
   economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos }).strict(),
   skins: z.record(z.string(), pos),
@@ -108,11 +135,18 @@ export const BalanceSchema = z.object({
     }).strict(),
   }).strict(),
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
+  // ai: só as chaves usadas pelas regras v1 (R1) são validadas; o resto da seção fica para a IA (R3, R4)
+  ai: z.looseObject({
+    hearing_investigate_time: pos,   // GDD-v0.3 §8.1 (audição)
+    by_difficulty: z.object({        // GDD-v0.3 §8.4 / GDD-v0.2 §8.4 (memória da última posição)
+      easy: z.looseObject({ memory: pos }), normal: z.looseObject({ memory: pos }),
+      hard: z.looseObject({ memory: pos }), nightmare: z.looseObject({ memory: pos }),
+    }).strict(),
+  }),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
-  ai: z.record(z.string(), z.unknown()),
   nav: NavSchema,
   maps: MapsSchema,
-  render: z.record(z.string(), z.unknown()),
+  render,
   audio: z.record(z.string(), z.unknown()),
   ui: z.record(z.string(), z.unknown()),
   net: z.record(z.string(), z.unknown()),
