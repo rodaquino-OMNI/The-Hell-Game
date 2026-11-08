@@ -15,7 +15,8 @@ survivor:
   run: 5.4
   stamina: {max: 100, drain: 15, regen: 14, regen_puzzle: 10}
   bot: {walk: 3.8, flee: 4.2}
-  radius: 0.4            # cápsula de colisão (GDD-v0.3 §8.6)
+  radius: 0.45           # jogador; bots usam 0.5 (protótipo L129, L139 — docs/prototipo-paridade.md P-05)
+  bot_radius: 0.5
   height: 1.75
 
 # ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
@@ -99,6 +100,18 @@ difficulty_table:
   normal:    {hunter_hp: 80,  chase: 3.9, melee_cd: 1.7, detect: 11, reveal: 28, cage: 75, gate: 45, zone_mult: 1.0,  projectile_dmg: 8,  trap_interval: 32, points_mult: 1.0}
   hard:      {hunter_hp: 100, chase: 4.2, melee_cd: 1.4, detect: 13, reveal: 22, cage: 60, gate: 55, zone_mult: 0.8,  projectile_dmg: 10, trap_interval: 26, points_mult: 1.3}
   nightmare: {hunter_hp: 120, chase: 4.5, melee_cd: 1.2, detect: 15, reveal: 18, cage: 45, gate: 60, zone_mult: 0.65, projectile_dmg: 12, trap_interval: 20, points_mult: 1.6}
+
+# ---------- 9b. Comportamentos do protótipo fora do GDD (docs/prototipo-paridade.md §2) ----------
+prototype_extras:
+  interact_range: {generator: 2.6, trap: 2.0}          # P-01
+  camera: {fov: 72, shoulder: 0.8, distance: 3.6, height: 2.3, wall_step: 0.3}   # P-02
+  heartbeat: {radius: 20, base_interval: 0.35, range_interval: 1.1}             # P-03
+  vignette_radius: 16                                   # P-04
+  mechanic_bot_trap_immune: true                        # P-06
+  bolt_aim_cos: 0.6                                     # P-07 (cone de ±53° para o jogador)
+  fighter_strike_cd_on_miss: true                       # P-08
+  projectile_life: 2.0
+  gate_exit_half_width: 3.2
 
 # ---------- 10. Partida (GDD-v0.3 §3.3 revisto) ----------
 match:

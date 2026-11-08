@@ -4,7 +4,7 @@
 
 A v1.0 (GDD-v0.2 §0, com o delta do [GDD v0.3](GDD-v0.3.md)) sai em 7 fases e 55 itens, construída por 10 agentes especialistas num ciclo de PR → CI → staging → produção. O custo de hospedagem estimado é de US$ 6 a 8 por mês, dentro do teto de US$ 10. A estimativa de calendário é de 18 a 29 semanas até o soft launch, contra 8 a 10 meses do GDD para uma equipe humana; quem define o ritmo são os portões humanos (aprovação de arte, playtests com pessoas), não a escrita de código.
 
-O que o Rodrigo precisa fazer agora: responder às decisões da seção 7 e trazer o código do protótipo para o repositório (D-10).
+O que o Rodrigo precisa fazer agora: responder às decisões da seção 7. O código do protótipo já está no repositório (D-10 resolvida).
 
 ---
 
@@ -33,7 +33,7 @@ Cada item vira uma issue e um ou mais PRs curtos. **Definition of Ready:** crit�
 | F0-01 | Monorepo pnpm + Vite + Vitest + lint (T-01) | — | DEV | `pnpm build && pnpm test` na CI |
 | F0-02 | CI: lint, tipos, testes, build, paleta, varredura de segredos; Dependabot | F0-01 | DEV | workflow verde no PR; PR com segredo de teste é bloqueado |
 | F0-03 | `data/` com schema, YAML → JSON, recarga no dev (G-01) | F0-01 | SIM | teste: trocar valor no YAML muda o jogo sem recompilar |
-| F0-04 | Porte do protótipo para TypeScript modular | F0-03, D-10 | GAM | testes de regressão com todos os valores da tabela 2.3 |
+| F0-04 | Porte do protótipo para TypeScript modular | F0-03 | GAM | testes de regressão com cada linha de `docs/prototipo-paridade.md` |
 | F0-05 | Apps do Fly (staging e produção), Dockerfile, deploy de staging a cada merge, produção com aprovação, rollback documentado e testado 1 vez | F0-02 | DEV | URL de staging responde `/healthz`; registro do rollback no `docs/runbook.md` |
 | F0-06 | Agentes e skills em `.claude/` (Etapa D) | aprovação deste plano | PRO | um arquivo por agente com escopo, ferramentas e critério de saída |
 
@@ -227,10 +227,8 @@ b) Incluir na v1.0 (exige escolher provedor de pagamento)
 a) ★ Caçador humano na fase 3; O Carcereiro e O Lamento na fase 4
 b) Só o Espectro na v1.0; os outros dois na temporada 1
 
-**D-10. Código do protótipo (HTML único, ~45 KB)**
-Localizado em 08/11/2026: é o artefato `claude.ai/artifact/5gRXLcKBbwbY2shNvfjYRZ`, publicado na conversa de criação do jogo. Ele pertence a outra conta e não está compartilhado com a sessão de construção, que não consegue lê-lo. O histórico dessa conversa confere com a tabela 2.3 e o changelog 2.4 do GDD (mesmos valores de caçador, sobreviventes, gaiola, portão, pontos e moedas).
-a) ★ Quem é dono do artefato abre o link, baixa ou copia o código e coloca em `prototype/the-hell.html` (ou anexa o arquivo na conversa)
-b) Não é possível exportar; reconstruir a partir da tabela 2.3 do GDD (a paridade passa a ser contra a tabela, não contra o jogo)
+**D-10. Código do protótipo — resolvida em 08/11/2026**
+O Rodrigo enviou o arquivo; ele está em `prototype/the-hell.html` (22 KB). Paridade conferida em [`prototipo-paridade.md`](prototipo-paridade.md): todos os valores da tabela 2.3 batem.
 
 **D-11. Aprovação de merges**
 a) ★ Rodrigo aprova cada merge em `main`
@@ -246,7 +244,6 @@ b) Tornar privado (Actions passa a consumir a franquia de minutos do plano do Gi
 | Risco | Efeito no plano | Mitigação |
 | --- | --- | --- |
 | Bots não representam humanos (lição do Caçada Sombria) | simulador não calibra; fase 4 travada | D-05; fuga competente dos bots (§8.5); calibração no beta |
-| Sem o código do protótipo | paridade da fase 0 sem referência real | D-10 b como alternativa |
 | Preço de gru acima do esperado | teto de US$ 10 apertado | máquina dorme sem uso; staging em 256 MB; alerta a US$ 8 |
 | Falta de jogadores no beta | critério D1 > 30% não medível | bots em casual; salas privadas; recrutamento pelo Rodrigo |
 | Medição em UHD 620 | critério de FPS sem prova | máquina de um testador nas fases 2 e 5 |
