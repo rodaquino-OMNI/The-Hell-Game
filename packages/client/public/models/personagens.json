@@ -10,6 +10,14 @@
    "altura": 1.75,
    "triangulos": 394,
    "ossos": 25,
+   "acessorio": {
+    "osso": "spine_03",
+    "centro": [
+     0,
+     1.3153,
+     0.1484
+    ]
+   },
    "clipes": [
     {
      "nome": "idle",
@@ -111,6 +119,14 @@
    "altura": 1.76,
    "triangulos": 392,
    "ossos": 25,
+   "acessorio": {
+    "osso": "spine_03",
+    "centro": [
+     0,
+     1.3228,
+     0.1492
+    ]
+   },
    "clipes": [
     {
      "nome": "idle",
@@ -212,6 +228,14 @@
    "altura": 1.76,
    "triangulos": 344,
    "ossos": 25,
+   "acessorio": {
+    "osso": "spine_03",
+    "centro": [
+     0,
+     1.3228,
+     0.1492
+    ]
+   },
    "clipes": [
     {
      "nome": "idle",
@@ -313,6 +337,14 @@
    "altura": 1.72,
    "triangulos": 358,
    "ossos": 25,
+   "acessorio": {
+    "osso": "spine_03",
+    "centro": [
+     0,
+     1.2833,
+     0.1176
+    ]
+   },
    "clipes": [
     {
      "nome": "idle",
@@ -414,6 +446,14 @@
    "altura": 1.82,
    "triangulos": 308,
    "ossos": 25,
+   "acessorio": {
+    "osso": "spine_03",
+    "centro": [
+     0,
+     1.3679,
+     0.1941
+    ]
+   },
    "clipes": [
     {
      "nome": "idle",

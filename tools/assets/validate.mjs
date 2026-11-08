@@ -6,7 +6,9 @@
 //  3. exatamente os 9 clipes da Art Bible §7, amostrados a render.anim_fps com interpolação STEP;
 //  4. atlas PNG de render.models.atlas × render.models.atlas com filtro nearest;
 //  5. linha do arquivo em packages/client/public/media/creditos.csv (licença registrada);
-//  6. manifesto personagens.json coerente com os arquivos.
+//  6. manifesto personagens.json coerente com os arquivos;
+//  7. ficha data/art/personagens.json (V3): todo personagem da ficha tem .glb com o mesmo tipo e altura, e o
+//     sobrevivente com o acessório de skin (uma caixa, 12 triângulos) continua dentro do orçamento.
 // Uso: node tools/assets/validate.mjs   (sai com código 1 em qualquer falha)
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -53,6 +55,10 @@ const credited = credits();
 const files = readdirSync(modelsDir).filter(f => f.endsWith(".glb")).sort();
 if (!files.length) fail("models/", "nenhum .glb encontrado");
 const manifest = JSON.parse(readFileSync(modelsDir + "personagens.json", "utf8"));
+const sheet = JSON.parse(readFileSync(root + "data/art/personagens.json", "utf8"));
+/** triângulos do acessório de skin: uma caixa (geometry.ts `box`, 12 triângulos) se alguma skin tiver acessório */
+const SKIN_BOX_TRIS = 12;
+const skinTris = Object.values(sheet.skins?.lista ?? {}).some(s => s.acessorio) ? SKIN_BOX_TRIS : 0;
 const rows = [];
 
 for (const f of files) {
@@ -72,6 +78,10 @@ for (const f of files) {
   }
   const [lo, hi] = budget[tipo];
   if (tris < lo || tris > hi) fail(f, `${tris} triângulos fora de ${lo}–${hi} (render.models)`);
+  const spec = sheet.personagens.find(p => p.id === J.extras?.thehell?.id);
+  if (!spec) fail(f, `personagem '${J.extras?.thehell?.id}' fora de data/art/personagens.json`);
+  else if (spec.tipo !== tipo || Math.abs(spec.altura - J.extras.thehell.altura) > 1e-6) fail(f, "tipo ou altura diferente da ficha data/art/personagens.json (rode tools/assets/build-characters.ts)");
+  if (tipo === "sobrevivente" && tris + skinTris > hi) fail(f, `${tris} + ${skinTris} do acessório de skin passa de ${hi} (render.models)`);
 
   const names = (J.animations ?? []).map(a => a.name);
   const missing = CLIPS.filter(c => !names.includes(c)), extra = names.filter(n => !CLIPS.includes(n));
@@ -94,9 +104,13 @@ for (const f of files) {
   if (!man) fail(f, "fora do manifesto personagens.json");
   else if (man.triangulos !== tris || man.tipo !== tipo) fail(f, "manifesto personagens.json desatualizado (rode tools/assets/build-characters.ts)");
   const derived = (J.animations ?? []).filter(a => a.extras?.derivado).map(a => a.name);
-  rows.push({ arquivo: f, tipo, triangulos: tris, orcamento: `${lo}–${hi}`, clipes: names.length, derivados: derived.join(" ") || "-", erros: numErrors, avisos: numWarnings, infos: numInfos, KB: Math.round(buf.length / 1024) });
+  rows.push({ arquivo: f, tipo, triangulos: tris, "+skin": tipo === "sobrevivente" ? skinTris : 0, orcamento: `${lo}–${hi}`, clipes: names.length, derivados: derived.join(" ") || "-", erros: numErrors, avisos: numWarnings, infos: numInfos, KB: Math.round(buf.length / 1024) });
 }
-for (const p of manifest.personagens) if (!files.includes(p.arquivo.replace(/^models\//, ""))) fail(p.arquivo, "no manifesto mas sem arquivo");
+for (const p of manifest.personagens) {
+  if (!files.includes(p.arquivo.replace(/^models\//, ""))) fail(p.arquivo, "no manifesto mas sem arquivo");
+  if (p.tipo === "sobrevivente" && !p.acessorio) fail(p.arquivo, "manifesto sem ponto de acessório de skin (rode tools/assets/build-characters.ts)");
+}
+for (const c of sheet.personagens) if (!files.includes(c.id + ".glb")) fail(c.id, "personagem da ficha data/art/personagens.json sem .glb");
 
 console.table(rows);
 if (failures.length) { for (const m of failures) console.error("FALHA:", m); process.exit(1); }
