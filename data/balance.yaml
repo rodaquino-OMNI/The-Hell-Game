@@ -1,0 +1,226 @@
+# THE HELL — balanceamento e parâmetros de sistema (GDD v0.3)
+# Fonte única de números da simulação, IA, mapas, render, áudio, UI e rede (GDD-v0.2 §0 decisão 5; §15.2).
+# Blocos 1–9: baseline do protótipo (GDD-v0.2 §2.3 e Apêndice A), sem alteração de valor.
+# Blocos 10+: parâmetros que o GDD v0.3 converteu de [Proposta]/vago para [Especificado] (GDD-v0.3 §8–§13).
+# Regra: código lê daqui; nenhum número de jogo no código. Schema e validação entram na fase 0 (item G-01).
+# Unidades: metros, segundos, m/s, Hz. Multiplicadores sem unidade.
+
+version: 0.3.0
+difficulty: normal
+
+# ---------- 1. Sobrevivente (GDD-v0.2 §2.3) ----------
+survivor:
+  hp: 100
+  walk: 4.0
+  run: 5.4
+  stamina: {max: 100, drain: 15, regen: 14, regen_puzzle: 10}
+  bot: {walk: 3.8, flee: 4.2}
+  radius: 0.45           # jogador; bots usam 0.5 (protótipo L129, L139 — docs/prototipo-paridade.md P-05)
+  bot_radius: 0.5
+  height: 1.75
+
+# ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
+hunter:
+  hp_base: 80                      # Normal, 3 sobreviventes; escala em hunter_hp_scale (GDD-v0.3 C-03)
+  chase_speed: 3.9                 # ver GDD-v0.3 C-07 (mais lento que o sobrevivente andando)
+  patrol_speed: 3.1
+  final_pressure_speed_mult: 1.2
+  melee: {range: 1.8, cooldown: 1.7, damage: 15, damage_final: 18, recoil: 0.6}
+  detect_radius: 11
+  vision_fov_deg: 90               # GDD-v0.2 §3.4/§8.1 (o protótipo usa 360°, ver C-06)
+  reveal: {interval: 28, targets: 2, duration: 3.5}
+  puzzle_fail_alert: 8
+  dash: {speed: 11, duration: 0.35, cooldown: 15, min: 5, max: 11}
+  projectile: {speed: 14, damage: 8, cooldown: 10, min: 5, max: 16}
+  trap: {interval: 32, radius: 0.9, slow: 0.6, slow_time: 3}
+  telegraph_min: 0.4               # GDD-v0.2 §4.1
+  anti_tunnel: 15                  # GDD-v0.2 §4.3
+  radius: 0.5
+  height: 2.5
+
+# Vida do caçador = hp_base[dificuldade] × fator[n sobreviventes] (GDD-v0.3 C-03)
+# Fatores derivados de GDD-v0.2 §3.5 (50/65/80/90–100 com base 80).
+hunter_hp_scale: {1: 0.625, 2: 0.8125, 3: 1.0, 4: 1.125, 5: 1.25}
+
+# ---------- 3. Prisão ----------
+cage: {time: 75, rescue_time: 3, rescue_range: 2.4, rescue_hp: 60, immunity: 4, deaths_at_capture: 2}
+
+# ---------- 4. Geradores e portão (GDD-v0.2 §2.3, §3.5, §6) ----------
+generator:
+  puzzles_per_generator: 5
+  gate_time: 45
+  fails_to_regress: 3
+  fail_spark_time: 3
+  completed_reveal: 3
+  by_team_size:                    # GDD-v0.2 §3.5
+    1: {required: 2, bonus: 1}
+    2: {required: 3, bonus: 2}
+    3: {required: 4, bonus: 3}
+    4: {required: 5, bonus: 3}
+    5: {required: 5, bonus: 3}
+  puzzle_time_target: {full: [12, 18], solo: [8, 12]}
+
+puzzles:
+  timing: {speed: 0.9, zone: 0.25}
+  sequence: {length: 4}
+  accessible: {zone_mult: 1.6, timed: false}
+
+# ---------- 5. Ruído (GDD-v0.2 §3.4) ----------
+noise:
+  walk: 0
+  run: 10
+  puzzle_fail: 18
+  rescue: 6
+  heal: 6
+  generator_done: 25
+
+# ---------- 6. Pontos (GDD-v0.2 §2.3, §7.1 — só os implementados; propostas ficam desligadas) ----------
+points: {puzzle: 10, generator: 40, bonus_puzzle: 25, bonus_generator: 75}
+
+# ---------- 7. Economia (GDD-v0.2 §7.2 — 0,3 aguarda aprovação, decisão D-04) ----------
+economy: {start_coins: 150, base_coins: 20, win_coins: 30, points_to_coins: 0.3}
+
+# ---------- 8. Classes (GDD-v0.2 §2.3, Apêndice A) ----------
+classes:
+  healer: {pulse_heal: 45, pulse_radius: 6, cooldown: 10}
+  mechanic:
+    turbo: {cooldown: 14, range: 3}
+    bolt: {damage: 6, slow: 0.5, slow_time: 3, cooldown: 6, range: 8}
+    puzzle_zone: 0.4
+    bot_puzzle_time: 6
+  fighter:
+    strike: {damage: 12, stun: 3, cooldown: 5, range: 3.2}
+    block: {time: 5, cooldown: 8}
+  repeat_penalty: {cooldown_base: 1.5, effect_step: 0.3}   # GDD-v0.2 §5.1
+  upgrade_caps: {min_cooldown_mult: 0.5, max_effect_mult: 1.5}
+
+# ---------- 9. Dificuldade (GDD-v0.2 §7.3) ----------
+difficulty_table:
+  easy:      {hunter_hp: 60,  chase: 3.5, melee_cd: 2.2, detect: 9,  reveal: 35, cage: 90, gate: 35, zone_mult: 1.3,  projectile_dmg: 6,  trap_interval: 40, points_mult: 0.8}
+  normal:    {hunter_hp: 80,  chase: 3.9, melee_cd: 1.7, detect: 11, reveal: 28, cage: 75, gate: 45, zone_mult: 1.0,  projectile_dmg: 8,  trap_interval: 32, points_mult: 1.0}
+  hard:      {hunter_hp: 100, chase: 4.2, melee_cd: 1.4, detect: 13, reveal: 22, cage: 60, gate: 55, zone_mult: 0.8,  projectile_dmg: 10, trap_interval: 26, points_mult: 1.3}
+  nightmare: {hunter_hp: 120, chase: 4.5, melee_cd: 1.2, detect: 15, reveal: 18, cage: 45, gate: 60, zone_mult: 0.65, projectile_dmg: 12, trap_interval: 20, points_mult: 1.6}
+
+# ---------- 9b. Comportamentos do protótipo fora do GDD (docs/prototipo-paridade.md §2) ----------
+prototype_extras:
+  interact_range: {generator: 2.6, trap: 2.0}          # P-01
+  camera: {fov: 72, shoulder: 0.8, distance: 3.6, height: 2.3, wall_step: 0.3}   # P-02
+  heartbeat: {radius: 20, base_interval: 0.35, range_interval: 1.1}             # P-03
+  vignette_radius: 16                                   # P-04
+  mechanic_bot_trap_immune: true                        # P-06
+  bolt_aim_cos: 0.6                                     # P-07 (cone de ±53° para o jogador)
+  fighter_strike_cd_on_miss: true                       # P-08
+  projectile_life: 2.0
+  gate_exit_half_width: 3.2
+
+# ---------- 10. Partida (GDD-v0.3 §3.3 revisto) ----------
+match:
+  prep_time: [10, 20]
+  hunter_spawn_min_dist: 35
+  hard_time_limit: 600              # [Proposta] decisão D-02
+  team_win_fraction: 0.5            # escapados >= ceil(n × 0,5)
+
+# ---------- 11. IA (GDD-v0.3 §8) ----------
+ai:
+  decision_hz: 10
+  perception_hz: 10
+  hearing_investigate_time: 8
+  target_weights: {proximity: 0.35, generator_progress: 0.25, injured: 0.20, isolated: 0.15, protected: -0.25}
+  target_switch_margin: 0.15
+  isolated_radius: 8
+  protected_radius: 4
+  by_difficulty:
+    easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
+    normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}
+    hard:      {reaction: 0.25, projectile_lead: linear,        loop_knowledge: full,    memory: 12}
+    nightmare: {reaction: 0.15, projectile_lead: linear_static, loop_knowledge: avoid_long, memory: 15}
+  loop_partial_laps_before_break: 2
+  anti_stuck: {min_progress_ratio: 0.4, window: 0.7}
+  stuck_fail_after: 3               # critério T-03: deslocamento < 40% por > 3 s com caminho válido = trava
+  bots:
+    personalities:
+      cautious:  {flee_dist: 12, bonus: avoid}
+      bold:      {flee_dist: 7,  bonus: prefer}
+      altruist:  {flee_dist: 9,  bonus: avoid, rescue_priority: high}
+    puzzle_fail_rate: 0.15
+    ping_reaction: [0.3, 0.8]
+
+# ---------- 12. Navegação (GDD-v0.3 §8.6) ----------
+nav:
+  cell_size: 0.1
+  cell_height: 0.1
+  agent_radius: 0.5                 # maior agente (caçador)
+  agent_height: 2.5
+  walkable_climb: 0.3
+  walkable_slope_deg: 40
+  fallback_grid: 0.5
+
+# ---------- 13. Mapas (GDD-v0.3 §9) ----------
+maps:
+  corridor_min: 1.6
+  wall_height: 3.4
+  side: [60, 80]
+  loop_short_perimeter: [8, 12]
+  loop_long_perimeter_min: 18
+  loop_advantage: [6, 10]
+  loop_coverage_radius: 20
+  loop_coverage_min: 0.9
+  hideouts_min: 3
+  generator_min_dist: 25
+  generator_layouts: [3, 4]
+  cage_positions: 2
+  exits: 2
+
+# ---------- 14. Render (GDD-v0.3 §10) ----------
+render:
+  presets:
+    low:    {internal: [320, 180], layers: [A], shadows: false}
+    medium: {internal: [384, 216], layers: [A, B], shadows: true}
+    high:   {internal: [480, 270], layers: [A, B, C], shadows: true}
+  ps1: {snap_grid: 128, affine: 1.0, dither: 1.0, color_bits: 5}
+  fog: {near: 3, far: 30}
+  player_light_radius: 24
+  anim_fps: 12
+  shadow_map: 256
+  budgets: {fps: 60, draw_calls: 150, triangles: 60000, initial_download_mb: 15, map_download_mb: 40, time_to_play_s: 5}
+  models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
+
+# ---------- 15. Áudio (GDD-v0.3 §11) ----------
+audio:
+  music:
+    stems: [ambient, tension, chase, final_pressure, rescue]
+    tension_radius: 25
+    crossfade_bars: 1
+  max_voices: 32
+  occlusion_lowpass_hz: 800
+  loudness_lufs: -16
+  loudness_tolerance: 1
+  true_peak_dbtp: -1
+  ducking_db: -8
+
+# ---------- 16. UI (GDD-v0.3 §12) ----------
+ui:
+  threat_radius: 15
+  ping_types: [generator_here, hunter_here, need_help, going_to_rescue]
+  ping_cooldown: 2
+  fov: {min: 60, max: 100, default: 75}
+  tutorial_time: 60
+  ftue_target_min: 10
+  min_contrast: 4.5
+  locales: [pt-BR, en, es]
+
+# ---------- 17. Rede (GDD-v0.3 §13.4) ----------
+net:
+  sim_step_hz: 60
+  server_tick_hz: 30
+  snapshot_hz: 20
+  input_hz: 60
+  interp_buffer_ms: 100
+  lag_comp_max_ms: 150
+  pos_quant: 64                     # 1/64 m
+  angle_bits: 8
+  budget_kbps_per_client: 20
+  playable_ping_ms: 150
+  warn_ping_ms: 200
+  reconnect_s: 30
+  max_clients_per_room: 6
