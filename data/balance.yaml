@@ -274,6 +274,17 @@ ui:
   min_contrast: 4.5
   locales: [pt-BR, en, es]
 
+# ---------- Laço do cliente (GDD-v0.3 §13.3: passo fixo de 1/60 s) ----------
+# O laço acumula o tempo real do quadro e roda quantos passos de 1/60 s couberem, para a partida andar em
+# tempo real mesmo com quadro lento (o limite de 600 s do §3.3 revisto e a simulação do servidor, C-11, correm em
+# tempo real). O protótipo limitava o quadro a 0,05 s (prototype/the-hell.html L202), o que põe a partida em câmera
+# lenta abaixo de 20 fps (docs/prototipo-paridade.md P-13). Tetos contra a "espiral da morte" (quadro longo, como
+# ao voltar de uma aba em segundo plano): o tempo de um quadro vale no máximo max_frame_dt e cada quadro roda no
+# máximo max_steps_per_frame passos; o que passar disso é descartado.
+client:
+  max_frame_dt: 0.25                # s (4 fps); padrão de "Fix Your Timestep!" (Glenn Fiedler, gafferongames.com)
+  max_steps_per_frame: 15           # = 0,25 s × 60 Hz
+
 # ---------- 17. Rede (GDD-v0.3 §13.4) ----------
 net:
   sim_step_hz: 60
