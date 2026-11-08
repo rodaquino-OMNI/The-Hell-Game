@@ -69,9 +69,10 @@ function wallDistance(x: number, z: number): number {
  * assa nos vértices de `meshes` (chão e muros): oclusão (chão perto do muro, base da parede) e a luz das lâmpadas
  * em `lamps` (x, z), com queda quadrática até `bake.light_radius` e o cosseno da normal.
  */
-export function bakeVertexLight(meshes: THREE.Mesh[], lamps: readonly { x: number; z: number }[]) {
+export function bakeVertexLight(meshes: THREE.Mesh[], lamps: readonly { x: number; z: number }[], tint?: { color: string; intensity: number }) {
   const b = lb.bake;
-  const color = paletteColor(b.light_color).multiplyScalar(b.light_intensity);
+  // `tint`: cor e intensidade da luz assada do preset industrial (mockup Retro FPS, D-15); sem ele, `layer_b.bake`
+  const color = paletteColor(tint?.color ?? b.light_color).multiplyScalar(tint?.intensity ?? b.light_intensity);
   const p = new THREE.Vector3(), n = new THREE.Vector3(), v = new THREE.Vector3();
   const ao = (d: number) => b.ao_min + (1 - b.ao_min) * THREE.MathUtils.smoothstep(d, 0, b.ao_radius);
   for (const m of meshes) {

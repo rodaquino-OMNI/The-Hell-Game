@@ -5,13 +5,15 @@ import * as THREE from "three";
 import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
 import { skinDef, tok, tokCss, WORLD } from "../look.ts";
-import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
+import { createHunterModel, createSurvivorModel, SURVIVOR_MODEL } from "./characters/actors.ts";
 import { charactersReady } from "./characters/runtime.ts";
 import { aimLantern, bakeVertexLight, createAmbience, createLantern, cullShadowCasters, neutralBake, type Ambience } from "./environment.ts";
 import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
-import { clientRandom, urlPreset } from "./options.ts";
+import { clientRandom, urlPreset, urlRetro, urlRetroClass, type RetroClass } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
 import { Ps1Material, ps1Uniforms } from "./ps1.ts";
+import { createIndustrial, type Industrial } from "./retro/industrial.ts";
+import { createViewmodel, type Viewmodel } from "./retro/viewmodel.ts";
 import { createGenVisual, createLock, type GenVisual } from "./states.ts";
 
 /** contexto de render devolvido por `buildWorld` (substitui os `let` exportados da fase 0) */
@@ -36,6 +38,8 @@ export interface RenderCtx {
   shadowStep: number;
   /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
+  /** mockup do modo Retro FPS (`?retro=1`, D-13/D-15): Pátio industrial e ferramenta na mão; ausente sem o parâmetro */
+  retro?: { industrial: Industrial; vm: Viewmodel | null };
 }
 
 const rc = balance.render;
@@ -47,6 +51,8 @@ export const genVisuals: GenVisual[] = [];
 const TEX_SALT = 1;
 /** sementes do grão da camada A e das posições da camada C (fluxos próprios) */
 const GRAIN_SALT = 2, AMBIENCE_SALT = 3;
+/** semente das texturas do preset industrial (mockup Retro FPS, D-15) */
+const INDUSTRIAL_SALT = 4;
 
 function tex(rand: () => number, color: string, n: number, rx: number, rz: number) {
   const k = document.createElement("canvas"); k.width = k.height = 32;
@@ -89,7 +95,10 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.fog = new THREE.Fog(tok(WORLD.fog), rc.fog.near, rc.fog.far);
   const cam = new THREE.PerspectiveCamera(px.camera.fov, iw / ih, rc.camera.near, rc.camera.far);
   cam.rotation.order = "YXZ";
-  S.add(new THREE.AmbientLight(tok(WORLD.ambient), rc.lights.ambient * Math.PI));
+  // preset industrial (D-15): luz ambiente fria no lugar de light.ambiente
+  const industrial = urlRetro ? createIndustrial(clientRandom(INDUSTRIAL_SALT)) : null;
+  const ri = rc.retro.industrial;
+  S.add(industrial ? new THREE.AmbientLight(tok(ri.ambient), ri.ambient_intensity * Math.PI) : new THREE.AmbientLight(tok(WORLD.ambient), rc.lights.ambient * Math.PI));
   const PL = new THREE.PointLight(tok(WORLD.playerLight), rc.lights.player * Math.PI, rc.player_light_radius, rc.lights.player_decay);
   S.add(PL);
   const rand = clientRandom(TEX_SALT);
@@ -97,10 +106,10 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   const baked: THREE.Mesh[] = [];
   const floorGeo = new THREE.PlaneGeometry(w, d, seg(w), seg(d));
   neutralBake(floorGeo);
-  const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
+  const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.floor(18, 18) : tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.add(floor); baked.push(floor);
   for (const [x, z, ww, wd] of map.walls) {
-    const m = new Ps1Material({ lit: true, baked: true, map: tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
+    const m = new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.wall(Math.max(1, ww / 3), 1) : tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
     const g = new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd));
     neutralBake(g);
     const b = new THREE.Mesh(g, m);
@@ -111,7 +120,9 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.add(lantern, lantern.target);
   const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
   S.add(ambience.group);
+  if (industrial) S.add(industrial.fixtures);
   const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { id: null, lastHp: null, hitT: null }, casters: [], shadowStep: NaN, info: { calls: 0, triangles: 0 } };
+  if (industrial) ctx.retro = { industrial, vm: null };
   onLayersChange(l => applyLayers(ctx, l));
   setLayers(presetLayers(presenter.preset));
   return ctx;
@@ -131,6 +142,7 @@ export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   setLayers(presetLayers(name));
   const [iw, ih] = rc.presets[name].internal;
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
+  ctx.retro?.vm?.setAspect(iw / ih);
 }
 
 /** geradores, portão e personagens da partida criada; `skin` = skin equipada (loja), aplicada ao sobrevivente do jogador */
@@ -154,7 +166,16 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
   });
   const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
   // camada B: luz assada com as lâmpadas dos geradores desta partida (o layout muda a posição)
-  bakeVertexLight(ctx.baked, G.gens);
+  const r = ctx.retro;
+  if (r) {
+    // preset industrial (D-15): luz assada âmbar nos geradores e nas luminárias dos muros
+    const ri = rc.retro.industrial;
+    bakeVertexLight(ctx.baked, [...G.gens, ...r.industrial.lamps], { color: ri.bake_color, intensity: ri.bake_intensity });
+    // ferramenta na mão da classe do jogador (ou a pedida em ?retro_class)
+    const cls: RetroClass = urlRetroClass ?? (SURVIVOR_MODEL[G.survivors[0].cls] as RetroClass);
+    const [iw, ih] = rc.presets[ctx.presenter.preset].internal;
+    r.vm = createViewmodel(cls, iw / ih);
+  } else bakeVertexLight(ctx.baked, G.gens);
   ctx.fx = { id: null, lastHp: null, hitT: null };
   // personagens recebem a sombra da lanterna e projetam quando estão no cone (cullShadowCasters); o próprio
   // jogador não projeta (a lanterna sai do corpo dele)
@@ -199,13 +220,16 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   ctx.fx.lastHp = P.hp;
   tickLayers(G.t, ctx.fx.hitT);
   ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
+  // ferramenta na mão (mockup Retro FPS): só em 1ª pessoa, com o jogador de pé
+  ctx.retro?.vm?.update(P.x, P.z, G.t, !thirdPerson && P.st === "ok");
   present(ctx);
 }
 
 /** desenha a cena no alvo da resolução interna e o leva à tela pelo passe final; registra `renderer.info` */
 export function present(ctx: RenderCtx) {
   ctx.R.info.reset();
-  ctx.presenter.present(ctx.S, ctx.cam);
+  const vm = ctx.retro?.vm;
+  ctx.presenter.present(ctx.S, ctx.cam, vm ? { scene: vm.scene, camera: vm.camera } : undefined);
   ctx.info.calls = ctx.R.info.render.calls;
   ctx.info.triangles = ctx.R.info.render.triangles;
 }

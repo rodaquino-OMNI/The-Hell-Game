@@ -313,6 +313,70 @@ render:
     # o lampejo, como o feixe, não usa vertex snapping)
     eyes_flare: [0.7, 0.07, 0.35, 2]
     lock: {size: 0.5, above: 0.5}                    # cadeado sobre o aliado preso: lado (m) e altura acima da cabeça (m)
+  # D-13, D-14, D-15 (docs/plano-construcao.md §7; item V9 em docs/handoff/plano-fases-1-2.md §5): MOCKUP do modo
+  # "Retro FPS" para o mini marco de arte A2b. Só liga com o parâmetro de depuração ?retro=1 (sem opção de menu; a 3ª
+  # pessoa continua padrão). Medidas de arte a calibrar depois da aprovação do filho (D-14), não regra de jogo.
+  retro:
+    # balanço da ferramenta ao andar (D-13: "balanço com intensidade 0–1"; o V8 "reduzir balanço de câmera",
+    # GDD-v0.3 §12.4, vai multiplicar `bob`). Amplitude (m: lado, vertical) com bob = 1 na velocidade de corrida
+    # (survivor.run); um ciclo a cada `bob_stride` m andados; `bob_return` = fração por quadro de volta ao repouso
+    bob: 0.5
+    bob_amplitude: [0.03, 0.022]
+    bob_stride: 1.6
+    bob_return: 0.15
+    # ferramenta da classe na mão (D-13): peças da ficha (data/art/personagens.json) presas ao osso `osso` (filtradas
+    # por `cores` quando há), com o ponto `origem` (m, coordenadas da ficha) posto em `pos` no espaço da câmera
+    # (m; +X direita, +Y cima, −Z frente), giro `rot` (graus, XYZ) e `escala`. Mãos: caixa de pele `hand.size` e
+    # antebraço na cor dos braços da ficha, do centro da mão até `pos + antebraco`
+    viewmodel:
+      fov: 60                       # graus; câmera só da ferramenta (independe do slider de fov do V8)
+      light: {ambient: light.ambiente, ambient_intensity: 1.4, key: light.jogador, key_intensity: 1.1, key_pos: [0.6, 0.5, 0.3]}
+      hand: {size: [0.075, 0.07, 0.11], forearm: [0.05, 0.045]}
+      classes:
+        curandeiro:
+          grupos: [{osso: hand_r, origem: [0, 0, 0], pos: [0.3, -0.25, -0.62], rot: [-18, 8, 98], escala: 0.42}]
+          maos: [{pos: [0.3, -0.25, -0.62], rot: [-18, 8, 8], antebraco: [0.22, -0.3, 0.45]}]
+        mecanico:
+          grupos:
+            - {osso: hand_r, origem: [-0.12, 0, 0.02], pos: [0.3, -0.24, -0.6], rot: [-12, 60, -80], escala: 0.48}
+            - {osso: Head, cores: [char.lanterna], origem: [0, 0.2, 0.17], pos: [-0.28, -0.2, -0.6], rot: [6, -10, 0], escala: 1.4}
+          maos:
+            - {pos: [0.3, -0.25, -0.57], rot: [-12, 0, 10], antebraco: [0.2, -0.3, 0.45]}
+            - {pos: [-0.3, -0.25, -0.57], rot: [-8, 0, -6], antebraco: [-0.2, -0.3, 0.45]}
+        atacador:
+          grupos: [{osso: spine_03, origem: [-0.2, 0.37, -0.19], pos: [0.32, -0.25, -0.6], rot: [-28, 0, 150], escala: 0.72}]
+          maos: [{pos: [0.32, -0.25, -0.6], rot: [-14, 0, 14], antebraco: [0.22, -0.3, 0.45]}]
+        protetor:
+          grupos: [{osso: lowerarm_l, origem: [0.14, 0.09, 0.026], pos: [-0.36, -0.2, -0.66], rot: [-40, 0, -50], escala: 0.55}]
+          maos: [{pos: [-0.24, -0.29, -0.58], rot: [-8, 0, -6], antebraco: [-0.2, -0.3, 0.45]}]
+        batedor:
+          # LACUNA: a Art Bible §3 e a ficha não dão ferramenta de mão ao Batedor (o acessório é o cachecol); o mockup
+          # mostra as mãos livres e a ponta do cachecol entrando pela esquerda (pergunta ao filho no A2b)
+          grupos: [{osso: spine_03, cores: [char.cachecol], origem: [0.12, -0.06, -0.3], pos: [-0.42, -0.2, -0.55], rot: [20, 30, -60], escala: 0.55}]
+          maos:
+            - {pos: [0.26, -0.22, -0.58], rot: [-20, 0, 12], antebraco: [0.2, -0.3, 0.45]}
+            - {pos: [-0.22, -0.23, -0.6], rot: [-20, 0, -12], antebraco: [-0.2, -0.3, 0.45]}
+    # D-15: variante industrial do Pátio (texturas e iluminação, sem layout novo; catálogo de mapas da v1.0 inalterado,
+    # D-06). Texturas procedurais de `texture` px com o PRNG com semente do cliente (render/options.ts); cores só por
+    # token world.industrial.* de data/art/palette.json (secundárias, sem mudar tokens aprovados)
+    industrial:
+      texture: 64
+      # parede: chapas rebitadas (plates × plates por ladrilho), rebites a cada `rivet_step` px a `rivet_inset` px da
+      # borda, faixa de segurança diagonal de `stripe` px de altura na base (listras de `stripe_period` px), manchas
+      wall: {base: world.industrial.parede, edge: world.industrial.chapa, seam: world.industrial.junta, stripe_color: world.industrial.faixa, plates: 2, rivet_step: 8, rivet_inset: 3, stripe: 10, stripe_period: 8, grime: 90}
+      # chão: lajes de concreto com junta na borda do ladrilho, salpicos claros e escuros
+      floor: {base: world.industrial.chao, seam: world.industrial.junta, fleck: world.industrial.chapa, flecks: 220, stains: 160}
+      # luz: ambiente fria no lugar de light.ambiente; luz assada âmbar (camada B) nas lâmpadas dos geradores e em
+      # luminárias no topo dos muros, uma a cada `lamp_spacing` m de muro (muros menores que isso ganham uma no centro),
+      # a `lamp_offset` m da face; luminária emissiva de `lamp_size` m (uma InstancedMesh: 1 chamada de desenho)
+      ambient: world.industrial.luz_fria
+      ambient_intensity: 1.5
+      bake_color: world.industrial.faixa
+      bake_intensity: 3.5
+      lamp_token: world.industrial.tubo
+      lamp_spacing: 14
+      lamp_offset: 0.5
+      lamp_size: [1.2, 0.12, 0.25]
 
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------
 audio:

@@ -52,6 +52,23 @@ small,.dim{color:var(--ui-text-dim)}
 #langs{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center}
 .sk{border:2px solid var(--ui-text-dim);padding:8px;width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--ui-panel)}.sk.on{border-color:var(--ui-accent)}#sg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:720px;margin:20px 0}.sw{position:relative;width:46px;height:64px;margin-top:22px}.sw i{position:absolute;left:11px;top:-14px;width:24px;height:24px}.sw u{position:absolute;left:8px;top:-22px;width:30px;height:9px}
 button:disabled{cursor:default;border-style:dashed}
+/* MOCKUP A2b do modo Retro FPS (D-13; só com ?retro=1): barra de estado inferior, estilo de gênero anos 90 */
+#sb{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;align-items:stretch;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));
+  background:radial-gradient(circle at 5px 5px,var(--world-industrial-chapa) 1.5px,transparent 2px) 0 0/22px 22px,var(--world-industrial-parede);
+  border-top:3px solid var(--world-industrial-chapa);box-shadow:0 -3px 0 var(--world-industrial-junta);font-weight:bold;text-transform:uppercase}
+.sbs{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:4px 10px;background:var(--ui-panel);min-width:96px;
+  border:3px solid;border-color:var(--ui-bg) var(--ui-text-dim) var(--ui-text-dim) var(--ui-bg)}
+.sbs small{color:var(--ui-text-dim);font-size:11px;letter-spacing:1px;text-transform:none}.sbs>small:first-child{text-transform:uppercase}
+.sbs .big{font-size:26px;line-height:1;letter-spacing:2px}.sbs .big.danger{color:var(--ui-danger)}
+.sbm{height:8px;background:var(--ui-bg);width:100%;min-width:90px}.sbm i{display:block;height:100%}
+.sb-me{flex-direction:row;align-items:center;gap:8px;font-size:15px}.sb-me .ci{color:var(--cc)}.sb-me .ci svg{width:32px;height:32px}
+.sb-tm{flex:1}.sb-tm ul{display:flex;gap:4px;margin:0;padding:0;list-style:none}
+.sb-tm .pt{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;border-left:0;border-bottom:3px solid var(--cc);font-size:10px;min-width:58px}
+.sb-tm .pt+.pt{margin-top:0}.sb-tm .pt .nm{display:none}.sb-tm .pt .ci svg{width:20px;height:20px}
+.c-protector{--cc:var(--class-protetor)}.c-scout{--cc:var(--class-batedor)}
+body.retro #me,body.retro #top,body.retro #tm{display:none!important}
+body.retro #hint{bottom:calc(104px + env(safe-area-inset-bottom,0px))}body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+body.retro #spec{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 </style></head><body>
 <canvas id="c" role="img" data-i18n-aria-label="app.canvas"></canvas><div id="vg"></div>
 <div id="hud" hidden>
@@ -62,6 +79,7 @@ button:disabled{cursor:default;border-style:dashed}
 <div id="msg" role="status" aria-live="polite"></div>
 <div id="threat" role="img" hidden></div>
 <div id="pings" class="p" role="group" data-i18n-aria-label="ping.title"><div id="pcd"></div><ul id="pf"></ul></div>
+<div id="sb" role="group" data-i18n-aria-label="retro.bar" hidden></div>
 <div id="spec" class="p" hidden><h2 id="spt"></h2><div id="spw"></div><button type="button" id="spn" data-i18n="spec.next"></button><small data-i18n="spec.note"></small></div>
 </div>
 <div id="pz" class="p"><div id="pzc"></div><button type="button" id="pzx" data-i18n="puzzle.exit"></button></div>

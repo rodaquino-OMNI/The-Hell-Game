@@ -129,5 +129,18 @@
   "msg.trap_disarmed": "Trap disarmed",
   "msg.revealed": "The hunter sensed you!",
   "msg.gate_countdown": "Generators ready! Gate opening in {n} s — the hunter is furious!",
-  "msg.gate_open": "GATE OPEN! RUN!"
+  "msg.gate_open": "GATE OPEN! RUN!",
+
+  "class.protector": "Protector",
+  "class.scout": "Scout",
+  "retro.bar": "Status bar",
+  "retro.health": "HEALTH",
+  "retro.stamina": "STAMINA",
+  "retro.ability": "ABILITY Q",
+  "retro.ability_ready": "READY",
+  "retro.ability_cd": "{n} s",
+  "retro.generators": "GENERATORS",
+  "retro.puzzles": "puzzles {done}/{total}",
+  "retro.hunter": "HUNTER",
+  "retro.team": "TEAM"
 }

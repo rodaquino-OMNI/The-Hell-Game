@@ -123,8 +123,11 @@ export interface Presenter {
   /** escala inteira atual (pixels de tela por pixel interno) */
   scale: number;
   setPreset(name: PresetName): void;
-  /** desenha a cena no alvo, aplica o pós na resolução interna e leva o resultado à tela */
-  present(scene: THREE.Scene, camera: THREE.Camera): void;
+  /**
+   * desenha a cena no alvo, aplica o pós na resolução interna e leva o resultado à tela. `overlay` (mockup do modo
+   * Retro FPS, D-13): cena desenhada por cima no mesmo alvo, depois de limpar só a profundidade (ferramenta na mão)
+   */
+  present(scene: THREE.Scene, camera: THREE.Camera, overlay?: { scene: THREE.Scene; camera: THREE.Camera }): void;
 }
 
 const quadMaterial = (uniforms: Record<string, THREE.IUniform>, fragmentShader: string, defines: Record<string, unknown> = {}) =>
@@ -166,10 +169,17 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
       ps1Uniforms.uRes.value.set(w, h);
       lastKey = "";
     },
-    present(s, camera) {
+    present(s, camera, overlay) {
       fit();
       R.setRenderTarget(target);
       R.render(s, camera);
+      if (overlay) {
+        R.clearDepth();
+        const auto = R.autoClear;
+        R.autoClear = false;
+        R.render(overlay.scene, overlay.camera);
+        R.autoClear = auto;
+      }
       if (postUniforms.uBloom.value > 0) { R.setRenderTarget(bloomTarget); R.render(bloomScene, quadCam); }
       R.setRenderTarget(postTarget);
       R.render(postScene, quadCam);
