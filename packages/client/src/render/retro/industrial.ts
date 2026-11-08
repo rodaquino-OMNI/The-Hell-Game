@@ -9,6 +9,8 @@ import { tok, tokCss } from "../../look.ts";
 import { Ps1Material } from "../ps1.ts";
 
 const ind = balance.render.retro.industrial;
+/** valor da faixa [mín, máx] em u ∈ [0, 1) */
+const lerp = (r: readonly number[], u: number) => r[0] + (r[1] - r[0]) * u;
 
 function canvas2d(): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const k = document.createElement("canvas"); k.width = k.height = ind.texture;
@@ -27,26 +29,27 @@ export function industrialWallCanvas(rand: () => number): HTMLCanvasElement {
   const w = ind.wall, n = ind.texture, [k, x] = canvas2d();
   x.fillStyle = tokCss(w.base); x.fillRect(0, 0, n, n);
   const plate = n / w.plates;
-  // sujeira: salpicos escuros, mais densos em baixo (escorrido)
+  // sujeira: salpicos escuros, mais densos em baixo, escorridos de grime_drip px de altura
   x.fillStyle = tokCss(w.seam);
   for (let i = 0; i < w.grime; i++) {
     const px = (rand() * n) | 0, py = (Math.sqrt(rand()) * n) | 0;
-    x.globalAlpha = 0.25 + rand() * 0.35; x.fillRect(px, py, 1, 1 + ((rand() * 3) | 0));
+    x.globalAlpha = lerp(w.grime_alpha, rand()); x.fillRect(px, py, 1, Math.floor(lerp(w.grime_drip, rand())));
   }
   x.globalAlpha = 1;
   for (let i = 0; i < w.plates; i++) {
     const o = i * plate;
     // junta escura entre chapas e borda iluminada logo abaixo / à direita
     x.fillStyle = tokCss(w.seam); x.fillRect(o, 0, 1, n); x.fillRect(0, o, n, 1);
-    x.fillStyle = tokCss(w.edge); x.globalAlpha = 0.5; x.fillRect(o + 1, 0, 1, n); x.fillRect(0, o + 1, n, 1); x.globalAlpha = 1;
+    x.fillStyle = tokCss(w.edge); x.globalAlpha = w.edge_alpha; x.fillRect(o + 1, 0, 1, n); x.fillRect(0, o + 1, n, 1); x.globalAlpha = 1;
   }
   // rebites: ponto claro com sombra embaixo, ao longo das bordas de cada chapa
   for (let py = 0; py < w.plates; py++) for (let pxi = 0; pxi < w.plates; pxi++) {
     const ox = pxi * plate, oy = py * plate;
     for (let s = w.rivet_inset; s < plate - 1; s += w.rivet_step) {
       for (const [rx, ry] of [[ox + s, oy + w.rivet_inset], [ox + s, oy + plate - w.rivet_inset - 1], [ox + w.rivet_inset, oy + s], [ox + plate - w.rivet_inset - 1, oy + s]]) {
-        x.fillStyle = tokCss(w.seam); x.fillRect(rx, ry + 1, 2, 1);
-        x.fillStyle = tokCss(w.edge); x.fillRect(rx, ry, 2, 1);
+        const [rw, rh] = w.rivet;
+        x.fillStyle = tokCss(w.seam); x.fillRect(rx, ry + rh, rw, rh);
+        x.fillStyle = tokCss(w.edge); x.fillRect(rx, ry, rw, rh);
       }
     }
   }
@@ -66,9 +69,9 @@ export function industrialFloorCanvas(rand: () => number): HTMLCanvasElement {
   const f = ind.floor, n = ind.texture, [k, x] = canvas2d();
   x.fillStyle = tokCss(f.base); x.fillRect(0, 0, n, n);
   x.fillStyle = tokCss(f.seam);
-  for (let i = 0; i < f.stains; i++) { x.globalAlpha = rand() * 0.35; x.fillRect((rand() * n) | 0, (rand() * n) | 0, 2, 2); }
+  for (let i = 0; i < f.stains; i++) { x.globalAlpha = lerp(f.stain_alpha, rand()); x.fillRect((rand() * n) | 0, (rand() * n) | 0, f.stain_size, f.stain_size); }
   x.fillStyle = tokCss(f.fleck);
-  for (let i = 0; i < f.flecks; i++) { x.globalAlpha = 0.2 + rand() * 0.4; x.fillRect((rand() * n) | 0, (rand() * n) | 0, 1, 1); }
+  for (let i = 0; i < f.flecks; i++) { x.globalAlpha = lerp(f.fleck_alpha, rand()); x.fillRect((rand() * n) | 0, (rand() * n) | 0, 1, 1); }
   x.globalAlpha = 1;
   x.fillStyle = tokCss(f.seam); x.fillRect(0, 0, n, 1); x.fillRect(0, 0, 1, n);
   return k;

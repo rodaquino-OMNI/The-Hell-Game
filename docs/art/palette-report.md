@@ -141,6 +141,10 @@ Menor diferença entre dois membros, em visão normal e sob cada simulação (Ma
 | skins_classe | 13.3 / 13.2 / 11.3 | — | — | — | skin.fan.b × protetor (normal, média 4×4) | passa (aviso) |
 | industrial_estado | 21.4 / 21.3 / 20.3 | 12.3 / 12.2 / 10.5 | 12.2 / 12.3 / 9.7 | 13.2 / 13.3 / 12.9 | world.industrial.faixa × olhos (protanopia, média 4×4) | passa (aviso) |
 
+## Atlas dos personagens
+
+61 tokens de 64 blocos (render.models.atlas = 64 px, blocos de 8 px).
+
 **Avisos (pior pixel, informativo):** 5
 
 - contraste gráfico hunter.carcereiro sobre world.fog (pior pixel): 2.89

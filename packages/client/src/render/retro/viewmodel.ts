@@ -64,6 +64,8 @@ export interface Viewmodel {
   camera: THREE.PerspectiveCamera;
   /** triângulos da ferramenta e das mãos */
   triangles: number;
+  /** ferramenta à vista (1ª pessoa, jogador de pé) no último `update` */
+  readonly visible: boolean;
   /** balanço a partir do deslocamento do jogador no relógio da simulação */
   update(x: number, z: number, t: number, visible: boolean): void;
   setAspect(aspect: number): void;
@@ -95,7 +97,7 @@ export function createViewmodel(cls: RetroClass, aspect: number): Viewmodel {
     const tris: Tri[] = [];
     box(tris, { token: ch.corpo.pele, joint: "hand", glow: false }, new THREE.Vector3(), [hx, hy, hz]);
     const local = new THREE.Vector3(...(h.antebraco as V3)).applyQuaternion(new THREE.Quaternion().setFromEuler(deg(h.rot)).invert());
-    prism(tris, { token: ch.corpo.bracos, joint: "arm", glow: false }, new THREE.Vector3(0, 0, hz / 2), local, [r0, r0], [r1, r1], 6);
+    prism(tris, { token: ch.corpo.bracos, joint: "arm", glow: false }, new THREE.Vector3(0, 0, hz / 2), local, [r0, r0], [r1, r1], vm.hand.forearm_sides);
     geos.push(toGeometry(tris, mtx(h.pos, h.rot, 1)));
     lit.push(...tris);
   }
@@ -125,12 +127,13 @@ export function createViewmodel(cls: RetroClass, aspect: number): Viewmodel {
   const key = new THREE.PointLight(tok(l.key), l.key_intensity * Math.PI, 0, 0);
   key.position.set(...(l.key_pos as V3));
   scene.add(key, group);
-  const camera = new THREE.PerspectiveCamera(vm.fov, aspect, balance.render.camera.near, 10);
+  const camera = new THREE.PerspectiveCamera(vm.fov, aspect, balance.render.camera.near, vm.far);
 
   // balanço: fase pela distância andada; amplitude pela velocidade (corrida = 1) × render.retro.bob
   let lx = NaN, lz = NaN, lt = NaN, phase = 0, amp = 0;
   return {
     scene, camera, triangles: lit.length + glow.length,
+    get visible() { return group.visible; },
     setAspect(a) { camera.aspect = a; camera.updateProjectionMatrix(); },
     update(x, z, t, visible) {
       group.visible = visible;

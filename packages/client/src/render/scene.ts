@@ -39,7 +39,7 @@ export interface RenderCtx {
   /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
   /** mockup do modo Retro FPS (`?retro=1`, D-13/D-15): Pátio industrial e ferramenta na mão; ausente sem o parâmetro */
-  retro?: { industrial: Industrial; vm: Viewmodel | null };
+  retro?: { industrial: Industrial; vm: Viewmodel | null; overlay?: { scene: THREE.Scene; camera: THREE.Camera } };
 }
 
 const rc = balance.render;
@@ -175,6 +175,7 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
     const cls: RetroClass = urlRetroClass ?? (SURVIVOR_MODEL[G.survivors[0].cls] as RetroClass);
     const [iw, ih] = rc.presets[ctx.presenter.preset].internal;
     r.vm = createViewmodel(cls, iw / ih);
+    r.overlay = { scene: r.vm.scene, camera: r.vm.camera };
   } else bakeVertexLight(ctx.baked, G.gens);
   ctx.fx = { id: null, lastHp: null, hitT: null };
   // personagens recebem a sombra da lanterna e projetam quando estão no cone (cullShadowCasters); o próprio
@@ -228,8 +229,9 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
 /** desenha a cena no alvo da resolução interna e o leva à tela pelo passe final; registra `renderer.info` */
 export function present(ctx: RenderCtx) {
   ctx.R.info.reset();
-  const vm = ctx.retro?.vm;
-  ctx.presenter.present(ctx.S, ctx.cam, vm ? { scene: vm.scene, camera: vm.camera } : undefined);
+  // overlay da ferramenta só quando ela está à vista (em 3ª pessoa não há clearDepth nem passe extra)
+  const r = ctx.retro;
+  ctx.presenter.present(ctx.S, ctx.cam, r?.vm?.visible ? r.overlay : undefined);
   ctx.info.calls = ctx.R.info.render.calls;
   ctx.info.triangles = ctx.R.info.render.triangles;
 }

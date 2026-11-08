@@ -330,8 +330,9 @@ render:
     # antebraço na cor dos braços da ficha, do centro da mão até `pos + antebraco`
     viewmodel:
       fov: 60                       # graus; câmera só da ferramenta (independe do slider de fov do V8)
+      far: 10                       # m; plano distante da câmera da ferramenta (a ferramenta está a menos de 1 m)
       light: {ambient: light.ambiente, ambient_intensity: 1.4, key: light.jogador, key_intensity: 1.1, key_pos: [0.6, 0.5, 0.3]}
-      hand: {size: [0.075, 0.07, 0.11], forearm: [0.05, 0.045]}
+      hand: {size: [0.075, 0.07, 0.11], forearm: [0.05, 0.045], forearm_sides: 6}   # forearm: raio no punho e no fim; lados do prisma
       classes:
         curandeiro:
           grupos: [{osso: hand_r, origem: [0, 0, 0], pos: [0.3, -0.25, -0.62], rot: [-18, 8, 98], escala: 0.42}]
@@ -361,11 +362,14 @@ render:
     # token world.industrial.* de data/art/palette.json (secundárias, sem mudar tokens aprovados)
     industrial:
       texture: 64
-      # parede: chapas rebitadas (plates × plates por ladrilho), rebites a cada `rivet_step` px a `rivet_inset` px da
-      # borda, faixa de segurança diagonal de `stripe` px de altura na base (listras de `stripe_period` px), manchas
-      wall: {base: world.industrial.parede, edge: world.industrial.chapa, seam: world.industrial.junta, stripe_color: world.industrial.faixa, plates: 2, rivet_step: 8, rivet_inset: 3, stripe: 10, stripe_period: 8, grime: 90}
-      # chão: lajes de concreto com junta na borda do ladrilho, salpicos claros e escuros
-      floor: {base: world.industrial.chao, seam: world.industrial.junta, fleck: world.industrial.chapa, flecks: 220, stains: 160}
+      # parede: chapas rebitadas (plates × plates por ladrilho) com borda iluminada de opacidade `edge_alpha`, rebites
+      # de `rivet` px (largura, altura; sombra da mesma altura embaixo) a cada `rivet_step` px a `rivet_inset` px da
+      # borda, faixa de segurança diagonal de `stripe` px de altura na base (listras de `stripe_period` px) e `grime`
+      # salpicos de sujeira com opacidade na faixa `grime_alpha` e escorrido de `grime_drip` px (faixa [mín, máx))
+      wall: {base: world.industrial.parede, edge: world.industrial.chapa, seam: world.industrial.junta, stripe_color: world.industrial.faixa, plates: 2, edge_alpha: 0.5, rivet: [2, 1], rivet_step: 8, rivet_inset: 3, stripe: 10, stripe_period: 8, grime: 90, grime_alpha: [0.25, 0.6], grime_drip: [1, 4]}
+      # chão: lajes de concreto com junta na borda do ladrilho; `stains` manchas escuras de `stain_size` px com
+      # opacidade em `stain_alpha` e `flecks` salpicos claros de 1 px com opacidade em `fleck_alpha`
+      floor: {base: world.industrial.chao, seam: world.industrial.junta, fleck: world.industrial.chapa, flecks: 220, fleck_alpha: [0.2, 0.6], stains: 160, stain_alpha: [0, 0.35], stain_size: 2}
       # luz: ambiente fria no lugar de light.ambiente; luz assada âmbar (camada B) nas lâmpadas dos geradores e em
       # luminárias no topo dos muros, uma a cada `lamp_spacing` m de muro (muros menores que isso ganham uma no centro),
       # a `lamp_offset` m da face; luminária emissiva de `lamp_size` m (uma InstancedMesh: 1 chamada de desenho)
