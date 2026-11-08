@@ -3,8 +3,8 @@
 // e a opção "reduzir flicker" (GDD-v0.3 §10.2 e §12.4: zera a aberração e atenua e congela o grão).
 // Números em data/balance.yaml `render.layer_a`, `render.reduce_flicker`; cores por token de data/art/palette.json.
 import * as THREE from "three";
-import palette from "../../../../data/art/palette.json";
 import { balance } from "../data.ts";
+import { tok } from "../look.ts";
 import type { PresetName } from "./present.ts";
 
 export type Layer = "A" | "B" | "C";
@@ -17,13 +17,8 @@ const la = balance.render.layer_a;
 const rf = balance.render.reduce_flicker;
 const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 
-/** cor linear de um token da paleta (rgb5 de 0 a 31, como no PS1; ColorManagement está desligado) */
-export function paletteColor(token: string): THREE.Color {
-  const t = (palette.tokens as Record<string, { rgb5: number[] } | undefined>)[token];
-  if (!t) throw new Error(`token '${token}' fora de data/art/palette.json`);
-  const [r, g, b] = t.rgb5.map(v => Math.round((v * 255) / 31) / 255);
-  return new THREE.Color(r, g, b);
-}
+/** cor de um token da paleta via look.ts (fonte gerada única, a mesma do modo daltônico); ColorManagement desligado */
+export const paletteColor = (token: string): THREE.Color => new THREE.Color(tok(token));
 
 /** camadas ativas de um preset (`render.presets.<p>.layers`) */
 export const presetLayers = (p: PresetName): LayerSet => {

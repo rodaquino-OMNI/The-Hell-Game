@@ -13,7 +13,9 @@
 //   - renderer.info (draw calls e triângulos) dentro de render.budgets em cada preset com as camadas dele;
 //   - camada A com intensidades em 0 = camadas desligadas (pixel a pixel); cada efeito da camada A muda a imagem;
 //   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
-//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720).
+//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720);
+//   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
+//     fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A.
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [url]
 //   --update  regrava as referências (revisar as imagens antes de commitar)
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
@@ -47,6 +49,12 @@ const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/ba
 const SEED = 1234;
 /** vista das capturas: 3ª pessoa, olhando a jaula, um muro próximo, dois aliados e três feixes */
 const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };
+/**
+ * cena de prova de legibilidade (V4): vista para o noroeste a partir do spawn, com o caçador a `distance` m e `angle`°
+ * à esquerda da vista (fora do cone da lanterna), contra o muro; `diff` = soma das diferenças RGB que marca um pixel
+ * do objeto
+ */
+const LEG = { view: { yaw: 0.52, pitch: -0.1, thirdPerson: true }, distance: 8, angle: 40, diff: 12 };
 /** tolerância: diferença máxima por canal considerada igual e fração máxima de pixels fora dela */
 const TOL = { channel: 2, fraction: 0.001 };
 const ALL = (v) => ({ snap: v, affine: v, gouraud: v, dither: v });
@@ -277,7 +285,7 @@ try {
     const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
     const NONE_L = { A: false, B: false, C: false };
     const AB = { A: true, B: true, C: false };
-    const FRAMES = 16, ROUNDS = 9;
+    const FRAMES = 16, ROUNDS = 11;
     const gpu = gpuProcesses();
     const clock = gpu.length ? () => cpuMs(gpu) : () => performance.now();
     const run = async (layers) => {
@@ -293,6 +301,61 @@ try {
     console.log(`custo (medium, 1280×720, ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}): sem camadas ${med(none).toFixed(1)} ms, A+B ${med(ab).toFixed(1)} ms por quadro (medianas); razão pareada ${med(ratio).toFixed(2)}× (teto ${k}×)`);
     if (med(ratio) > k) fail(`camadas A+B custam ${med(ratio).toFixed(2)}× o preset sem camadas (teto ${k}×)`);
     await cost.page.close();
+  }
+
+  // legibilidade depois da camada A (Art Bible §5.3; revisão do V4), preset médio com as camadas dele.
+  // Cena de prova: o caçador a LEG.distance m da vista LEG.view, fora do cone da lanterna (LEG.angle), contra o muro.
+  //  - olhos no preparo (telegraph do V3) e feixe de gerador: contraste WCAG ≥ render.legibility.min_contrast
+  //    contra o mesmo pixel sem o objeto;
+  //  - corpo do caçador: a camada A não pode tirar mais que render.legibility.body_keep do contraste que ele tem
+  //    sem ela (o contraste absoluto no escuro é da luz e dos tokens, marco A3)
+  {
+    const lg = balance.render.legibility;
+    const probe = async (o) => {
+      const r = await med.evaluate(([LEG, o, a0]) => {
+        const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
+        h.setPreset(h.info().preset);
+        h.setLayerA(o.layerA ?? a0);
+        h.setOverrides({ damage: 0, time: null });
+        const a = LEG.view.yaw + LEG.angle * Math.PI / 180;
+        H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
+        H.a = Math.atan2(P.x - H.x, P.z - H.z);
+        H.windup = o.windup ? { kind: "melee", t: 0, total: 0.4 } : null;
+        return h.capture(LEG.view, { hidden: o.hidden ?? [] });
+      }, [LEG, o, layerADefaults]);
+      return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")) };
+    };
+    const lum = (p, i) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(p[i]) + 0.7152 * f(p[i + 1]) + 0.0722 * f(p[i + 2]); };
+    /** contraste WCAG entre a média de luminância de `fg` e de `bg` nos pixels em que `a` e `b` diferem */
+    const contrast = (a, b, fg, bg) => {
+      let n = 0, lf = 0, lb = 0;
+      for (let i = 0; i < a.rgba.length; i += 4) {
+        const d = Math.abs(a.rgba[i] - b.rgba[i]) + Math.abs(a.rgba[i + 1] - b.rgba[i + 1]) + Math.abs(a.rgba[i + 2] - b.rgba[i + 2]);
+        if (d > LEG.diff) { n++; lf += lum(fg.rgba, i); lb += lum(bg.rgba, i); }
+      }
+      if (!n) return { n, cr: 0 };
+      lf /= n; lb /= n;
+      return { n, cr: (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05) };
+    };
+    const A0 = A_ALL(0);
+    const bg = await probe({ hidden: ["hunter"] }), body = await probe({}), bgOff = await probe({ hidden: ["hunter"], layerA: A0 }), bodyOff = await probe({ layerA: A0 });
+    const cb = contrast(body, bg, body, bg), cb0 = contrast(bodyOff, bgOff, bodyOff, bgOff);
+    // olhos e feixe: os pixels do objeto vêm de capturas sem bloom (o halo não entra na média); a luminância, das
+    // capturas com a camada A completa
+    const noBloom = { ...layerADefaults, bloom: 0 };
+    const hot = await probe({ windup: true });
+    const ce = contrast(await probe({ windup: true, layerA: noBloom }), await probe({ layerA: noBloom }), hot, bg);
+    let beam = { n: 0, cr: 0 }, beamId = -1;
+    for (let i = 0; i < 7; i++) {
+      const hid = ["hunter", "beam" + i];
+      const c = contrast(await probe({ hidden: ["hunter"], layerA: noBloom }), await probe({ hidden: hid, layerA: noBloom }), bg, await probe({ hidden: hid }));
+      if (c.n > beam.n) { beam = c; beamId = i; }
+    }
+    console.log(`legibilidade: corpo do caçador ${cb.cr.toFixed(2)}:1 (sem camada A ${cb0.cr.toFixed(2)}:1, ${cb.n} px); olhos no preparo ${ce.cr.toFixed(2)}:1 (${ce.n} px); feixe ${beamId} ${beam.cr.toFixed(2)}:1 (${beam.n} px); mínimo ${lg.min_contrast}:1, corpo ≥ ${lg.body_keep} do contraste sem a camada A`);
+    if (!cb.n || !ce.n || !beam.n) fail("legibilidade: caçador, olhos ou feixe fora da cena de prova");
+    if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
+    if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
+    if (cb.cr < lg.body_keep * cb0.cr) fail(`legibilidade: a camada A tira contraste do caçador (${cb.cr.toFixed(2)} < ${lg.body_keep} × ${cb0.cr.toFixed(2)})`);
   }
 
   for (const { errors } of Object.values(pages)) if (errors.length) fail("erros no console: " + errors.join(" | "));
