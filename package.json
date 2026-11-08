@@ -20,6 +20,7 @@
     "check:palette": "node tools/art/palette-check.mjs",
     "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
     "smoke": "node tools/smoke.mjs",
+    "assets:validate": "node tools/assets/validate.mjs",
     "maps:validate": "tsx tools/maps/validate.ts",
     "maps:browser-check": "pnpm data && node tools/maps/recast-browser-check.mjs",
     "visual": "node tools/visual/compare.mjs"
@@ -30,6 +31,7 @@
     "@vitest/coverage-v8": "4.1.12",
     "eslint": "9.39.5",
     "globals": "17.13.0",
+    "gltf-validator": "2.0.0-dev.3.10",
     "playwright": "1.63.0",
     "tsx": "4.23.15",
     "typescript": "5.9.3",

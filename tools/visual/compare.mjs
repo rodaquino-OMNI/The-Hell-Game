@@ -110,6 +110,8 @@ async function openGame(browser, preset) {
   await page.goto(`${url}/?seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
   await page.click("#go");
+  // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
+  await page.evaluate(() => window.__thehellCharactersReady?.());
   return { page, errors };
 }
 

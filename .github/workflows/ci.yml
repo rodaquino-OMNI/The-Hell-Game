@@ -29,6 +29,8 @@ jobs:
       - name: Validador de mapa (GDD v0.3 §9.1, todas as combinações de layout)
         run: pnpm maps:validate
       - run: pnpm build
+      - name: Modelos (glTF-Validator, triângulos e clipes por personagem)
+        run: node tools/assets/validate.mjs
       - run: pnpm exec playwright install --with-deps chromium
       - name: WASM do recast no navegador (build do Vite, mesmo navmesh que o Node)
         run: pnpm maps:browser-check
