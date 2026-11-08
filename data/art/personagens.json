@@ -51,10 +51,35 @@
       "pecas": [
         { "$comment": "capuz arredondado (cobre cabeça e nuca)", "forma": "elipse", "osso": "Head", "desloc": [0, 0.13, -0.015], "r": [0.13, 0.15, 0.135], "lados": 6, "aneis": 4, "cor": "class.curandeiro" },
         { "$comment": "manto que abre embaixo. V3: topo de 0,17×0,13 para 0,20×0,15 e giro de 30° para 45° (o mesmo do tronco), para as arestas do tronco não atravessarem o manto", "forma": "seg", "de": "spine_02", "ate": "pelvis", "osso": "pelvis", "ateDesloc": [0, -0.5, 0], "r": [[0.2, 0.15], [0.32, 0.27]], "lados": 6, "cor": "class.curandeiro", "giro": 45 },
-        { "$comment": "cajado mais alto que a cabeça: na pose T fica ao longo do braço direito; com o braço baixado fica de pé. V3: raio 0,028 → 0,07 (2,5×) para o cajado não sumir a 384×216", "forma": "cilindro", "osso": "hand_r", "de": [-0.75, 0, 0.02], "ate": [1.45, 0, 0.02], "r": [0.07, 0.07], "lados": 4, "cor": "char.madeira", "giro": 45 },
-        { "$comment": "caduceu no topo: losango. V3: raio 0,08 → 0,12, ponta 1,64 → 1,7", "forma": "piramide", "osso": "hand_r", "base": [1.45, 0, 0.02], "ponta": [1.7, 0, 0.02], "r": 0.12, "cor": "class.curandeiro" },
-        { "$comment": "caduceu no topo: asas. V3: 0,06×0,04×0,36 → 0,1×0,09×0,44", "forma": "caixa", "osso": "hand_r", "desloc": [1.36, 0, 0.02], "tam": [0.1, 0.09, 0.44], "cor": "char.lamina" }
-      ]
+        { "$comment": "A2-ajuste (cajado de mago, desenho próprio): haste de madeira nodosa em 3 trechos com dobras leves e nós (cada trecho começa mais grosso que o fim do anterior). Desenho no eixo +X da mão (para cima com o braço baixado), depois girado -28° em Y e +10° em Z (todas as peças do cajado, nas duas variantes) para o cajado ficar de pé no idle: sem o giro ele tombava para trás e para dentro. Substitui o cilindro reto do V3 (raio 0,07 de -0,75 a 1,45)", "forma": "cilindro", "osso": "hand_r", "de": [-0.662, -0.13, -0.329], "ate": [-0.109, 0.009, -0.058], "r": [[0.05, 0.05], [0.06, 0.06]], "lados": 4, "cor": "char.madeira", "giro": 45 },
+        { "$comment": "cajado: trecho do meio (passa pela mão)", "forma": "cilindro", "osso": "hand_r", "de": [-0.109, 0.009, -0.058], "ate": [0.522, 0.083, 0.328], "r": [[0.072, 0.072], [0.06, 0.06]], "lados": 4, "cor": "char.madeira", "giro": 45 },
+        { "$comment": "cajado: trecho de cima, alarga até a cabeça", "forma": "cilindro", "osso": "hand_r", "de": [0.522, 0.083, 0.328], "ate": [1.067, 0.23, 0.59], "r": [[0.075, 0.075], [0.08, 0.08]], "lados": 4, "cor": "char.madeira", "giro": 45 },
+        { "$comment": "cajado: amarrado de couro logo abaixo da cabeça", "forma": "cilindro", "osso": "hand_r", "de": [0.891, 0.189, 0.503], "ate": [0.996, 0.214, 0.556], "r": [0.098, 0.098], "lados": 4, "cor": "char.couro", "giro": 45 },
+        { "$comment": "cajado: ponta solta do amarrado, pendurada para fora", "forma": "caixa", "osso": "hand_r", "desloc": [0.823, 0.269, 0.471], "tam": [0.2, 0.035, 0.03], "rot": [0, -28.0, -2.0], "cor": "char.couro" },
+        { "$comment": "cabeça do cajado: 3 galhos que saem do topo, abrem e se curvam para dentro em volta do cristal (seção triangular, nodosa). Galho 1 (para fora): sobe e abre", "forma": "cilindro", "osso": "hand_r", "de": [1.029, 0.238, 0.57], "ate": [1.201, 0.404, 0.661], "r": [[0.045, 0.045], [0.04, 0.04]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "galho 1: curva para dentro por cima do cristal", "forma": "cilindro", "osso": "hand_r", "de": [1.201, 0.404, 0.661], "ate": [1.428, 0.328, 0.782], "r": [[0.04, 0.04], [0.022, 0.022]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "galho 2 (para dentro e para a frente)", "forma": "cilindro", "osso": "hand_r", "de": [1.026, 0.199, 0.591], "ate": [1.168, 0.135, 0.78], "r": [[0.045, 0.045], [0.04, 0.04]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "galho 2: curva para dentro", "forma": "cilindro", "osso": "hand_r", "de": [1.168, 0.135, 0.78], "ate": [1.398, 0.258, 0.8], "r": [[0.04, 0.04], [0.022, 0.022]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "galho 3 (para dentro e para trás)", "forma": "cilindro", "osso": "hand_r", "de": [1.045, 0.199, 0.556], "ate": [1.265, 0.151, 0.548], "r": [[0.045, 0.045], [0.04, 0.04]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "galho 3: curva para dentro", "forma": "cilindro", "osso": "hand_r", "de": [1.265, 0.151, 0.548], "ate": [1.399, 0.258, 0.733], "r": [[0.04, 0.04], [0.022, 0.022]], "lados": 3, "cor": "char.madeira" },
+        { "$comment": "cristal emissivo preso entre os galhos: octaedro alongado no eixo do cajado (elipse de 4 lados e 2 anéis), na cor dominante da classe", "forma": "elipse", "osso": "hand_r", "desloc": [1.24, 0.265, 0.682], "r": [0.15, 0.085, 0.085], "lados": 4, "aneis": 2, "cor": "class.curandeiro", "brilho": true }
+      ],
+      "variantes": {
+        "$comment": "A2-ajuste: pedido do aprovador do marco A2 (cajado de mago ancestral, desenho próprio). (a) mago = cajado nodoso com cristal, sem caduceu; (b) mago_caduceu = o mesmo cajado com um caduceu pequeno (asas e serpente estilizadas) logo abaixo do cristal. Padrão (a) até a escolha registrada no marco. Escolher = trocar 'padrao' e rodar tools/assets/build-characters.ts",
+        "padrao": "mago",
+        "lista": {
+          "mago": { "nome": "(a) cajado de mago com cristal", "pecas": [] },
+          "mago_caduceu": {
+            "nome": "(b) cajado de mago com cristal e caduceu pequeno",
+            "pecas": [
+              { "$comment": "caduceu: asa para fora, inclinada para cima", "forma": "caixa", "osso": "hand_r", "desloc": [1.014, 0.336, 0.562], "tam": [0.07, 0.17, 0.03], "rot": [0, -28.0, 40.0], "cor": "char.lamina" },
+              { "$comment": "caduceu: asa para dentro, inclinada para cima", "forma": "caixa", "osso": "hand_r", "desloc": [1.054, 0.08, 0.583], "tam": [0.07, 0.17, 0.03], "rot": [0, -28.0, -20.0], "cor": "char.lamina" },
+              { "$comment": "caduceu: serpente em S cruzando a haste (trecho de baixo)", "forma": "cilindro", "osso": "hand_r", "de": [0.561, 0.243, 0.411], "ate": [0.711, 0.029, 0.491], "r": [0.032, 0.032], "lados": 3, "cor": "class.curandeiro" },
+              { "$comment": "caduceu: serpente (trecho de cima)", "forma": "cilindro", "osso": "hand_r", "de": [0.711, 0.029, 0.491], "ate": [0.787, 0.288, 0.532], "r": [0.032, 0.032], "lados": 3, "cor": "class.curandeiro" }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "mecanico", "nome": "Mecânico", "tipo": "sobrevivente", "cor": "class.mecanico", "altura": 1.76, "manterDedos": false, "clipes": "sobrevivente",

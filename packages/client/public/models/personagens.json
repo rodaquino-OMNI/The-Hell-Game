@@ -8,8 +8,19 @@
    "arquivo": "models/curandeiro.glb",
    "tipo": "sobrevivente",
    "altura": 1.75,
-   "triangulos": 394,
+   "triangulos": 480,
    "ossos": 25,
+   "variante": "mago",
+   "variantes": [
+    {
+     "id": "mago",
+     "triangulos": 480
+    },
+    {
+     "id": "mago_caduceu",
+     "triangulos": 520
+    }
+   ],
    "acessorio": {
     "osso": "spine_03",
     "centro": [

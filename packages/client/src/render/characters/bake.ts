@@ -331,7 +331,7 @@ export function bakeCharacter(input: BakeInput): BakeOutput {
     accessors: bw.accessors,
     bufferViews: bw.bufferViews,
     buffers: [{ byteLength: 0 }],
-    extras: { thehell: { id: spec.id, tipo: spec.tipo, altura: spec.altura, anim_fps: animFps } },
+    extras: { thehell: { id: spec.id, tipo: spec.tipo, altura: spec.altura, anim_fps: animFps, ...(spec.variante ? { variante: spec.variante } : {}) } },
   };
   if (!primitives.some(p => p.material === 1)) json.materials.pop();
   const bin = bw.bytes();

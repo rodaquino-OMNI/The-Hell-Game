@@ -8,7 +8,9 @@
 //  5. linha do arquivo em packages/client/public/media/creditos.csv (licença registrada);
 //  6. manifesto personagens.json coerente com os arquivos;
 //  7. ficha data/art/personagens.json (V3): todo personagem da ficha tem .glb com o mesmo tipo e altura, e o
-//     sobrevivente com o acessório de skin (uma caixa, 12 triângulos) continua dentro do orçamento.
+//     sobrevivente com o acessório de skin (uma caixa, 12 triângulos) continua dentro do orçamento;
+//  8. variantes de arte (ficha `variantes`, A2-ajuste): o .glb leva a variante padrão da ficha e TODAS as variantes
+//     (manifesto `variantes`, medidas pelo bake) cabem no orçamento, com o acessório de skin.
 // Uso: node tools/assets/validate.mjs   (sai com código 1 em qualquer falha)
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -103,6 +105,18 @@ for (const f of files) {
   const man = manifest.personagens.find(p => p.arquivo === "models/" + f);
   if (!man) fail(f, "fora do manifesto personagens.json");
   else if (man.triangulos !== tris || man.tipo !== tipo) fail(f, "manifesto personagens.json desatualizado (rode tools/assets/build-characters.ts)");
+  if (spec?.variantes) {
+    const v = J.extras?.thehell?.variante;
+    if (v !== spec.variantes.padrao) fail(f, `variante assada '${v}' diferente da padrão da ficha '${spec.variantes.padrao}' (rode tools/assets/build-characters.ts)`);
+    const listed = (man?.variantes ?? []).map(x => x.id).sort(), want = Object.keys(spec.variantes.lista).sort();
+    if (listed.join() !== want.join()) fail(f, `manifesto com variantes [${listed}] diferentes da ficha [${want}] (rode tools/assets/build-characters.ts)`);
+    for (const x of man?.variantes ?? []) {
+      const n = x.triangulos + (tipo === "sobrevivente" ? skinTris : 0);
+      if (x.id === v && x.triangulos !== tris) fail(f, `variante ${x.id}: manifesto diz ${x.triangulos} triângulos, o .glb tem ${tris}`);
+      if (x.triangulos < lo || n > hi) fail(f, `variante ${x.id}: ${x.triangulos} (+${tipo === "sobrevivente" ? skinTris : 0} da skin) fora de ${lo}–${hi} (render.models)`);
+      rows.push({ arquivo: `${f} [${x.id}${x.id === v ? ", padrão" : ""}]`, tipo, triangulos: x.triangulos, "+skin": tipo === "sobrevivente" ? skinTris : 0, orcamento: `${lo}–${hi}` });
+    }
+  }
   const derived = (J.animations ?? []).filter(a => a.extras?.derivado).map(a => a.name);
   rows.push({ arquivo: f, tipo, triangulos: tris, "+skin": tipo === "sobrevivente" ? skinTris : 0, orcamento: `${lo}–${hi}`, clipes: names.length, derivados: derived.join(" ") || "-", erros: numErrors, avisos: numWarnings, infos: numInfos, KB: Math.round(buf.length / 1024) });
 }
