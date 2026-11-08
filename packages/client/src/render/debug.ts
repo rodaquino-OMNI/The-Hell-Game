@@ -3,6 +3,7 @@
 import type { GameState } from "@thehell/sim";
 import { balance } from "../data.ts";
 import type { PresetName } from "./present.ts";
+import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
 import { getPs1, setPs1, type Ps1Intensity } from "./ps1.ts";
 import { renderFrame, setPreset, type RenderCtx } from "./scene.ts";
 import { syncActors, syncDynamic } from "./sync.ts";
@@ -11,8 +12,19 @@ export interface RenderHook {
   getPs1(): Ps1Intensity;
   setPs1(p: Partial<Ps1Intensity>): void;
   setPreset(name: PresetName): void;
+  /** camadas visuais (GDD-v0.3 §10.2); `setPreset` volta ao padrão do preset */
+  getLayers(): LayerSet;
+  setLayers(l: Partial<LayerSet>): void;
+  /** intensidades da camada A (0 a 1) */
+  getLayerA(): LayerAIntensity;
+  setLayerA(p: Partial<LayerAIntensity>): void;
+  /** opção "reduzir flicker" (GDD-v0.3 §12.4) */
+  getReduceFlicker(): boolean;
+  setReduceFlicker(on: boolean): void;
+  /** força o pulso de dano (0..1) e o relógio dos efeitos animados; null volta ao jogo */
+  setOverrides(o: { damage?: number | null; time?: number | null }): void;
   /** `renderer.info` do último quadro: chamadas de desenho e triângulos */
-  info(): { calls: number; triangles: number; preset: PresetName; scale: number; internal: [number, number] };
+  info(): { calls: number; triangles: number; preset: PresetName; scale: number; internal: [number, number]; layers: LayerSet };
   /**
    * sincroniza as malhas com o estado atual, desenha um quadro com a vista dada e devolve os pixels da tela (RGBA, linhas de cima para baixo) em base64,
    * lidos no mesmo quadro (sem preserveDrawingBuffer)
@@ -30,10 +42,11 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     getPs1,
     setPs1,
     setPreset: name => setPreset(need().ctx, name),
+    getLayers, setLayers, getLayerA, setLayerA, getReduceFlicker, setReduceFlicker, setOverrides,
     info: () => {
       const { ctx } = need();
       const internal = balance.render.presets[ctx.presenter.preset].internal as [number, number];
-      return { ...ctx.info, preset: ctx.presenter.preset, scale: ctx.presenter.scale, internal };
+      return { ...ctx.info, preset: ctx.presenter.preset, scale: ctx.presenter.scale, internal, layers: getLayers() };
     },
     capture: view => {
       const { ctx, G } = need();

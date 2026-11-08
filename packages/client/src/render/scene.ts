@@ -6,9 +6,12 @@ import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
 import { WORLD_COLORS } from "../look.ts";
 import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
+import { charactersReady } from "./characters/runtime.ts";
+import { aimLantern, bakeVertexLight, createAmbience, createLantern, neutralBake, type Ambience } from "./environment.ts";
+import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
 import { clientRandom, urlPreset } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
-import { Ps1Material } from "./ps1.ts";
+import { Ps1Material, ps1Uniforms } from "./ps1.ts";
 
 /** contexto de render devolvido por `buildWorld` (substitui os `let` exportados da fase 0) */
 export interface RenderCtx {
@@ -18,7 +21,15 @@ export interface RenderCtx {
   /** luz pontual que segue o jogador */
   PL: THREE.PointLight;
   presenter: Presenter;
-  /** `renderer.info` do último quadro (cena + passe final) */
+  /** camada B: lanterna do jogador (cone e sombra) */
+  lantern: THREE.SpotLight;
+  /** camada B: chão e muros com luz assada nos vértices (assada em `buildActors`, com as lâmpadas da partida) */
+  baked: THREE.Mesh[];
+  /** camada C: névoa em billboards e poeira */
+  ambience: Ambience;
+  /** pulso de aberração: vida do jogador no quadro anterior e instante do último dano (relógio da simulação) */
+  fx: { lastHp: number | null; hitT: number | null };
+  /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
 }
 
@@ -27,6 +38,8 @@ const rc = balance.render;
 export const meshes = new Map<string, THREE.Object3D>();
 /** semente das texturas procedurais (fluxo próprio do PRNG do cliente) */
 const TEX_SALT = 1;
+/** sementes do grão da camada A e das posições da camada C (fluxos próprios) */
+const GRAIN_SALT = 2, AMBIENCE_SALT = 3;
 
 function tex(rand: () => number, color: string, n: number, rx: number, rz: number) {
   const k = document.createElement("canvas"); k.width = k.height = 32;
@@ -55,6 +68,10 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   R.outputColorSpace = THREE.LinearSRGBColorSpace;
   R.setPixelRatio(1);
   R.info.autoReset = false;
+  // camada B: sombra da lanterna em shadow map sem filtro (BasicShadowMap: texel nearest, sombra pixelada)
+  R.shadowMap.enabled = true;
+  R.shadowMap.type = THREE.BasicShadowMap;
+  setGrainSeed(Math.floor(clientRandom(GRAIN_SALT)() * 65536));
   const presenter = createPresenter(R, canvas, urlPreset);
   const [iw, ih] = rc.presets[presenter.preset].internal;
   const S = new THREE.Scene();
@@ -67,20 +84,40 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   S.add(PL);
   const rand = clientRandom(TEX_SALT);
   const [w, d] = map.size;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d, seg(w), seg(d)), lambert({ map: tex(rand, WORLD_COLORS.floor, 260, 18, 18) }));
-  floor.rotation.x = -Math.PI / 2; S.add(floor);
+  const baked: THREE.Mesh[] = [];
+  const floorGeo = new THREE.PlaneGeometry(w, d, seg(w), seg(d));
+  neutralBake(floorGeo);
+  const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: tex(rand, WORLD_COLORS.floor, 260, 18, 18) }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.add(floor); baked.push(floor);
   for (const [x, z, ww, wd] of map.walls) {
-    const m = lambert({ map: tex(rand, WORLD_COLORS.wall, 200, Math.max(1, ww / 3), 1) });
-    const b = new THREE.Mesh(new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd)), m);
-    b.position.set(x, map.wall_height / 2, z); S.add(b);
+    const m = new Ps1Material({ lit: true, baked: true, map: tex(rand, WORLD_COLORS.wall, 200, Math.max(1, ww / 3), 1) });
+    const g = new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd));
+    neutralBake(g);
+    const b = new THREE.Mesh(g, m);
+    b.position.set(x, map.wall_height / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b);
   }
   S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: WORLD_COLORS.cage, wireframe: true }), map.cage[0], 1.2, map.cage[1]));
-  return { R, S, cam, PL, presenter, info: { calls: 0, triangles: 0 } };
+  const lantern = createLantern();
+  S.add(lantern, lantern.target);
+  const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
+  S.add(ambience.group);
+  const ctx: RenderCtx = { R, S, cam, PL, presenter, lantern, baked, ambience, fx: { lastHp: null, hitT: null }, info: { calls: 0, triangles: 0 } };
+  onLayersChange(l => applyLayers(ctx, l));
+  setLayers(presetLayers(presenter.preset));
+  return ctx;
+}
+
+/** liga as camadas B (lanterna, sombra, luz assada) e C (névoa e poeira); a A fica no passe final (layers.ts) */
+function applyLayers(ctx: RenderCtx, l: LayerSet) {
+  ctx.lantern.visible = l.B;
+  ps1Uniforms.uBake.value = l.B ? 1 : 0;
+  ctx.ambience.group.visible = l.C;
 }
 
 /** troca o preset de resolução interna (low/medium/high) */
 export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   ctx.presenter.setPreset(name);
+  setLayers(presetLayers(name));
   const [iw, ih] = rc.presets[name].internal;
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
 }
@@ -90,16 +127,30 @@ export function buildActors(ctx: RenderCtx, G: GameState, _skin: string) {
   const { S } = ctx;
   G.gens.forEach((g, i) => {
     const gr = new THREE.Group();
-    gr.add(box(1.5, 1, 1, lambert({ color: g.bonus ? WORLD_COLORS.bonusBody : WORLD_COLORS.genBody }), 0, 0.5, 0));
+    const body = box(1.5, 1, 1, lambert({ color: g.bonus ? WORLD_COLORS.bonusBody : WORLD_COLORS.genBody }), 0, 0.5, 0);
+    body.castShadow = body.receiveShadow = true;
+    gr.add(body);
     const lamp = box(0.4, 0.3, 0.4, basic(0xff3333), 0, 1.2, 0); gr.add(lamp);
     gr.position.set(g.x, 0, g.z); S.add(gr);
     const beam = box(0.25, 14, 0.25, basic(0xff3333), g.x, 7, g.z); S.add(beam);
     meshes.set("lamp" + i, lamp); meshes.set("beam" + i, beam);
   });
-  const gate = box(6, 3, 0.6, basic(WORLD_COLORS.gateClosed), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
+  // o portão é chapado mas não emissivo: o bloom da camada A fica nos olhos, lanterna, feixes e lâmpadas
+  const gate = box(6, 3, 0.6, new Ps1Material({ lit: false, fog: false, emissive: false, color: WORLD_COLORS.gateClosed }), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
   // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts
   G.survivors.forEach(s => { const m = createSurvivorModel(s); S.add(m); meshes.set("s" + s.id, m); });
   const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
+  // camada B: luz assada com as lâmpadas dos geradores desta partida (o layout muda a posição)
+  bakeVertexLight(ctx.baked, G.gens);
+  ctx.fx = { lastHp: null, hitT: null };
+  // personagens projetam e recebem a sombra da lanterna; o próprio jogador não (a lanterna sai do corpo dele)
+  const own = meshes.get("s" + G.survivors[0].id);
+  void charactersReady().then(() => {
+    for (const s of G.survivors.map(v => meshes.get("s" + v.id)).concat(hm)) {
+      if (!s || s === own) continue;
+      s.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true; });
+    }
+  });
 }
 
 /** posiciona câmera e luz do jogador e desenha o quadro (alvo em baixa resolução → passe final) */
@@ -115,6 +166,12 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   } else cam.position.set(P.x, rc.camera.eye_height, P.z);
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
   PL.position.set(P.x, rc.lights.player_height, P.z);
+  aimLantern(ctx.lantern, cam, P.x, P.z);
+  // camada A: pulso de aberração quando a vida do jogador cai; grão e camada C no relógio da simulação
+  if (ctx.fx.lastHp !== null && P.hp < ctx.fx.lastHp) ctx.fx.hitT = G.t;
+  ctx.fx.lastHp = P.hp;
+  tickLayers(G.t, ctx.fx.hitT);
+  ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
   present(ctx);
 }
 
