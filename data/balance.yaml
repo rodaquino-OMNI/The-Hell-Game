@@ -206,12 +206,19 @@ maps:
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
+  default_preset: medium            # GDD-v0.3 §10.2: Médio é o padrão
   presets:
     low:    {internal: [320, 180], layers: [A], shadows: false}
     medium: {internal: [384, 216], layers: [A, B], shadows: true}
     high:   {internal: [480, 270], layers: [A, B, C], shadows: true}
-  ps1: {snap_grid: 128, affine: 1.0, dither: 1.0, color_bits: 5}
+  # GDD-v0.3 §10.1: intensidades de 0 a 1 por efeito (menu de acessibilidade, V8).
+  # snap = vertex snapping na grade de 1/snap_grid da largura da tela; affine = UV sem correção de perspectiva;
+  # gouraud = iluminação por vértice (C-12); dither = Bayer 4×4 + quantização para color_bits por canal.
+  ps1: {snap: 1.0, snap_grid: 128, affine: 1.0, gouraud: 1.0, dither: 1.0, color_bits: 5}
+  tessellate: 2                     # m; GDD-v0.3 §10.1 item 2: chão e paredes subdivididos (limita a distorção afim e dá vértices ao Gouraud)
   fog: {near: 3, far: 30}
+  camera: {near: 0.1, far: 60, eye_height: 1.5}   # prototype/the-hell.html L93 (near/far) e L188 (olho em 1ª pessoa)
+  lights: {ambient: 0.9, player: 1.2, player_decay: 1, player_height: 2.5}   # prototype/the-hell.html L94 e L189 (paridade); × π no código (three.js atual sem unidades físicas)
   player_light_radius: 24
   anim_fps: 12
   shadow_map: 256

@@ -32,6 +32,8 @@ jobs:
         run: pnpm smoke
       - name: Fumaça do protótipo original
         run: pnpm smoke:prototype
+      - name: Capturas de referência do material PS1 (V1)
+        run: node tools/visual/compare.mjs --out "$RUNNER_TEMP/visual"
   secrets:
     name: Varredura de segredos
     runs-on: ubuntu-latest
