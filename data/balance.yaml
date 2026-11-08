@@ -21,6 +21,9 @@ survivor:
   radius: 0.45           # jogador; bots usam 0.5 (protótipo L129, L139 — docs/prototipo-paridade.md P-05)
   bot_radius: 0.5
   height: 1.75
+  # GDD-v0.3 §8.3 ("ferido = 1 se a vida estiver abaixo de 40") e GDD-v0.2 §3.2 ([Proposta] estado Ferido, menos de 40 de vida).
+  # Hoje só liga o clipe `ferido` (Art Bible §7); a IA (R3) e as pegadas luminosas (Art Bible §4) leem o mesmo limiar.
+  wounded_hp: 40
 
 # ---------- 2. Caçador (GDD-v0.2 §2.3, Apêndice A) ----------
 hunter:
@@ -232,6 +235,20 @@ render:
   shadow_map: 256
   budgets: {fps: 60, draw_calls: 150, triangles: 60000, initial_download_mb: 15, map_download_mb: 40, time_to_play_s: 5}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
+  # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
+  states:
+    # feixe do gerador: largura e altura (m); min_px = largura mínima na resolução interna (o feixe distante não vira
+    # tracejado, achado da revisão do V1); snap = intensidade do vertex snapping só no feixe (0: a linha não quebra de longe)
+    beam: {width: 0.25, height: 14, min_px: 1.5, snap: 0}
+    lamp: {size: [0.4, 0.3, 0.4], height: 1.2}       # lâmpada no topo do gerador (mesmo padrão do feixe)
+    pending_hz: 1                                    # pendente: pisca devagar, 1 vez por segundo (aceso metade do ciclo)
+    progress_hz: 2                                   # em progresso: pulsa 2 vezes por segundo
+    progress_pulse: 0.8                              # no pico do pulso a largura do feixe é × (1 + progress_pulse)
+    # bônus: espiral de spiral_steps blocos (lado spiral_block) em spiral_turns voltas de raio spiral_radius, girando a
+    # spiral_hz voltas por segundo, e losango (octaedro de raio diamond) no topo do feixe
+    bonus: {spiral_hz: 0.5, spiral_turns: 3, spiral_steps: 18, spiral_radius: 0.5, spiral_block: 0.18, diamond: 0.45}
+    eyes_flare: [0.7, 0.07]                          # lampejo horizontal nos olhos do caçador durante o preparo (largura, altura em m)
+    lock: {size: 0.5, above: 0.5}                    # cadeado sobre o aliado preso: lado (m) e altura acima da cabeça (m)
 
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------
 audio:

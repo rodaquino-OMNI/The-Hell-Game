@@ -46,6 +46,18 @@ const render = z.object({
   shadow_map: z.number().int().positive(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
+  /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
+  states: z.object({
+    beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
+    lamp: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), height: pos }).strict(),
+    pending_hz: num.positive(), progress_hz: num.positive(), progress_pulse: pos,
+    bonus: z.object({
+      spiral_hz: pos, spiral_turns: num.positive(), spiral_steps: z.number().int().min(2), spiral_radius: num.positive(),
+      spiral_block: num.positive(), diamond: num.positive(),
+    }).strict(),
+    eyes_flare: z.tuple([num.positive(), num.positive()]),
+    lock: z.object({ size: num.positive(), above: pos }).strict(),
+  }).strict(),
 }).strict();
 
 const difficulty = z.object({
@@ -62,6 +74,8 @@ export const BalanceSchema = z.object({
     stamina: z.object({ max: pos, drain: pos, regen: pos, regen_puzzle: pos }).strict(),
     bot: z.object({ walk: pos, flee: pos, puzzle_time: pos }).strict(),
     radius: pos, bot_radius: pos, height: pos,
+    /** GDD-v0.3 §8.3: ferido abaixo desta vida (clipe `ferido`, IA) */
+    wounded_hp: pos,
   }).strict(),
   hunter: z.object({
     hp_base: pos, chase_speed: pos, patrol_speed: pos, final_pressure_speed_mult: pos,

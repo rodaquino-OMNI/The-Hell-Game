@@ -4,11 +4,12 @@
 import * as THREE from "three";
 import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
-import { WORLD_COLORS } from "../look.ts";
+import { skinDef, tok, tokCss, WORLD } from "../look.ts";
 import { createHunterModel, createSurvivorModel } from "./characters/actors.ts";
 import { clientRandom, urlPreset } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
 import { Ps1Material } from "./ps1.ts";
+import { createGenVisual, createLock, type GenVisual } from "./states.ts";
 
 /** contexto de render devolvido por `buildWorld` (substitui os `let` exportados da fase 0) */
 export interface RenderCtx {
@@ -23,8 +24,10 @@ export interface RenderCtx {
 }
 
 const rc = balance.render;
-/** malhas indexadas por chave: s<id>, hunter, lamp<i>, beam<i>, gate, p<id> (projétil), t<id> (armadilha) */
+/** malhas indexadas por chave: s<id>, hunter, lock<id> (cadeado), gate, p<id> (projétil), t<id> (armadilha) */
 export const meshes = new Map<string, THREE.Object3D>();
+/** feixe, lâmpada, espiral e losango de cada gerador (índice de G.gens) */
+export const genVisuals: GenVisual[] = [];
 /** semente das texturas procedurais (fluxo próprio do PRNG do cliente) */
 const TEX_SALT = 1;
 
@@ -58,23 +61,24 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   const presenter = createPresenter(R, canvas, urlPreset);
   const [iw, ih] = rc.presets[presenter.preset].internal;
   const S = new THREE.Scene();
-  S.background = new THREE.Color(WORLD_COLORS.background);
-  S.fog = new THREE.Fog(WORLD_COLORS.background, rc.fog.near, rc.fog.far);
+  // fundo e névoa: world.fog (Art Bible §2: "névoa e fundo a 30 m")
+  S.background = new THREE.Color(tok(WORLD.fog));
+  S.fog = new THREE.Fog(tok(WORLD.fog), rc.fog.near, rc.fog.far);
   const cam = new THREE.PerspectiveCamera(px.camera.fov, iw / ih, rc.camera.near, rc.camera.far);
   cam.rotation.order = "YXZ";
-  S.add(new THREE.AmbientLight(WORLD_COLORS.ambient, rc.lights.ambient * Math.PI));
-  const PL = new THREE.PointLight(WORLD_COLORS.playerLight, rc.lights.player * Math.PI, rc.player_light_radius, rc.lights.player_decay);
+  S.add(new THREE.AmbientLight(tok(WORLD.ambient), rc.lights.ambient * Math.PI));
+  const PL = new THREE.PointLight(tok(WORLD.playerLight), rc.lights.player * Math.PI, rc.player_light_radius, rc.lights.player_decay);
   S.add(PL);
   const rand = clientRandom(TEX_SALT);
   const [w, d] = map.size;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d, seg(w), seg(d)), lambert({ map: tex(rand, WORLD_COLORS.floor, 260, 18, 18) }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d, seg(w), seg(d)), lambert({ map: tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
   floor.rotation.x = -Math.PI / 2; S.add(floor);
   for (const [x, z, ww, wd] of map.walls) {
-    const m = lambert({ map: tex(rand, WORLD_COLORS.wall, 200, Math.max(1, ww / 3), 1) });
+    const m = lambert({ map: tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
     const b = new THREE.Mesh(new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd)), m);
     b.position.set(x, map.wall_height / 2, z); S.add(b);
   }
-  S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: WORLD_COLORS.cage, wireframe: true }), map.cage[0], 1.2, map.cage[1]));
+  S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: tok(WORLD.cage), wireframe: true }), map.cage[0], 1.2, map.cage[1]));
   return { R, S, cam, PL, presenter, info: { calls: 0, triangles: 0 } };
 }
 
@@ -85,20 +89,22 @@ export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
 }
 
-/** geradores, portão e personagens da partida criada; `_skin` (skin equipada) volta com as skins de paleta (V3) */
-export function buildActors(ctx: RenderCtx, G: GameState, _skin: string) {
+/** geradores, portão e personagens da partida criada; `skin` = skin equipada (loja), aplicada ao sobrevivente do jogador */
+export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
   const { S } = ctx;
-  G.gens.forEach((g, i) => {
-    const gr = new THREE.Group();
-    gr.add(box(1.5, 1, 1, lambert({ color: g.bonus ? WORLD_COLORS.bonusBody : WORLD_COLORS.genBody }), 0, 0.5, 0));
-    const lamp = box(0.4, 0.3, 0.4, basic(0xff3333), 0, 1.2, 0); gr.add(lamp);
-    gr.position.set(g.x, 0, g.z); S.add(gr);
-    const beam = box(0.25, 14, 0.25, basic(0xff3333), g.x, 7, g.z); S.add(beam);
-    meshes.set("lamp" + i, lamp); meshes.set("beam" + i, beam);
+  genVisuals.length = 0;
+  G.gens.forEach(g => {
+    S.add(box(1.5, 1, 1, lambert({ color: tok(g.bonus ? WORLD.bonusBody : WORLD.genBody) }), g.x, 0.5, g.z));
+    // feixe e lâmpada com o padrão do estado (states.ts, Art Bible §4)
+    genVisuals.push(createGenVisual(S, g.x, g.z));
   });
-  const gate = box(6, 3, 0.6, basic(WORLD_COLORS.gateClosed), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
-  // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts
-  G.survivors.forEach(s => { const m = createSurvivorModel(s); S.add(m); meshes.set("s" + s.id, m); });
+  const gate = box(6, 3, 0.6, basic(tok(WORLD.gateClosed)), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
+  // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts.
+  // Skin (V3): só o sobrevivente do jogador (id 0) a veste, como no protótipo.
+  G.survivors.forEach(s => {
+    const m = createSurvivorModel(s, s.id === G.survivors[0].id ? skinDef(skin) : undefined); S.add(m); meshes.set("s" + s.id, m);
+    meshes.set("lock" + s.id, createLock(S));
+  });
   const hm = createHunterModel(); S.add(hm); meshes.set("hunter", hm);
 }
 
