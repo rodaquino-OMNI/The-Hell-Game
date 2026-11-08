@@ -8,6 +8,8 @@
 //  5. chave montada em tempo de execução (template com `${}` começando por um prefixo de chave) é proibida,
 //     porque o verificador não consegue conferir;
 //  6. o HTML não tem texto de interface fixo fora de data-i18n (só símbolos, como setas, são aceitos).
+// Literais que são nomes de token da paleta (data/art/palette.json, ex.: "class.mecanico") não são chaves de
+// tradução: a ficha de personagem os usa como cor. Eles só contam como chave se existirem no catálogo.
 import { parse, signature, type ArgKind } from "./icu.ts";
 
 export interface Source { file: string; text: string }
@@ -48,7 +50,7 @@ function sameSet(a: Iterable<string>, b: Iterable<string>) {
   return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
-export function checkCatalogs(catalogs: Record<string, Catalog>, expectedLocales: readonly string[], sources: readonly Source[]): string[] {
+export function checkCatalogs(catalogs: Record<string, Catalog>, expectedLocales: readonly string[], sources: readonly Source[], notKeys: ReadonlySet<string> = new Set()): string[] {
   const errors: string[] = [];
   for (const l of expectedLocales) if (!catalogs[l]) errors.push(`idioma ${l} de ui.locales sem catálogo`);
   for (const l of Object.keys(catalogs)) if (!expectedLocales.includes(l)) errors.push(`catálogo ${l} fora de ui.locales`);
@@ -92,7 +94,7 @@ export function checkCatalogs(catalogs: Record<string, Catalog>, expectedLocales
     errors.push(...r.dynamic);
     if (src.file.endsWith(".html")) for (const txt of hardcodedHtmlText(src.text)) errors.push(`${src.file}: texto fixo fora de data-i18n: "${txt}"`);
   }
-  for (const k of used) if (!(k in base)) errors.push(`chave usada no código e ausente dos catálogos: "${k}"`);
+  for (const k of used) if (!(k in base) && !notKeys.has(k)) errors.push(`chave usada no código e ausente dos catálogos: "${k}"`);
   for (const k of baseKeys) if (!used.has(k)) errors.push(`chave órfã (não usada no código): "${k}"`);
   return errors;
 }

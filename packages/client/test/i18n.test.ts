@@ -96,6 +96,12 @@ describe("verificador (pnpm i18n:check)", () => {
   it("chave usada no código e ausente de todos os catálogos", () => {
     expect(checkCatalogs(cats(), L, [...src, { file: "y.ts", text: `t("a.nova")` }])).toContain('chave usada no código e ausente dos catálogos: "a.nova"');
   });
+  it("nome de token da paleta no mesmo namespace não conta como chave; chave de verdade ausente continua falhando", () => {
+    const extra = { file: "z.ts", text: `const cor = "a.token"; t("a.nova")` };
+    const errs = checkCatalogs(cats(), L, [...src, extra], new Set(["a.token"]));
+    expect(errs).not.toContain('chave usada no código e ausente dos catálogos: "a.token"');
+    expect(errs).toContain('chave usada no código e ausente dos catálogos: "a.nova"');
+  });
 
   it("chave órfã e chave sobrando num idioma", () => {
     const c = cats(); (c.en as Record<string, string>)["a.extra"] = "x";

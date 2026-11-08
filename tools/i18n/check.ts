@@ -28,7 +28,9 @@ walk(join(client, "src"));
 sources.push({ file: "packages/client/index.html", text: readFileSync(join(client, "index.html"), "utf8") });
 
 const { ui } = loadBalanceFile(join(root, "data/balance.yaml"));
-const errors = checkCatalogs(catalogs, ui.locales, sources);
+// nomes de token da paleta não são chaves de tradução (ver regra em packages/client/src/i18n/check.ts)
+const paletteTokens = new Set(Object.keys(JSON.parse(readFileSync(join(root, "data/art/palette.json"), "utf8")).tokens));
+const errors = checkCatalogs(catalogs, ui.locales, sources, paletteTokens);
 const keys = Object.keys(catalogs[ui.locales[0]] ?? {}).length;
 if (errors.length) {
   console.error(`i18n: ${errors.length} problema(s):\n` + errors.map(e => "  - " + e).join("\n"));
