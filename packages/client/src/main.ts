@@ -21,11 +21,14 @@ import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/s
 import { syncActors, syncDynamic } from "./render/sync.ts";
 import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
+import { matchConfig } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
 import { hideMenu, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
 import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
+/** configuração da partida em curso: `cfg` com a dificuldade do menu (ui/difficulty.ts) */
+let mcfg = cfg;
 let ctx: RenderCtx;
 const clock = { acc: 0 };
 let last = 0;
@@ -36,7 +39,8 @@ setupMenu(start);
 
 function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
-  G = createGame(cfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
+  mcfg = matchConfig(cfg);
+  G = createGame(mcfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
   buildActors(ctx, G, save.eq);
   view.yaw = 0;
   resetHud();
@@ -75,7 +79,7 @@ function loop(now: number) {
   // passo fixo em tempo real (GDD-v0.3 §13.3), com os tetos de `client` (loop.ts)
   const { steps, dt } = advanceClock(clock, (now - last) / 1000, STEP, balance.client);
   last = now;
-  for (let i = 0; i < steps && !G.over; i++) step(cfg, G, readInput(G, STEP));
+  for (let i = 0; i < steps && !G.over; i++) step(mcfg, G, readInput(G, STEP));
   // uma só drenagem por quadro: HUD e áudio leem a mesma lista (audioEvents é no-op com audio.director_enabled false)
   const events = drainEvents(G);
   audioEvents(events, G.survivors[0].id);
