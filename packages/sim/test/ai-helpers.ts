@@ -48,5 +48,5 @@ export function seen(id: number, x: number, z: number, o: Partial<SeenSurvivor> 
 
 /** leitura de percepção montada à mão: caçador na origem, sem geradores, sem ruído */
 export function percept(survivors: SeenSurvivor[], o: Partial<Percept> = {}): Percept {
-  return { t: 10, self: { x: 0, z: 0, a: 0 }, survivors, gens: [], gate: { x: 0, z: -29 }, finalPressure: false, heard: null, ...o };
+  return { t: 10, self: { x: 0, z: 0, a: 0 }, survivors, gens: [], gate: { x: 0, z: -29 }, finalPressure: false, heard: null, gone: [], ...o };
 }

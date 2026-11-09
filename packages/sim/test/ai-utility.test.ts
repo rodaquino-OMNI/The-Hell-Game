@@ -2,8 +2,9 @@
 // Aceite: 10 cenários fixos escolhem o alvo esperado; troca não alterna de alvo mais de 1 vez por segundo.
 // Cenários na dificuldade Normal (raio de detecção 11 m), caçador na origem.
 import { describe, expect, it } from "vitest";
-import { chooseTarget, newHunterAi, think, utilityScore, utilityTerms, type SeenSurvivor } from "../src/index.ts";
-import { b, normal, percept, seen } from "./ai-helpers.ts";
+import { chooseTarget, CLASSES, createGame, makeConfig, newHunterAi, NO_INPUT, STEP, step, think, utilityScore, utilityTerms, type SeenSurvivor } from "../src/index.ts";
+import { b, map, normal, percept, seen } from "./ai-helpers.ts";
+import { withMapFlags } from "./helpers.ts";
 
 const w = b.ai.target_weights, R = normal.detectRadius;
 const pick = (all: SeenSurvivor[], current = -1, o = {}) => chooseTarget(normal, percept(all, o), all, current)!;
@@ -17,6 +18,7 @@ describe("dados do §8.3", () => {
     expect(b.ai.isolated_radius).toBe(8);
     expect(b.ai.protected_radius).toBe(4);
     expect(b.survivor.wounded_hp).toBe(40);
+    expect(b.ai.protected_hold).toBe(1); // D-52 (LACUNA): 1 s = o aceite do §8.3
   });
   it("termos conforme as definições do §8.3", () => {
     const a = seen(0, 0, 5.5, { hp: 39 }), c = seen(1, 0, 8.5, { cls: "Atacador" });
@@ -109,4 +111,80 @@ describe("troca de alvo não alterna mais de 1 vez por segundo (aceite §8.3)", 
     expect(switches).toBeLessThanOrEqual(secs);
     expect(switches).toBe(0);
   });
+});
+
+// Correção do aceite do §8.3 com a D-35 (alvo lembrado segura a histerese) e D-52 (histerese do "protegido").
+describe("aceite §8.3 com alvo lembrado (D-35) e protegido com histerese (D-52)", () => {
+  const hz = b.ai.decision_hz;
+  /** roda `think` numa linha do tempo de leituras; devolve as trocas de alvo perseguido (visto ou lembrado) */
+  function run(frames: (t: number) => SeenSurvivor[], secs: number) {
+    const ai = newHunterAi(), H = { atk: 1e9, dash: 1e9, projectile: 1e9, trap: 1e9, dashing: 0, windup: null } as never;
+    const pursued: { t: number; id: number }[] = [];
+    let last = -1;
+    for (let k = 0; k <= secs * hz; k++) {
+      const t = k / hz;
+      think(normal, H, ai, percept(frames(t), { t }), { seed: 1 });
+      const now = ai.target >= 0 ? ai.target : ai.memory && ai.memory.until > t ? ai.memory.id : -1;
+      if (now >= 0 && now !== last) { pursued.push({ t, id: now }); last = now; }
+    }
+    return { ai, pursued };
+  }
+  /** no máximo 1 troca por segundo e nenhuma volta ao alvo anterior em menos de 1 s */
+  function expectAcceptance(pursued: { t: number; id: number }[]) {
+    for (let i = 2; i < pursued.length; i++) expect(pursued[i].t - pursued[i - 1].t).toBeGreaterThanOrEqual(1 - 1e-9);
+    for (let i = 2; i < pursued.length; i++) if (pursued[i].id === pursued[i - 2].id) expect(pursued[i].t - pursued[i - 1].t).toBeGreaterThanOrEqual(1 - 1e-9);
+  }
+
+  it("alvo sai do cone e outro aparece: segue o lembrado e não troca (antes trocava e voltava em < 1 s)", () => {
+    // A a 3 m (0,255 + isolado 0,15 = 0,405) até 2 s; some de 2 a 2,6 s (atrás do pilar) e volta. B aparece a 4 m em
+    // 2 s (0,223 + 0,15 = 0,373): sem a correção virava o alvo assim que passasse o tempo de reação e perdia para A
+    // na volta. Diferença menor que a margem: o caçador segue A pela memória.
+    const A = seen(0, 3, 0), B = seen(1, -4, 0);
+    const { ai, pursued } = run(t => (t < 2 || t >= 2.6 ? [A] : []).concat(t >= 2 ? [B] : []), 4);
+    expect(pursued.map(x => x.id)).toEqual([0]);
+    expect(ai.target).toBe(0);
+    expect(ai.mode).toBe("chase");
+    expectAcceptance(pursued);
+  });
+  it("alvo lembrado cede a quem supera o último placar dele pela margem", () => {
+    // B ferido a 2 m (0,286 + 0,20 + 0,15 = 0,636) contra o último placar de A (0,405): troca uma vez, sem voltar
+    const A = seen(0, 3, 0), B = seen(1, -2, 0, { hp: 20 });
+    const { pursued } = run(t => (t < 2 || t >= 2.6 ? [A] : []).concat(t >= 2 ? [B] : []), 4);
+    expect(pursued.map(x => x.id)).toEqual([0, 1]);
+    expectAcceptance(pursued);
+  });
+  it("Atacador passa 0,5 s ao lado do alvo: o protegido não liga e o caçador não troca", () => {
+    // A a 3 m é o alvo; B a 5 m do outro lado; Atacador C encosta em A (2 m) de 3 s a 3,5 s e se afasta para longe
+    const A = seen(0, 3, 0), B = seen(1, -5, 0), far = seen(2, 0, 9, { cls: "Atacador" }), near = seen(2, 3, 2, { cls: "Atacador" });
+    const { pursued } = run(t => [A, B, t >= 3 && t < 3.5 ? near : far], 6);
+    expect(pursued.map(x => x.id)).toEqual([0]);
+    expectAcceptance(pursued);
+  });
+  it("Atacador fica ao lado do alvo: troca 1 vez depois de ai.protected_hold e não volta em menos de 1 s", () => {
+    // C ao lado de A de 3 s a 5 s: o protegido liga em 4 s (−0,25 > margem) e o caçador troca para B; C sai em 5 s e
+    // o protegido só desliga em 6 s
+    const A = seen(0, 3, 0), B = seen(1, -3.5, 0), far = seen(2, 0, 9, { cls: "Atacador" }), near = seen(2, 3, 2, { cls: "Atacador" });
+    const { pursued } = run(t => [A, B, t >= 3 && t < 5 ? near : far], 8);
+    expect(pursued[0].id).toBe(0);
+    expect(pursued[1]).toEqual({ id: 1, t: expect.closeTo(3 + b.ai.protected_hold, 6) });
+    expectAcceptance(pursued);
+  });
+  it("partidas reais do Difícil com pilares (5 sementes): nenhuma volta ao alvo anterior em menos de 1 s", () => {
+    const c0 = makeConfig(withMapFlags(b, { fifth_generator: true, short_loop_pillars: true, side_exit: true }), map, { ruleset: "v1", hunterBrain: "utility", botBrain: "competent", difficulty: "hard" });
+    let switches = 0;
+    for (let seed = 1; seed <= 5; seed++) {
+      const ev: { t: number; target: number; from: number }[] = [];
+      const c = { ...c0, traceTarget: (e: { t: number; target: number; from: number }) => { ev.push(e); } };
+      const g = createGame(c, CLASSES[seed % CLASSES.length], seed);
+      g.survivors[0].bot = true;
+      for (let i = 0; i < Math.ceil(b.match.hard_time_limit / STEP) && !g.over; i++) { step(c, g, NO_INPUT); g.events.length = 0; }
+      switches += ev.length;
+      // volta = o alvo anterior ao último reaparece; reconstruído pela sequência de trocas (não depende de `from`, que
+      // não existia antes da correção: em main o teste reprova)
+      for (let i = 2; i < ev.length; i++) {
+        if (ev[i].target === ev[i - 2].target) expect(ev[i].t - ev[i - 1].t, `semente ${seed}`).toBeGreaterThanOrEqual(1 - 1e-9);
+      }
+    }
+    expect(switches).toBeGreaterThan(0); // o gancho dispara (o teste não passa por vazio)
+  }, 60_000);
 });
