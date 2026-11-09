@@ -123,18 +123,37 @@ describe("memória da última posição (ai.by_difficulty.*.memory) e audição 
     expect(ai.mode).toBe("patrol");
   });
   it("D-35: perseguindo pela memória, ao chegar à última posição projeta a fuga (ai.chase_projection)", () => {
-    const m = { id: 0, x: -8, z: 22, until: 100, vx: 0, vz: 4 };
-    chaseMemoryGoal(normal, { x: -8, z: 16 }, m); // ainda longe: nada muda
+    const rng = { seed: 5 };
+    const m = { id: 0, x: -8, z: 22, until: 100, vx: 0, vz: 4, ax: -8, az: 22 };
+    chaseMemoryGoal(normal, rng, { x: -8, z: 16 }, m); // ainda longe: nada muda
     expect(m).toMatchObject({ x: -8, z: 22 });
-    chaseMemoryGoal(normal, { x: -8, z: 21 }, m); // chegou: projeta 6 m na direção da última velocidade
+    chaseMemoryGoal(normal, rng, { x: -8, z: 21 }, m); // chegou: projeta 6 m na direção da última velocidade
     expect(m.x).toBeCloseTo(-8, 0);
     expect(m.z).toBeCloseTo(22 + b.ai.chase_projection, 0);
-    const still = { id: 0, x: -8, z: 22, until: 100, vx: 0, vz: 0 };
-    chaseMemoryGoal(normal, { x: -8, z: 22 }, still); // alvo parado: fica no ponto
-    expect(still).toMatchObject({ x: -8, z: 22 });
-    const wall = { id: 0, x: -8, z: 29.4, until: 100, vx: 0, vz: 4 };
-    chaseMemoryGoal(normal, { x: -8, z: 29 }, wall); // parede à frente: a projeção não avança
-    expect(wall.z).toBeCloseTo(29.4, 6);
+    expect(m).toMatchObject({ ax: m.x, az: m.z });
+  });
+  it("D-35 (revisão M2): sem projeção possível (alvo parado ou parede à frente) vasculha em volta, não fica parado", () => {
+    const rng = { seed: 5 };
+    const still = { id: 0, x: -8, z: 22, until: 100, vx: 0, vz: 0, ax: -8, az: 22 };
+    chaseMemoryGoal(normal, rng, { x: -8, z: 22 }, still);
+    expect(dist(still, { x: -8, z: 22 })).toBeGreaterThan(b.ai.patrol_reach); // próximo ponto de vasculha
+    expect(dist(still, { x: still.ax, z: still.az })).toBeLessThanOrEqual(b.ai.search_radius + b.nav.fallback_grid);
+    const wall = { id: 0, x: -8, z: 29.4, until: 100, vx: 0, vz: 4, ax: -8, az: 29.4 };
+    chaseMemoryGoal(normal, rng, { x: -8, z: 29 }, wall); // parede à frente: a projeção acaba e vira vasculha
+    expect(wall.vz).toBe(0);
+    expect(wall.z).toBeLessThan(29.4);
+    expect(dist(wall, { x: -8, z: 29.4 })).toBeLessThanOrEqual(b.ai.search_radius + b.nav.fallback_grid);
+    // na partida: o caçador que persegue pela memória um alvo parado atrás da parede segue andando até ela expirar
+    const g = aiGame(aiCfg("hard"), { x: -8, z: 16 }, Math.PI), P = g.survivors[0];
+    P.x = -8; P.z = 23; g.hunter.ai!.patrol = { x: -8, z: 29, gen: -1 };
+    play(aiCfg("hard"), g, 0.5);
+    P.x = 25; P.z = -25;
+    const path: number[] = [];
+    for (let i = 0; i < 60 * (b.ai.by_difficulty.hard.memory - 1) && g.hunter.ai!.mode === "chase"; i++) {
+      const x = g.hunter.x, z = g.hunter.z; play(aiCfg("hard"), g, 1 / 60); path.push(Math.hypot(g.hunter.x - x, g.hunter.z - z));
+    }
+    const lastSecond = path.slice(-60).reduce((a, c) => a + c, 0);
+    expect(lastSecond).toBeGreaterThan(1); // andou no último segundo da perseguição pela memória
   });
   it("ruído no raio vira investigação depois do tempo de reação; fora do raio, nada", () => {
     const g = aiGame(normal, { x: -8, z: 16.5 }, 0); // de costas para o jogador

@@ -10,7 +10,7 @@ import {
 } from "../src/ai/bots.ts";
 import { loopAt } from "../src/ai/hunter.ts";
 import {
-  attack, chaseEpisodes, createGame, hit, lineOfSight, makeConfig, playHeadless, step, NO_INPUT, type GameState,
+  attack, chaseEpisodes, createGame, scaledPoints, hit, lineOfSight, makeConfig, playHeadless, step, NO_INPUT, type GameState,
   type SimConfig, type Survivor, type Vec,
 } from "../src/index.ts";
 import { b, map } from "./ai-helpers.ts";
@@ -113,18 +113,11 @@ describe("personalidade sorteada pelo PRNG da partida", () => {
     for (let k = 0; k < 60; k++) seen.add(newBotAi(cfg, { seed: k }, s).personality);
     expect([...seen].sort()).toEqual(Object.keys(b.ai.bots.personalities).sort());
   });
-  it("na partida: depende da semente; com bot_brain prototype o PRNG da partida não é tocado", () => {
+  it("na partida: depende da semente (o hash de referência do v1 com bots do protótipo fica em rules-v1)", () => {
     const pers = (seed: number) => { const g = game(cfg, seed); step(cfg, g, NO_INPUT); return g.survivors.map(s => s.ai!.personality).join(); };
     expect(pers(7)).toBe(pers(7));
     const all = new Set(Array.from({ length: 20 }, (_, i) => pers(i + 1)));
     expect(all.size).toBeGreaterThan(3);
-    // mesmo jogo sem bots competentes: o estado do PRNG não depende de ai.bot_brain existir nos dados
-    const proto = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility", botBrain: "prototype" });
-    const dflt = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility" });
-    const a = createGame(proto, "Curandeiro", 7), c2 = createGame(dflt, "Curandeiro", 7);
-    for (let i = 0; i < 600; i++) { step(proto, a, NO_INPUT); step(dflt, c2, NO_INPUT); }
-    expect(a.seed).toBe(c2.seed);
-    expect(a.survivors.some(s => s.ai)).toBe(false);
   });
 });
 
@@ -482,6 +475,40 @@ describe("determinismo e simulador", () => {
     expect(r.stuck.failAt).toBeNull();
     expect(r.team).not.toBeNull();
     for (const d of r.chases) expect(d).toBeGreaterThan(0);
+  });
+  it("revisão qa A-1: dois sobreviventes concluindo o mesmo resgate no mesmo passo → um crédito e uma soltura", () => {
+    for (const pair of [[0, 1], [1, 0]] as const) { // jogador + bot e bot + bot (com o 0 como bot)
+      const g = game(), cage = g.arena.cage, caged = g.survivors[2];
+      if (pair[0] === 1) g.survivors[0].bot = false; // primeiro caso: o 0 é o jogador humano
+      hit(cfg, g, caged, 200);
+      const [p, q] = [g.survivors[0], g.survivors[1]];
+      for (const s of [p, q]) { s.x = caged.x + 1; s.z = caged.z; s.rescue = b.cage.rescue_time - 0.5 / 60; }
+      q.ai = newBotAi(cfg, { seed: 3 }, q); q.ai.personality = "altruist"; q.ai.mode = "rescue"; q.ai.rescueId = 2;
+      q.ai.decideIn = 1; q.ai.perceiveIn = 1;
+      if (p.bot) { p.ai = newBotAi(cfg, { seed: 4 }, p); p.ai.personality = "altruist"; p.ai.mode = "rescue"; p.ai.rescueId = 2; p.ai.decideIn = 1; p.ai.perceiveIn = 1; }
+      g.hunter.x = 25; g.hunter.z = -25; g.hunter.stun = 1e9;
+      const before = p.score.altruism + q.score.altruism;
+      step(cfg, g, { ...NO_INPUT, interactHeld: true });
+      const rescued = g.events.filter(e => e.type === "msg" && e.key === "rescued").length;
+      expect(caged.st).toBe("ok");
+      expect(rescued).toBe(1);
+      expect(p.score.altruism + q.score.altruism - before).toBe(scaledPoints(cfg, b.points.events.rescue.value));
+      expect(Math.abs(caged.z - (cage.z + b.prototype_extras.rescued_offset))).toBeLessThan(0.1); // solto ao lado da gaiola (pode já ter andado)
+    }
+  });
+  it("métrica do §8.5 (revisão M1): trocar de alvo dentro da perseguição encerra o episódio", () => {
+    const tr = [
+      { t: 1, from: "patrol", to: "chase" }, { t: 20, from: "chase", to: "attack" }, { t: 20.4, from: "attack", to: "recoil" },
+      { t: 21, from: "recoil", to: "cage" },
+    ];
+    expect(chaseEpisodes(tr)).toEqual([19.4]);
+    expect(chaseEpisodes(tr, [{ t: 12 }])[0]).toBeCloseTo(8.4, 9); // trocou de alvo em t = 12
+    expect(chaseEpisodes([{ t: 1, from: "patrol", to: "chase" }, { t: 5, from: "chase", to: "investigate" }], [{ t: 3 }])).toEqual([]);
+    // o gancho traceTarget dispara na partida e playHeadless o usa
+    const g = game(cfg, 9), seen: number[] = [];
+    const c = { ...cfg, traceTarget: (e: { t: number; target: number }) => { seen.push(e.target); } };
+    for (let i = 0; i < 60 * 240 && !g.over; i++) step(c, g, NO_INPUT);
+    expect(seen.every(id => id >= 0 && id < g.survivors.length)).toBe(true);
   });
   it("métrica do §8.5 (D-35): com o caçador seguindo pela memória, o episódio sobrevive à perda de linha de visão", () => {
     // chaseEpisodes conta chase/attack/recoil contínuos até cage; com a D-35 o chase cobre o alvo visto ou lembrado

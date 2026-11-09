@@ -179,6 +179,8 @@ export interface HunterAi {
     id: number; x: number; z: number; until: number;
     /** velocidade percebida na última leitura (direção de fuga projetada ao chegar à última posição, D-35) */
     vx: number; vz: number;
+    /** centro da vasculha quando não há projeção possível (última posição vista ou o fim da projeção) */
+    ax: number; az: number;
   } | null;
   /** ponto investigado e prazo; `spot` = ponto atual da vasculha em volta dele */
   investigate: { x: number; z: number; until: number; spot: Vec | null } | null;

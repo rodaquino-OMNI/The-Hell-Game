@@ -207,7 +207,7 @@ describe("eventos do caçador (v1)", () => {
     expect(chasedTarget(g)).toBe(-1);
     ai.mode = "chase"; ai.target = 2; expect(chasedTarget(g)).toBe(2);
     ai.mode = "attack"; expect(chasedTarget(g)).toBe(2);
-    ai.mode = "recoil"; ai.target = -1; ai.memory = { id: 1, x: 0, z: 0, until: 9, vx: 0, vz: 0 }; expect(chasedTarget(g)).toBe(1);
+    ai.mode = "recoil"; ai.target = -1; ai.memory = { id: 1, x: 0, z: 0, until: 9, vx: 0, vz: 0, ax: 0, az: 0 }; expect(chasedTarget(g)).toBe(1);
     ai.memory = null; expect(chasedTarget(g)).toBe(-1);
     ai.mode = "investigate"; ai.target = 2; expect(chasedTarget(g)).toBe(-1);
   });

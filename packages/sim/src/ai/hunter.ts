@@ -210,12 +210,18 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   const ready = (id: number) => t - ai.noticed.find(n => n.id === id)!.at + EPS >= lvl.reaction;
   const candidates = p.survivors.filter(s => !s.antiTunnel && ready(s.id));
   const choice = chooseTarget(cfg, p, candidates, ai.target);
+  // alvo perseguido (visto ou lembrado) antes desta decisão: a troca dentro da perseguição encerra o episódio na
+  // métrica do §8.5 (gancho `traceTarget`, só observação)
+  const pursuedBefore = ai.target >= 0 ? ai.target : ai.memory && ai.memory.until > t ? ai.memory.id : -1;
   if (choice) {
     if (choice.id !== ai.target) ai.switchedAt = t;
     ai.target = choice.id; ai.score = choice.score;
   } else { ai.target = -1; ai.score = 0; ai.loop = null; ai.intercept = null; }
   const tgt = choice ? p.survivors.find(s => s.id === choice.id)! : null;
-  if (tgt) ai.memory = { id: tgt.id, x: tgt.x, z: tgt.z, until: t + lvl.memory, vx: tgt.vx, vz: tgt.vz };
+  if (tgt) ai.memory = { id: tgt.id, x: tgt.x, z: tgt.z, until: t + lvl.memory, vx: tgt.vx, vz: tgt.vz, ax: tgt.x, az: tgt.z };
+  if (tgt && pursuedBefore >= 0 && tgt.id !== pursuedBefore && (ai.mode === "chase" || ai.mode === "attack" || ai.mode === "recoil")) {
+    cfg.traceTarget?.({ t, target: tgt.id });
+  }
 
   // audição (§8.1): investiga a posição do som depois do tempo de reação
   let heard: { x: number; z: number; until: number } | null = null;
@@ -239,12 +245,13 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   } else if (ai.mode === "chase") {
     // D-35 (§8.1 memória, §8.2): sem o alvo à vista, segue em Perseguir enquanto a memória vale (indo à última
     // posição conhecida e projetando a fuga, ver `chaseMemoryGoal`); Investigar só quando a memória expira, em volta
-    // do último ponto, por `ai.hearing_investigate_time`
+    // do último ponto, por `ai.memory_investigate_time`. LACUNA: ruído ouvido enquanto persegue pela memória é ignorado
+    // (o caçador não sabe quem o fez; seguir o ruído trocaria de alvo sem vê-lo)
     const m = ai.memory;
     if (!m) setMode(cfg, t, ai, "patrol");
     else if (m.until <= t) {
       setMode(cfg, t, ai, "investigate");
-      ai.investigate = { x: m.x, z: m.z, until: t + b.ai.hearing_investigate_time, spot: null };
+      ai.investigate = { x: m.x, z: m.z, until: t + b.ai.memory_investigate_time, spot: null };
     }
   } else if (heard && heard.until > t) {
     if (ai.mode === "patrol") setMode(cfg, t, ai, "investigate");
@@ -336,7 +343,7 @@ export function updateHunterAi(cfg: SimConfig, g: GameState, dt: number, fx: Hun
 
   const seen = ai.percept?.survivors.find(s => s.id === ai.target) ?? null;
   let goal: Vec | null = null, stopAt = 0;
-  if (ai.mode === "chase" && !seen && ai.memory) chaseMemoryGoal(cfg, H, ai.memory);
+  if (ai.mode === "chase" && !seen && ai.memory) chaseMemoryGoal(cfg, g, H, ai.memory);
   if (ai.mode === "chase" || ai.mode === "attack") {
     goal = ai.intercept ?? (seen ? { x: seen.x, z: seen.z } : ai.memory ? { x: ai.memory.x, z: ai.memory.z } : null);
     stopAt = ai.intercept ? 0 : h.radius + b.survivor.radius;
@@ -375,16 +382,20 @@ export function updateHunterAi(cfg: SimConfig, g: GameState, dt: number, fx: Hun
 
 /**
  * Perseguir só pela memória (D-35): ao chegar à última posição conhecida, projeta a direção de fuga com a última
- * velocidade percebida, `ai.chase_projection` metros à frente (ponto navegável mais próximo). Repete a cada chegada;
- * sem velocidade ou sem avanço (parede), fica no ponto até a memória expirar.
+ * velocidade percebida, `ai.chase_projection` metros à frente (ponto navegável mais próximo). Repete a cada chegada.
+ * Sem projeção possível (alvo parado ou parede à frente), vasculha em volta do último ponto (`searchSpot`, até
+ * `ai.search_radius`) até a memória expirar, em vez de ficar parado.
  */
-export function chaseMemoryGoal(cfg: SimConfig, H: Vec, m: NonNullable<HunterAi["memory"]>) {
+export function chaseMemoryGoal(cfg: SimConfig, rng: { seed: number }, H: Vec, m: NonNullable<HunterAi["memory"]>) {
   const b = cfg.balance;
   if (dist(H, m) > b.ai.patrol_reach) return;
   const k = Math.hypot(m.vx, m.vz);
-  if (k < b.ai.static_target_speed) return;
-  const q = project(cfg, { x: m.x + (m.vx / k) * b.ai.chase_projection, z: m.z + (m.vz / k) * b.ai.chase_projection });
-  if (dist(q, m) <= b.nav.fallback_grid) return;
+  if (k >= b.ai.static_target_speed) {
+    const q = project(cfg, { x: m.x + (m.vx / k) * b.ai.chase_projection, z: m.z + (m.vz / k) * b.ai.chase_projection });
+    if (dist(q, m) > b.nav.fallback_grid) { m.x = q.x; m.z = q.z; m.ax = q.x; m.az = q.z; return; }
+    m.vx = 0; m.vz = 0; // parede à frente: a projeção acabou, passa a vasculhar
+  }
+  const q = searchSpot(cfg, rng, { x: m.ax, z: m.az }, H);
   m.x = q.x; m.z = q.z;
 }
 

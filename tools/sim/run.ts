@@ -120,7 +120,7 @@ if (!isMainThread) {
   const shown = argv.filter(a => !/^--(json=|md=|workers=|write-baseline$)/.test(a)).join(" ");
   const meta = {
     command: ({ "--check": "pnpm sim:check", "--nightly": "pnpm sim:nightly" } as Record<string, string>)[shown] ?? `pnpm sim ${shown}`.trim(),
-    ruleset: "v1", hunter_brain: "utility", bot_brain: "prototype (updateBot de game.ts)", nav,
+    ruleset: "v1", hunter_brain: "utility", bot_brain: botBrain ?? balance.ai.bot_brain, nav,
     maps, difficulties: diffs, matches_per_group: n, seeds: `${seed0}..${seed0 + n - 1} em todos os grupos`,
     short_match_seconds: sim.short_match_seconds,
   };

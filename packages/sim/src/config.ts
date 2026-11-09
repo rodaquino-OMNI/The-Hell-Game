@@ -39,12 +39,18 @@ export interface SimConfig {
   /** parâmetros da IA na dificuldade (GDD-v0.3 §8.4) */
   aiLevel: AiDifficulty;
   /**
-   * grade A* de reserva do mapa (`nav.fallback_grid`, raio do caçador = `survivor.bot_radius`): projeção de pontos e
-   * linha livre. Só com a IA do caçador ou com os bots competentes.
+   * grade A* de reserva do mapa (`nav.fallback_grid`, o maior raio entre `hunter.radius` e `survivor.bot_radius`, a
+   * grade é comum ao caçador e aos bots): projeção de pontos e linha livre. Só com a IA do caçador ou com os bots
+   * competentes.
    */
   grid: GridNav | null;
   /** consulta de caminho da IA: o navmesh injetado (RecastNav) ou a própria grade. Não é serializável e não entra no estado. */
   nav: NavQuery | null;
+  /**
+   * gancho opcional: o caçador trocou de alvo perseguido (visto ou lembrado) sem sair da perseguição. Só observa; o
+   * simulador encerra aí o episódio de perseguição (métrica do §8.5)
+   */
+  traceTarget?: (e: { t: number; target: number }) => void;
   /** gancho opcional chamado a cada transição de estado do caçador (simulador, testes) */
   trace?: (e: AiTrace) => void;
 }

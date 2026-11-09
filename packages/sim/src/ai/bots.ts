@@ -336,6 +336,8 @@ function actBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, dt: number
     case "escape": goal = { x: g.arena.gate.x, z: g.arena.gate.z }; break;
     case "rescue": {
       const c = g.survivors[ai.rescueId];
+      // já solto (por outro sobrevivente neste passo) ou morto: larga o resgate; a próxima decisão escolhe outro modo
+      if (c.st !== "cage") { s.rescue = 0; ai.rescueId = -1; setBotMode(ai, "wait"); idle(ai); return; }
       if (dist(s, c) < b.cage.rescue_range) {
         s.rescue += dt;
         ai.busy = true; s.a = Math.atan2(-(c.x - s.x), -(c.z - s.z));

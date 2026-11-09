@@ -42,6 +42,7 @@ describe("D-36: telegraph ≥ hunter.telegraph_min em toda habilidade do caçado
           step(c, g, NO_INPUT);
           const w = g.hunter.windup;
           if (w?.kind === kind) { visible++; if (appear < 0) appear = i; }
+          if (appear < 0) expect(effect(g), "efeito antes do preparo").toBe(false);
           if (appear >= 0 && effect(g)) release = i;
         }
         expect(appear, "o preparo apareceu").toBeGreaterThanOrEqual(0);

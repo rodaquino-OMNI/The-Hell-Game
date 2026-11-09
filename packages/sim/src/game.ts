@@ -302,6 +302,8 @@ function kill(cfg: SimConfig, g: GameState, s: Survivor) { s.st = "dead"; msg(g,
 
 function free(cfg: SimConfig, g: GameState, c: Survivor, by: Survivor) {
   const b = cfg.balance;
+  // dois sobreviventes podem concluir o mesmo resgate no mesmo passo: só o primeiro solta e pontua
+  if (c.st !== "cage") return;
   if (cfg.v1) credit(cfg, g, by, "rescue");
   c.st = "ok";
   c.hp = b.cage.rescue_hp;
