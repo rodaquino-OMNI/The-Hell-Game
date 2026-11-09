@@ -41,7 +41,7 @@ Depois de cada marco: resumo de 1 página ao Rodrigo (o que entrou, métricas, l
 3. **Paridade preservada.** A suíte `packages/sim/test/parity.test.ts` roda com `ruleset: prototype` e continua verde até o fim da fase 1. Regras novas entram atrás de `ruleset: v1`, com suíte própria. O padrão em `data/balance.yaml` só muda para `v1` no marco MJ-B.
 4. **Sem gore, sem caixas de loot, nada pago com vantagem.** Fora de escopo: qualquer coisa fora do GDD (Steam, mobile nativo, voz, chat livre).
 5. **Assets só CC0 ou de licença aberta compatível**, com licença conferida na página de origem e registrada linha a linha em `packages/client/public/media/creditos.csv` (criar no padrão de `cacada-sombria-V2/public/media/creditos.csv`). Nada de imagem ou som de jogo comercial.
-6. **Versões de dependência com pelo menos 2 semanas de publicação**, fixadas sem faixa. Ações do GitHub fixadas por tag de versão completa.
+6. **Versões de dependência com pelo menos 2 semanas de publicação**, fixadas sem faixa. Ações do GitHub fixadas por SHA completo do commit com comentário `# vX.Y.Z (data)`; o Dependabot atualiza SHA e comentário.
 7. **Fonte para toda afirmação** (arquivo e seção, arquivo e linha, ou URL oficial). Sem fonte = LACUNA.
 8. **Fluxo:** um item da WBS por branch curto e PR; Conventional Commits em português; PR revisado por um agente diferente do autor; merge pelo orquestrador **só com CI verde no commit atual**; nunca pular, desligar ou pôr em quarentena teste; nunca force-push em branch alheio.
 9. **Portões humanos:** marcos de arte A2 e A3 pelo filho (issue com capturas e perguntas objetivas); deploy de produção pelo Rodrigo; decisões novas ao Rodrigo em múltipla escolha, agrupadas.
