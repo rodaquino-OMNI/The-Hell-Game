@@ -53,6 +53,8 @@ jobs:
         run: node tools/audio/e2e.mjs
       - name: "Áudio: stems decodificados no Chromium com comprimento exato e loop sem estalo (A-3)"
         run: node tools/audio/check-loop.mjs
+      - name: "Áudio: diretor no laço real (stems sob demanda, música, telegraph no quadro do visual, legenda)"
+        run: node tools/audio/e2e-director.mjs
       - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
         run: pnpm a11y
       - name: Fumaça do protótipo original
