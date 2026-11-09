@@ -57,9 +57,9 @@ export interface SimConfig {
   nav: NavQuery | null;
   /**
    * gancho opcional: o caçador trocou de alvo perseguido (visto ou lembrado) sem sair da perseguição. Só observa; o
-   * simulador encerra aí o episódio de perseguição (métrica do §8.5)
+   * simulador encerra aí o episódio de perseguição (métrica do §8.5). `from` = alvo perseguido antes da troca
    */
-  traceTarget?: (e: { t: number; target: number }) => void;
+  traceTarget?: (e: { t: number; target: number; from: number }) => void;
   /** gancho opcional chamado a cada transição de estado do caçador (simulador, testes) */
   trace?: (e: AiTrace) => void;
 }

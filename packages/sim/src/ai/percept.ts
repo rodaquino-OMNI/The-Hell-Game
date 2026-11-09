@@ -36,5 +36,6 @@ export function perceive(cfg: SimConfig, g: GameState, prev: Percept | null): Pe
     gate: { x: g.arena.gate.x, z: g.arena.gate.z },
     finalPressure: g.gateStarted,
     heard: H.ai?.heard ? { ...H.ai.heard } : null,
+    gone: g.survivors.filter(s => s.st !== "ok").map(s => s.id),
   };
 }
