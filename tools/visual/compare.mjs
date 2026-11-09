@@ -51,6 +51,10 @@ const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/ba
 
 /** semente fixa das capturas (partida e texturas procedurais) */
 const SEED = 1234;
+// As referências foram capturadas no layout 0 com `ruleset: prototype` (padrão dos dados até o marco MJ-B). Desde o
+// MJ-B o padrão é v1 (layout pela semente, IA do caçador): a captura fixa o protótipo pela via que o cliente já
+// oferece (`?ruleset=`, só com `?debug=1`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
+const RULES = "ruleset=prototype";
 /** vista das capturas: 3ª pessoa, olhando a jaula, um muro próximo, dois aliados e três feixes */
 const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };
 /**
@@ -171,7 +175,7 @@ async function openGame(browser, preset, viewport) {
   // idênticas às referências
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
-  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
   await page.click("#go");
   // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
   await page.evaluate(() => window.__thehellCharactersReady?.());
@@ -429,7 +433,7 @@ try {
   if (shotsDir) {
     mkdirSync(shotsDir, { recursive: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
-    await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}`, { waitUntil: "load" });
     await page.click("#go");
     await page.waitForTimeout(1500);
     for (const [name, v] of [["ligado", 1], ["desligado", 0]]) {
@@ -446,7 +450,7 @@ try {
       const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
       await p.clock.install({ time: 0 });
       await p.clock.pauseAt(1000);
-      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
+      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
       await p.click("#go");
       await p.evaluate(() => window.__thehellCharactersReady?.());
       for (const [suffix, damage] of [["", 0], ["-dano", 1]]) {
