@@ -8,7 +8,7 @@
 //  - armadilhas: o máximo que uma partida acumula (match.hard_time_limit / menor difficulty_table.*.trap_interval);
 //    projéteis: o máximo simultâneo (prototype_extras.projectile_life / hunter.projectile.cooldown);
 //  - vistas (render.stress): varredura de `sweep` rumos de cima (mapa inteiro no frustum, lanterna no rumo), em 3ª e
-//    em 1ª pessoa (a ferramenta do modo Retro FPS na mão, com `?retro=1`). As camadas são as do preset.
+//    em 1ª pessoa (a ferramenta do modo Retro FPS na mão, com o modo ligado: `?debug=1&retro=1` ou a opção do menu). As camadas são as do preset.
 // tools/perf/budget.mjs mede `renderer.info` em todas as vistas e vale o máximo.
 import type * as THREE from "three";
 import { insideWall, type GameState, type Survivor } from "@thehell/sim";
@@ -17,6 +17,7 @@ import { SURVIVOR_MODEL } from "./characters/actors.ts";
 import { charactersReady, createCharacter } from "./characters/runtime.ts";
 import { RETRO_CLASSES } from "./options.ts";
 import { drawFrame, meshes, placeCamera, type RenderCtx } from "./scene.ts";
+import { setHunterOutlineRetroView } from "./ps1.ts";
 import { createLock } from "./states.ts";
 import { syncActors, syncDynamic } from "./sync.ts";
 
@@ -129,6 +130,8 @@ export function renderStress(ctx: RenderCtx, sc: StressScene, i: number, everyFr
   syncDynamic(ctx, G);
   // câmera e lanterna da vista em 3ª pessoa no rumo; a vista de cima depois só troca a câmera
   placeCamera(ctx, G, { yaw, pitch: 0, thirdPerson: !(kind === 2) });
+  // como renderFrame: o fator do contorno do Retro (issue #48) só na 1ª pessoa do Retro
+  setHunterOutlineRetroView(!!ctx.retro && kind === 2);
   if (everyFrame) ctx.shadowStep = NaN;
   if (top) {
     const restore = overview(ctx);

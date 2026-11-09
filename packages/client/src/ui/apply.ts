@@ -1,5 +1,5 @@
 // Aplica as opções do jogador (ui/settings.ts) nos módulos donos de cada efeito (V8): intensidades PS1
-// e contorno do caçador (render/ps1.ts), camada A e "reduzir flicker" (render/layers.ts), fov e balanço (render/motion.ts), modo daltônico
+// e contorno do caçador (render/ps1.ts), camada A e "reduzir flicker" (render/layers.ts), fov e balanço (render/motion.ts), modo Retro FPS (render/retro/mode.ts), modo daltônico
 // (look.ts + hud/palette.ts), tamanho da fonte (variável CSS `--ui-scale` no documento) e controles (input.ts).
 import { balance } from "../data.ts";
 import { applyPalette } from "../hud/palette.ts";
@@ -7,6 +7,7 @@ import { setControls } from "../input.ts";
 import { setColorMode } from "../look.ts";
 import { setLayerA, setReduceFlicker } from "../render/layers.ts";
 import { setFov, setReduceCameraBob } from "../render/motion.ts";
+import { setRetroOption } from "../render/retro/mode.ts";
 import { setHunterOutline, setPs1 } from "../render/ps1.ts";
 import type { Options } from "./settings.ts";
 
@@ -15,6 +16,7 @@ export function applyOptions(o: Options, doc: Document = document) {
   setLayerA(o.layerA);
   setReduceFlicker(o.reduceFlicker);
   setReduceCameraBob(o.reduceCameraBob);
+  setRetroOption(o.retroFps);
   setHunterOutline(o.hunterOutline);
   setFov(o.fov);
   setColorMode(o.colorMode);
