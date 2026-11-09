@@ -61,8 +61,9 @@ generator:
   fail_spark_time: 3
   completed_reveal: 3
   # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).
-  # LACUNA: false = só o caçador dentro de noise.generator_done reage (leitura conservadora); true = alcança de qualquer distância.
-  completed_reveal_global: false
+  # D-21 (Rodrigo, 09/11/2026): o caçador vê o alerta de conserto de qualquer ponto do mapa (true). false = só o
+  # caçador dentro de noise.generator_done reage (leitura anterior, conservadora).
+  completed_reveal_global: true
   by_team_size:                    # GDD-v0.2 §3.5
     1: {required: 2, bonus: 1}
     2: {required: 3, bonus: 2}
@@ -435,6 +436,22 @@ audio:
   loudness_tolerance: 1
   true_peak_dbtp: -1
   ducking_db: -8
+  # A-1 (engine.ts): volume padrão de cada barramento, ganho LINEAR 0–1 aplicado direto no GainNode (0 = mudo,
+  # 1 = sem atenuação). Linear e não dB porque é o valor que o slider mostra e o GainNode recebe, e 0 representa o
+  # mudo sem precisar de −∞ dB. Barramentos = os sliders separados de música, efeitos, voz e UI (GDD-v0.3 §11,
+  # Mixagem; GDD-v0.2 §11) somados no master.
+  # LACUNA (GDD v0.2/v0.3 não definem o volume inicial dos sliders). Proposta: 1 em todos, para a música chegar ao
+  # jogador no nível em que foi masterizada (−16 LUFS, GDD-v0.3 §11) e os bipes da fase 0 manterem o volume atual
+  # (antes ligados direto no destino); decisão do Rodrigo pendente.
+  buses: {master: 1, music: 1, sfx: 1, voice: 1, ui: 1}
+  # LACUNA (GDD não define): constante de tempo (s) da rampa setTargetAtTime ao mudar um volume. Proposta: 0,02 s
+  # (chega a ~95% em 3 constantes = 60 ms), curta o bastante para o slider responder na hora e longa o bastante para
+  # não estalar ("zipper noise") com o ganho mudando em degrau.
+  volume_ramp_tc: 0.02
+  # LACUNA (GDD não define): atraso (s) para gravar os volumes no localStorage depois da última mudança (o slider
+  # arrastado não grava a cada quadro; o ganho muda na hora). Proposta: 0,25 s; também grava ao sair da página
+  # (pagehide).
+  volume_persist_delay: 0.25
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:

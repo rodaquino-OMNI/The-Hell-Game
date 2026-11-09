@@ -137,15 +137,20 @@ describe("memória da última posição (ai.by_difficulty.*.memory) e audição 
     expect(far.hunter.ai!.heard).toBeNull();
     expect(far.hunter.ai!.mode).toBe("patrol");
   });
-  it("revelação global de gerador concluído (completed_reveal_global) também chega como ruído", () => {
-    const c = aiCfg("normal", {});
-    const gl = { ...c, balance: { ...c.balance, generator: { ...c.balance.generator, completed_reveal_global: true } } };
-    const g = createGame(gl, "Mecânico", 43);
-    for (const s of g.survivors) if (s.bot) s.st = "dead";
-    g.hunter.x = 25; g.hunter.z = 25; g.hunter.stun = 1e9;
-    const P = g.survivors[0]; P.x = -22; P.z = -19.5; g.gens[0].n = b.generator.puzzles_per_generator - 1;
-    step(gl, g, { ...NO_INPUT, ability: true });
-    expect(g.gens[0].done).toBe(true);
-    expect(g.hunter.ai!.heard).toMatchObject({ x: -22, z: -22, dur: b.generator.completed_reveal });
+  it("revelação de gerador concluído: global (padrão, D-21) chega como ruído; local não alcança o caçador longe", () => {
+    const run = (global: boolean) => {
+      const c = aiCfg("normal", {});
+      const cfg = { ...c, balance: { ...c.balance, generator: { ...c.balance.generator, completed_reveal_global: global } } };
+      const g = createGame(cfg, "Mecânico", 43);
+      for (const s of g.survivors) if (s.bot) s.st = "dead";
+      g.hunter.x = 25; g.hunter.z = 25; g.hunter.stun = 1e9;
+      const P = g.survivors[0]; P.x = -22; P.z = -19.5; g.gens[0].n = b.generator.puzzles_per_generator - 1;
+      step(cfg, g, { ...NO_INPUT, ability: true });
+      expect(g.gens[0].done).toBe(true);
+      return g.hunter.ai!.heard;
+    };
+    expect(b.generator.completed_reveal_global).toBe(true);
+    expect(run(true)).toMatchObject({ x: -22, z: -22, dur: b.generator.completed_reveal });
+    expect(run(false)).toBeNull();
   });
 });
