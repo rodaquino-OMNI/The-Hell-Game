@@ -8,7 +8,18 @@
 // Regras: duração, limite de simultâneas (a nova derruba a de menor prioridade e mais antiga, se a sua for maior ou
 // igual), fusão da mesma chave (mesma direção, ou dentro de `merge_window`) e estado inicial da opção: data/balance.yaml
 // `audio.captions`. Prioridade = `audio.voice_priority` do `kind` do efeito (audio.sfx).
-// A opção liga/desliga fica no localStorage (`thehell.audio.captions`); desligada, nada é publicado.
+// Ícone: cada legenda traz `category` (hunter_steps | hunter_attack | generator | survivor, mapeada em
+// `audio.captions.effects`) e `dir`; a Visual desenha o ícone direcional do GDD-v0.3 §11 (L218, "ícone direcional
+// para passos de corrida, falha de gerador, grito do caçador e resgate") a partir dos dois, para a informação não
+// depender só do texto nem da cor (WCAG 2.2, 1.3.3 Características sensoriais e 1.4.1 Uso de cor). O áudio entrega
+// só dados: ícone, cor, tamanho e posição são da Visual.
+// Sem legenda de propósito: o batimento, porque a seta de ameaça do HUD (GDD-v0.3 §12.1) já mostra o setor do
+// caçador a < ui.threat_radius, e legendar cada batida repetiria a informação; respiração, zumbido, passos do próprio
+// jogador e bipes de UI, que são retorno da própria ação (ver o comentário de `audio.captions.effects`).
+// `relativeSector` fica importado de hud/threat.ts (arquivo da Visual); movê-lo para um módulo comum é sugestão à Visual.
+// Opções do menu, no localStorage com try/catch: liga/desliga (`thehell.audio.captions`; padrão ligado, D-39) e
+// duração na tela (`thehell.audio.captions.duration`; só valores de `audio.captions.durations`, padrão 3 s, D-40).
+// Desligada, nada é publicado.
 import type { Balance } from "@thehell/shared";
 import type { Vec } from "@thehell/sim";
 import { balance } from "../data.ts";
@@ -24,6 +35,8 @@ export const CAPTION_KEYS = [
   "caption.hunter_trap", "caption.puzzle_fail", "caption.generator_done", "caption.cage", "caption.rescue",
 ] as const;
 export type CaptionKey = (typeof CAPTION_KEYS)[number];
+/** categoria da legenda (ícone direcional da Visual); vem de `audio.captions.effects[efeito].category` */
+export type CaptionCategory = Balance["audio"]["captions"]["effects"][string]["category"];
 const isCaptionKey = (k: string): k is CaptionKey => (CAPTION_KEYS as readonly string[]).includes(k);
 
 export interface Caption {
@@ -31,6 +44,8 @@ export interface Caption {
   readonly id: number;
   /** chave i18n `caption.*` */
   readonly key: CaptionKey;
+  /** categoria do som, para o ícone direcional (GDD-v0.3 §11, L218) */
+  readonly category: CaptionCategory;
   /** texto no idioma atual (i18n `t`), resolvido a cada leitura */
   readonly text?: string;
   /** setor 0..ui.threat_sectors−1 (0 = frente, sentido horário) relativo à câmera; null = sem direção */
@@ -39,7 +54,7 @@ export interface Caption {
   readonly intensity: number;
   /** instante (s, relógio do barramento, que anda com tickCaptions) da última emissão */
   readonly t: number;
-  /** segundos que ainda restam na tela (some em 0); renovado a `audio.captions.duration` na fusão */
+  /** segundos que ainda restam na tela (some em 0); renovado a captionDuration() na fusão */
   readonly ttl: number;
   /** quantas emissões fundidas nesta legenda (1 = só a primeira) */
   readonly count: number;
@@ -83,11 +98,17 @@ export interface CaptionBus {
   subscribe(cb: (list: Caption[]) => void): () => void;
   setEnabled(on: boolean): void;
   enabled(): boolean;
+  /** escolhe a duração na tela (s); só aceita um valor de `audio.captions.durations` (devolve false e não muda
+   *  nada com outro); grava no localStorage. Vale para as emissões seguintes */
+  setDuration(s: number): boolean;
+  duration(): number;
   clear(): void;
 }
 
 /** chave do localStorage (não é número de jogo; mesmo padrão de engine.ts e i18n/index.ts) */
 export const CAPTIONS_STORAGE_KEY = "thehell.audio.captions";
+/** chave do localStorage da duração escolhida (s) */
+export const CAPTIONS_DURATION_KEY = "thehell.audio.captions.duration";
 const ON = "1", OFF = "0";
 
 function defaultStorage(): CaptionStorage | null {
@@ -109,15 +130,15 @@ export function distanceGain(d: number, p: Balance["audio"]["panner"]): number {
 }
 
 /** chave e prioridade da legenda do efeito `name`, ou null se o efeito não gera legenda */
-export function captionFor(name: string, cfg: CaptionsCfg): { key: CaptionKey; priority: number } | null {
+export function captionFor(name: string, cfg: CaptionsCfg): { key: CaptionKey; category: CaptionCategory; priority: number } | null {
   const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
   if (!own(cfg.captions.effects, name) || !own(cfg.sfx, name)) return null;
-  const key = cfg.captions.effects[name];
+  const { key, category } = cfg.captions.effects[name];
   if (!isCaptionKey(key)) return null;
-  return { key, priority: cfg.voice_priority[cfg.sfx[name].kind] ?? 0 };
+  return { key, category, priority: cfg.voice_priority[cfg.sfx[name].kind] ?? 0 };
 }
 
-interface Live { id: number; key: CaptionKey; dir: number | null; intensity: number; t: number; ttl: number; count: number; priority: number; seq: number }
+interface Live { id: number; key: CaptionKey; category: CaptionCategory; dir: number | null; intensity: number; t: number; ttl: number; count: number; priority: number; seq: number }
 
 export function createCaptionBus(deps: CaptionDeps = {}): CaptionBus {
   const cfg = deps.cfg ?? { ...balance.audio, ui: balance.ui };
@@ -135,11 +156,16 @@ export function createCaptionBus(deps: CaptionDeps = {}): CaptionBus {
     if (v === ON) on = true;
     else if (v === OFF) on = false;
   } catch { /* sem armazenamento: fica o padrão dos dados */ }
+  let dur = c.durations[c.default_duration_index] ?? c.durations[0];
+  try {
+    const v = Number(storage?.getItem(CAPTIONS_DURATION_KEY) ?? NaN);
+    if (c.durations.includes(v)) dur = v; // valor fora da lista (dado velho ou editado) é ignorado
+  } catch { /* idem */ }
 
   const snapshot = (): Caption[] => live.map(l => {
     let text: string | undefined;
     try { text = translate(l.key); } catch { text = undefined; }
-    return { id: l.id, key: l.key, text, dir: l.dir, intensity: l.intensity, t: l.t, ttl: l.ttl, count: l.count, priority: l.priority };
+    return { id: l.id, key: l.key, category: l.category, text, dir: l.dir, intensity: l.intensity, t: l.t, ttl: l.ttl, count: l.count, priority: l.priority };
   });
   const notify = () => {
     if (!subs.size) return;
@@ -160,7 +186,7 @@ export function createCaptionBus(deps: CaptionDeps = {}): CaptionBus {
     let out: Live;
     if (same) {
       // renova o tempo, a direção passa a ser a da emissão mais nova, a intensidade é a maior
-      same.t = clock; same.ttl = c.duration; same.dir = dir; same.count++; same.seq = seq;
+      same.t = clock; same.ttl = dur; same.dir = dir; same.count++; same.seq = seq;
       same.intensity = Math.max(same.intensity, intensity);
       out = same;
     } else {
@@ -170,7 +196,7 @@ export function createCaptionBus(deps: CaptionDeps = {}): CaptionBus {
         if (victim.priority > info.priority) return null;
         live = live.filter(l => l !== victim);
       }
-      out = { id: nextId++, key: info.key, dir, intensity, t: clock, ttl: c.duration, count: 1, priority: info.priority, seq };
+      out = { id: nextId++, key: info.key, category: info.category, dir, intensity, t: clock, ttl: dur, count: 1, priority: info.priority, seq };
       live.push(out);
     }
     notify();
@@ -206,6 +232,13 @@ export function createCaptionBus(deps: CaptionDeps = {}): CaptionBus {
       if (!on) clear();
     },
     enabled: () => on,
+    setDuration(v) {
+      if (!c.durations.includes(v)) return false;
+      dur = v;
+      try { storage?.setItem(CAPTIONS_DURATION_KEY, String(v)); } catch { /* sem armazenamento */ }
+      return true;
+    },
+    duration: () => dur,
   };
 }
 
@@ -215,7 +248,9 @@ export function getCaptionBus(): CaptionBus { return (bus ??= createCaptionBus()
 /** troca o barramento único (testes); null recria no próximo uso */
 export function useCaptionBus(b: CaptionBus | null) { bus = b; }
 
-/** assina a lista de legendas (chamado a cada mudança: nova, fundida, expirada, limpa); devolve o cancelamento */
+/** assina a lista de legendas; chamado só quando a lista muda (nova, fundida, expirada, limpa), não a cada quadro.
+ *  Para fade ou contagem regressiva, leia getCaptions() no laço de render: o `ttl` vem atualizado ali, enquanto a
+ *  lista recebida aqui fica com o ttl do momento da mudança. Devolve o cancelamento */
 export const subscribeCaptions = (cb: (list: Caption[]) => void): (() => void) => getCaptionBus().subscribe(cb);
 /** legendas na tela agora (cópia; `text` no idioma atual) */
 export const getCaptions = (): Caption[] => getCaptionBus().list();
@@ -225,3 +260,9 @@ export const tickCaptions = (dt: number) => getCaptionBus().tick(dt);
 export const setCaptionsEnabled = (on: boolean) => getCaptionBus().setEnabled(on);
 /** estado atual da opção (localStorage, ou `audio.captions.enabled_default`) */
 export const captionsEnabled = () => getCaptionBus().enabled();
+/** duração na tela (s) para o menu: só aceita um valor de `audio.captions.durations` (devolve false com outro) */
+export const setCaptionDuration = (s: number): boolean => getCaptionBus().setDuration(s);
+/** duração atual (s): a gravada, ou `durations[default_duration_index]` (D-40) */
+export const captionDuration = () => getCaptionBus().duration();
+/** valores que o menu pode oferecer (s) */
+export const captionDurations = (): readonly number[] => balance.audio.captions.durations;

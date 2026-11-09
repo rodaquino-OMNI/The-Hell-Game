@@ -117,9 +117,16 @@ const AudioSchema = z.object({
   }).strict(),
   /** A-6: legendas de som (GDD v0.3 §12.4); efeito do catálogo → chave i18n `caption.*` */
   captions: z.object({
-    enabled_default: z.boolean(), duration: pos.positive(), max_on_screen: int.positive(), merge_window: pos,
-    effects: z.record(z.string().regex(/^[a-z_]+$/), z.string().regex(/^caption\.[a-z_]+$/)),
-  }).strict(),
+    /** D-39 e D-40 (docs/plano-construcao.md §7) */
+    enabled_default: z.boolean(),
+    durations: z.array(pos.positive()).min(1), default_duration_index: int.nonnegative(),
+    max_on_screen: int.positive(), merge_window: pos,
+    /** categoria = ícone direcional da Visual (GDD v0.3 §11, L218) */
+    effects: z.record(z.string().regex(/^[a-z_]+$/), z.object({
+      key: z.string().regex(/^caption\.[a-z_]+$/),
+      category: z.enum(["hunter_steps", "hunter_attack", "generator", "survivor"]),
+    }).strict()),
+  }).strict().refine(c => c.default_duration_index < c.durations.length, "captions.default_duration_index fora de durations"),
 }).strict()
   .refine(a => Object.values(a.sfx).every(s => Object.prototype.hasOwnProperty.call(a.voice_priority, s.kind)),
     "sfx: kind fora de voice_priority")

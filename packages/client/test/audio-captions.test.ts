@@ -7,7 +7,7 @@ import type { GameMap } from "@thehell/shared";
 import { loadBalanceFile } from "@thehell/shared/node";
 import { createGame, makeConfig, STEP, type GameState } from "@thehell/sim";
 import {
-  CAPTION_KEYS, CAPTIONS_STORAGE_KEY, captionFor, createCaptionBus, distanceGain, getCaptions, subscribeCaptions,
+  CAPTION_KEYS, CAPTIONS_DURATION_KEY, CAPTIONS_STORAGE_KEY, captionDuration, captionFor, setCaptionDuration, createCaptionBus, distanceGain, getCaptions, subscribeCaptions,
   tickCaptions, setCaptionsEnabled, captionsEnabled, useCaptionBus, type Caption, type CaptionStorage,
 } from "../src/audio/captions.ts";
 import { createAudioDirector, DIRECTOR_SFX } from "../src/audio/director.ts";
@@ -16,7 +16,7 @@ import { CATALOGS, t } from "../src/i18n/index.ts";
 const bal = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
 const patio = JSON.parse(readFileSync(new URL("../../../data/maps/patio.json", import.meta.url), "utf8")) as GameMap;
 const simCfg = makeConfig(bal, patio, { ruleset: "v1" });
-const C = bal.audio.captions, R = bal.audio.director.hunter_audible_radius, S = bal.ui.threat_sectors;
+const C = bal.audio.captions, DUR = C.durations[C.default_duration_index], R = bal.audio.director.hunter_audible_radius, S = bal.ui.threat_sectors;
 const cfg = { ...bal.audio, ui: bal.ui };
 
 function mem(init: Record<string, string> = {}): CaptionStorage & { data: Record<string, string> } {
@@ -53,12 +53,12 @@ const keys = (l: Caption[]) => l.map(c => c.key);
 describe("audio/captions: dados e chaves (A-6)", () => {
   it("todo efeito de audio.captions.effects existe no catálogo, é tocado pelo diretor e aponta para CAPTION_KEYS", () => {
     const events = ["puzzle_ok", "puzzle_fail", "hit", "stun", "bolt"]; // GameEvent "sound" (packages/sim/src/types.ts)
-    for (const [name, key] of Object.entries(C.effects)) {
+    for (const [name, { key }] of Object.entries(C.effects)) {
       expect(bal.audio.sfx[name], name).toBeDefined();
       expect([...DIRECTOR_SFX, ...events]).toContain(name);
       expect(CAPTION_KEYS as readonly string[]).toContain(key);
     }
-    expect(new Set(Object.values(C.effects))).toEqual(new Set(CAPTION_KEYS));
+    expect(new Set(Object.values(C.effects).map(e => e.key))).toEqual(new Set(CAPTION_KEYS));
   });
 
   it("as chaves caption.* existem nos 3 idiomas (pt-BR, en, es) e têm texto", () => {
@@ -67,7 +67,7 @@ describe("audio/captions: dados e chaves (A-6)", () => {
   });
 
   it("prioridade = voice_priority do kind do efeito; efeito sem legenda = null", () => {
-    expect(captionFor("telegraph_dash", cfg)).toEqual({ key: "caption.hunter_dash", priority: bal.audio.voice_priority.telegraph });
+    expect(captionFor("telegraph_dash", cfg)).toEqual({ key: "caption.hunter_dash", category: "hunter_attack", priority: bal.audio.voice_priority.telegraph });
     expect(captionFor("puzzle_fail", cfg)?.priority).toBe(bal.audio.voice_priority.ui);
     expect(captionFor("heartbeat", cfg)).toBeNull();
     expect(captionFor("nao_existe", cfg)).toBeNull();
@@ -88,6 +88,7 @@ describe("audio/captions: emissão pelo diretor", () => {
     expect(c.key).toBe("caption.cage");
     expect(c.dir).toBe(0);
     expect(c.text).toBe("[caption.cage]");
+    expect(c.category).toBe("survivor");
     expect(c.intensity).toBeCloseTo(distanceGain(10, bal.audio.panner));
   });
 
@@ -143,7 +144,7 @@ describe("audio/captions: emissão pelo diretor", () => {
     const r = rig();
     r.dir.events([{ type: "sound", name: "puzzle_fail" }]);
     const g = state();
-    for (let i = 0; i < Math.ceil(C.duration / STEP) + 1; i++) step(r, g);
+    for (let i = 0; i < Math.ceil(DUR / STEP) + 1; i++) step(r, g);
     expect(r.b.list()).toEqual([]);
   });
 });
@@ -165,9 +166,9 @@ describe("audio/captions: barramento", () => {
   it("expira por ttl (tickCaptions)", () => {
     const b = bus();
     b.emit({ name: "rescue" });
-    b.tick(C.duration / 2);
-    expect(b.list()[0].ttl).toBeCloseTo(C.duration / 2);
-    b.tick(C.duration / 2);
+    b.tick(DUR / 2);
+    expect(b.list()[0].ttl).toBeCloseTo(DUR / 2);
+    b.tick(DUR / 2);
     expect(b.list()).toEqual([]);
   });
 
@@ -190,7 +191,7 @@ describe("audio/captions: barramento", () => {
     expect(b.list().length).toBe(1);
     expect(m.id).toBe(a.id);
     expect(m.count).toBe(2);
-    expect(m.ttl).toBe(C.duration);
+    expect(m.ttl).toBe(DUR);
     expect(m.dir).toBe(S / 4);
     // do mesmo setor funde mesmo depois da janela; de outro setor e depois da janela abre outra
     b.tick(C.merge_window * 1.5);
@@ -207,7 +208,7 @@ describe("audio/captions: barramento", () => {
     const off = b.subscribe(l => seen.push(l.length));
     b.emit({ name: "rescue" });
     b.emit({ name: "cage" });
-    b.tick(C.duration);
+    b.tick(DUR);
     expect(seen).toEqual([1, 2, 0]);
     off();
     b.emit({ name: "rescue" });
@@ -234,15 +235,53 @@ describe("audio/captions: barramento", () => {
     expect(c.enabled()).toBe(true);
   });
 
+  it("D-39/D-40: padrão ligado e 3 s; categorias cobrem os 4 grupos do ícone direcional", () => {
+    expect(C.enabled_default).toBe(true);
+    expect(C.durations).toEqual([3, 5, 8]);
+    expect(DUR).toBe(3);
+    expect(new Set(Object.values(C.effects).map(e => e.category))).toEqual(new Set(["hunter_steps", "hunter_attack", "generator", "survivor"]));
+    const b = bus();
+    expect(b.emit({ name: "step_hunter" })?.category).toBe("hunter_steps");
+    expect(b.emit({ name: "telegraph_trap" })?.category).toBe("hunter_attack");
+    expect(b.emit({ name: "puzzle_fail" })?.category).toBe("generator");
+  });
+
+  it("duração ajustável: só valores da lista, vale para as próximas emissões, persiste; storage com erro ou valor velho cai no padrão", () => {
+    const st = mem();
+    const b = createCaptionBus({ cfg, storage: st });
+    expect(b.duration()).toBe(DUR);
+    for (const bad of [4, 0, -3, Number.NaN, 100]) expect(b.setDuration(bad)).toBe(false);
+    expect(b.duration()).toBe(DUR);
+    expect(st.data[CAPTIONS_DURATION_KEY]).toBeUndefined();
+    const longest = C.durations[C.durations.length - 1];
+    expect(b.setDuration(longest)).toBe(true);
+    expect(st.data[CAPTIONS_DURATION_KEY]).toBe(String(longest));
+    expect(b.emit({ name: "rescue" })?.ttl).toBe(longest);
+    b.tick(DUR);
+    expect(b.list().length).toBe(1); // ainda na tela depois do padrão
+    b.tick(longest - DUR);
+    expect(b.list()).toEqual([]);
+    expect(createCaptionBus({ cfg, storage: st }).duration()).toBe(longest);
+    expect(createCaptionBus({ cfg, storage: mem({ [CAPTIONS_DURATION_KEY]: "4" }) }).duration()).toBe(DUR);
+    const broken: CaptionStorage = { getItem: () => { throw new Error("negado"); }, setItem: () => { throw new Error("cheio"); } };
+    const c = createCaptionBus({ cfg, storage: broken });
+    expect(c.duration()).toBe(DUR);
+    expect(c.setDuration(C.durations[1])).toBe(true);
+    expect(c.duration()).toBe(C.durations[1]);
+  });
+
   it("API do singleton: setCaptionsEnabled, subscribeCaptions, getCaptions (texto do i18n atual), tickCaptions", () => {
     useCaptionBus(createCaptionBus({ cfg, storage: mem() }));
     setCaptionsEnabled(true);
     expect(captionsEnabled()).toBe(true);
+    expect(captionDuration()).toBe(DUR);
+    expect(setCaptionDuration(4)).toBe(false);
+    expect(setCaptionDuration(DUR)).toBe(true);
     const got: Caption[][] = [];
     const off = subscribeCaptions(l => got.push(l));
     useCaptionBusEmit();
     expect(getCaptions()[0].text).toBe(t("caption.generator_done"));
-    tickCaptions(C.duration);
+    tickCaptions(DUR);
     expect(getCaptions()).toEqual([]);
     expect(got.map(l => l.length)).toEqual([1, 0]);
     off();

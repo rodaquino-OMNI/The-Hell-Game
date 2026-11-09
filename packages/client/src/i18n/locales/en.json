@@ -144,13 +144,13 @@
   "retro.hunter": "HUNTER",
   "retro.team": "TEAM",
 
-  "caption.hunter_steps": "Hunter's heavy footsteps",
-  "caption.hunter_growl": "Growl: the hunter readies a strike",
-  "caption.hunter_dash": "Engine revving: the hunter readies a dash",
-  "caption.hunter_projectile": "Sharp ticks: the hunter readies a shot",
-  "caption.hunter_trap": "Metal clicks: the hunter readies a trap",
-  "caption.puzzle_fail": "Generator failure",
-  "caption.generator_done": "Generator completed",
+  "caption.hunter_steps": "Heavy footsteps: the hunter",
+  "caption.hunter_growl": "Growl: hunter's strike",
+  "caption.hunter_dash": "Engine revving: hunter's dash",
+  "caption.hunter_projectile": "Sharp ticks: hunter's shot",
+  "caption.hunter_trap": "Metal clicks: hunter's trap",
+  "caption.puzzle_fail": "Sparks: generator failure",
+  "caption.generator_done": "Rising hum: generator completed",
   "caption.cage": "Bars slam: survivor caged",
-  "caption.rescue": "Survivor rescued"
+  "caption.rescue": "Relief chord: survivor rescued"
 }

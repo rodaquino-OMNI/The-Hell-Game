@@ -703,17 +703,23 @@ audio:
     # cada `period` s (a receita dura 1 s, os pulsos se sobrepõem). Proposta: 20 m (= heartbeat.radius), 0,8 s.
     hum: {radius: 20, period: 0.8}
   # ---------- A-6: legendas de som (audio/captions.ts) ----------
-  # GDD-v0.3 §12.4 ("legendas de sons"): o diretor publica uma legenda quando o efeito correspondente de fato tocou
-  # (com som cortado pelo raio da D-37 ou recusado pelo limite de vozes não há legenda). A direção é o setor de
+  # GDD-v0.3 §12.4 ("legendas de sons") e §11 (L218: "ícone direcional para passos de corrida, falha de gerador,
+  # grito do caçador e resgate"): o diretor publica uma legenda quando o efeito correspondente de fato tocou (com som
+  # cortado pelo raio da D-37 ou recusado pelo limite de vozes não há legenda). A direção é o setor de
   # `ui.threat_sectors` (GDD-v0.3 §12.1) relativo à câmera; a prioridade de cada legenda é a de voz do efeito
-  # (`voice_priority[sfx[efeito].kind]`), sem tabela nova. A sessão Visual desenha (docs/handoff/sessoes.md §2).
+  # (`voice_priority[sfx[efeito].kind]`), sem tabela nova. O áudio entrega só dados (chave, categoria, setor); ícone,
+  # cor e posição são da sessão Visual (docs/handoff/sessoes.md §2).
   captions:
-    # LACUNA (o GDD só pede a opção, §12.4): estado inicial da opção no menu. Proposta: false (o jogador liga em
-    # Opções; a escolha fica no localStorage), decisão do Rodrigo pendente.
-    enabled_default: false
-    # LACUNA (o GDD não define): segundos na tela desde a última emissão. Proposta: 3 s, tempo de ler um rótulo de
-    # 2 a 5 palavras com folga e curto o bastante para não acumular texto velho.
-    duration: 3
+    # D-39 (docs/plano-construcao.md §7): ligadas por padrão. Quem não ouve perderia o telegraph do caçador antes de
+    # achar a opção; o custo visual é baixo (até max_on_screen rótulos curtos). Referências:
+    # https://gameaccessibilityguidelines.com/ensure-subtitles-captions-are-or-can-be-turned-on-before-any-sound-is-played/
+    # https://gameaccessibilityguidelines.com/provide-captions-or-visuals-for-significant-background-sounds/
+    # https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-sounds-alone/
+    enabled_default: true
+    # D-40 (docs/plano-construcao.md §7): segundos na tela desde a última emissão, escolhidos no menu entre os
+    # valores da lista (setCaptionDuration só aceita estes); padrão = durations[default_duration_index] = 3 s.
+    durations: [3, 5, 8]
+    default_duration_index: 0
     # LACUNA (o GDD não define): legendas simultâneas na tela; com a lista cheia, a nova derruba a de menor
     # prioridade (a mais antiga entre as empatadas) se a sua prioridade for maior ou igual, senão é descartada
     # (a mesma regra das vozes, A-4). Proposta: 3, o bastante para caçador + objetivo + evento sem cobrir o HUD.
@@ -723,21 +729,32 @@ audio:
     # s depois da última emissão (de outro setor e mais tarde = outra fonte, outra legenda). Proposta: 1 s,
     # acima do intervalo entre passos do caçador (hunter_stride 2 m a 3,1 m/s = 0,65 s), que viram uma só legenda.
     merge_window: 1
-    # efeito do catálogo `audio.sfx` → chave i18n `caption.*`. Lista mínima do GDD-v0.3 §12.4 (passos, falha de
-    # gerador, "grito" do caçador = rosnado/preparo de ataque no terror leve 12+, resgate) mais prisão e gerador
-    # concluído. Passos de corrida: o A-5 só toca os passos do caçador (posicionais) e os do próprio jogador
-    # (sem posição, sem informação nova para quem não ouve); os de outros sobreviventes não tocam, logo não há
-    # legenda deles (LACUNA, depende de o diretor tocar esses passos).
+    # efeito do catálogo `audio.sfx` → chave i18n `caption.*` e categoria. A categoria é o que a Visual usa para o
+    # ícone direcional (GDD-v0.3 §11, L218) junto do setor, para a legenda não depender só de texto nem de cor
+    # (WCAG 2.2, 1.3.3 e 1.4.1): hunter_steps (passos do caçador), hunter_attack (telegraph: "grito" do caçador vira
+    # rosnado/preparo no terror leve 12+, GDD-v0.2 §1), generator (falha e conclusão), survivor (prisão e resgate).
+    # Sem legenda, de propósito:
+    #  - batimento (heartbeat): já é coberto pela seta de ameaça do HUD (GDD-v0.3 §12.1), que aparece com o caçador
+    #    a < ui.threat_radius e dá o setor; legendar repetiria a mesma informação a cada batida;
+    #  - respiração, zumbido do gerador, passos do próprio jogador, bipes de UI: retorno do que o próprio jogador faz,
+    #    sem informação nova para quem não ouve.
+    # LACUNA (passos de corrida, GDD-v0.3 §11 L218): o A-5 só toca os passos do caçador (posicionais) e os do próprio
+    # jogador (sem posição); os de outros sobreviventes não tocam, logo não há legenda deles. Depende de o diretor
+    # tocar esses passos.
+    # LACUNA (falha de gerador): `puzzle_fail` chega como GameEvent "sound" só para a falha do jogador local, sem
+    # posição (packages/sim/src/game.ts:178 e :183), então a legenda sai sem direção; a falha dos bots vira só ruído
+    # de 18 m para o caçador (`noise`, GDD-v0.3 C-08), sem som. Pedido futuro à Frente R (sessoes.md §2): `sound` com
+    # posição para a falha dos outros. Só anotado.
     effects:
-      step_hunter: caption.hunter_steps
-      telegraph_melee: caption.hunter_growl
-      telegraph_dash: caption.hunter_dash
-      telegraph_projectile: caption.hunter_projectile
-      telegraph_trap: caption.hunter_trap
-      puzzle_fail: caption.puzzle_fail
-      generator_done: caption.generator_done
-      cage: caption.cage
-      rescue: caption.rescue
+      step_hunter: {key: caption.hunter_steps, category: hunter_steps}
+      telegraph_melee: {key: caption.hunter_growl, category: hunter_attack}
+      telegraph_dash: {key: caption.hunter_dash, category: hunter_attack}
+      telegraph_projectile: {key: caption.hunter_projectile, category: hunter_attack}
+      telegraph_trap: {key: caption.hunter_trap, category: hunter_attack}
+      puzzle_fail: {key: caption.puzzle_fail, category: generator}
+      generator_done: {key: caption.generator_done, category: generator}
+      cage: {key: caption.cage, category: survivor}
+      rescue: {key: caption.rescue, category: survivor}
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:

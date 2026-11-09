@@ -144,13 +144,13 @@
   "retro.hunter": "CAZADOR",
   "retro.team": "EQUIPO",
 
-  "caption.hunter_steps": "Pasos pesados del cazador",
-  "caption.hunter_growl": "Gruñido: el cazador prepara un golpe",
-  "caption.hunter_dash": "Motor acelerando: el cazador prepara una embestida",
-  "caption.hunter_projectile": "Tics agudos: el cazador prepara un disparo",
-  "caption.hunter_trap": "Chasquidos metálicos: el cazador prepara una trampa",
-  "caption.puzzle_fail": "Falla en el generador",
-  "caption.generator_done": "Generador completado",
+  "caption.hunter_steps": "Pasos pesados: el cazador",
+  "caption.hunter_growl": "Gruñido: golpe del cazador",
+  "caption.hunter_dash": "Motor rugiendo: embestida del cazador",
+  "caption.hunter_projectile": "Pitidos agudos: disparo del cazador",
+  "caption.hunter_trap": "Chasquidos metálicos: trampa del cazador",
+  "caption.puzzle_fail": "Chispas: falla en el generador",
+  "caption.generator_done": "Zumbido ascendente: generador listo",
   "caption.cage": "Rejas golpeando: superviviente atrapado",
-  "caption.rescue": "Superviviente rescatado"
+  "caption.rescue": "Acorde de alivio: superviviente a salvo"
 }
