@@ -664,6 +664,42 @@ audio:
     # LACUNA: zumbido só de gerador com progresso (0 < n, não concluído) a até `radius` m do jogador, redisparado a
     # cada `period` s (a receita dura 1 s, os pulsos se sobrepõem). Proposta: 20 m (= heartbeat.radius), 0,8 s.
     hum: {radius: 20, period: 0.8}
+  # ---------- A-6: legendas de som (audio/captions.ts) ----------
+  # GDD-v0.3 §12.4 ("legendas de sons"): o diretor publica uma legenda quando o efeito correspondente de fato tocou
+  # (com som cortado pelo raio da D-37 ou recusado pelo limite de vozes não há legenda). A direção é o setor de
+  # `ui.threat_sectors` (GDD-v0.3 §12.1) relativo à câmera; a prioridade de cada legenda é a de voz do efeito
+  # (`voice_priority[sfx[efeito].kind]`), sem tabela nova. A sessão Visual desenha (docs/handoff/sessoes.md §2).
+  captions:
+    # LACUNA (o GDD só pede a opção, §12.4): estado inicial da opção no menu. Proposta: false (o jogador liga em
+    # Opções; a escolha fica no localStorage), decisão do Rodrigo pendente.
+    enabled_default: false
+    # LACUNA (o GDD não define): segundos na tela desde a última emissão. Proposta: 3 s, tempo de ler um rótulo de
+    # 2 a 5 palavras com folga e curto o bastante para não acumular texto velho.
+    duration: 3
+    # LACUNA (o GDD não define): legendas simultâneas na tela; com a lista cheia, a nova derruba a de menor
+    # prioridade (a mais antiga entre as empatadas) se a sua prioridade for maior ou igual, senão é descartada
+    # (a mesma regra das vozes, A-4). Proposta: 3, o bastante para caçador + objetivo + evento sem cobrir o HUD.
+    max_on_screen: 3
+    # LACUNA (o GDD não define): a mesma chave emitida de novo, ainda na tela, funde com a legenda ativa (renova o
+    # tempo, atualiza a direção, soma a contagem) em vez de abrir outra se vier do mesmo setor ou até `merge_window`
+    # s depois da última emissão (de outro setor e mais tarde = outra fonte, outra legenda). Proposta: 1 s,
+    # acima do intervalo entre passos do caçador (hunter_stride 2 m a 3,1 m/s = 0,65 s), que viram uma só legenda.
+    merge_window: 1
+    # efeito do catálogo `audio.sfx` → chave i18n `caption.*`. Lista mínima do GDD-v0.3 §12.4 (passos, falha de
+    # gerador, "grito" do caçador = rosnado/preparo de ataque no terror leve 12+, resgate) mais prisão e gerador
+    # concluído. Passos de corrida: o A-5 só toca os passos do caçador (posicionais) e os do próprio jogador
+    # (sem posição, sem informação nova para quem não ouve); os de outros sobreviventes não tocam, logo não há
+    # legenda deles (LACUNA, depende de o diretor tocar esses passos).
+    effects:
+      step_hunter: caption.hunter_steps
+      telegraph_melee: caption.hunter_growl
+      telegraph_dash: caption.hunter_dash
+      telegraph_projectile: caption.hunter_projectile
+      telegraph_trap: caption.hunter_trap
+      puzzle_fail: caption.puzzle_fail
+      generator_done: caption.generator_done
+      cage: caption.cage
+      rescue: caption.rescue
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:

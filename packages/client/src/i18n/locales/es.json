@@ -142,5 +142,15 @@
   "retro.generators": "GENERADORES",
   "retro.puzzles": "rompecabezas {done}/{total}",
   "retro.hunter": "CAZADOR",
-  "retro.team": "EQUIPO"
+  "retro.team": "EQUIPO",
+
+  "caption.hunter_steps": "Pasos pesados del cazador",
+  "caption.hunter_growl": "Gruñido: el cazador prepara un golpe",
+  "caption.hunter_dash": "Motor acelerando: el cazador prepara una embestida",
+  "caption.hunter_projectile": "Tics agudos: el cazador prepara un disparo",
+  "caption.hunter_trap": "Chasquidos metálicos: el cazador prepara una trampa",
+  "caption.puzzle_fail": "Falla en el generador",
+  "caption.generator_done": "Generador completado",
+  "caption.cage": "Rejas golpeando: superviviente atrapado",
+  "caption.rescue": "Superviviente rescatado"
 }

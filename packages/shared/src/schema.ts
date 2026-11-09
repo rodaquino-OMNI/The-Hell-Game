@@ -106,9 +106,16 @@ const AudioSchema = z.object({
     breath: z.object({ stamina_below: num.positive().max(1), period: z.tuple([pos.positive(), pos.positive()]) }).strict(),
     hum: z.object({ radius: pos.positive(), period: pos.positive() }).strict(),
   }).strict(),
+  /** A-6: legendas de som (GDD v0.3 §12.4); efeito do catálogo → chave i18n `caption.*` */
+  captions: z.object({
+    enabled_default: z.boolean(), duration: pos.positive(), max_on_screen: int.positive(), merge_window: pos,
+    effects: z.record(z.string().regex(/^[a-z_]+$/), z.string().regex(/^caption\.[a-z_]+$/)),
+  }).strict(),
 }).strict()
   .refine(a => Object.values(a.sfx).every(s => Object.prototype.hasOwnProperty.call(a.voice_priority, s.kind)),
-    "sfx: kind fora de voice_priority");
+    "sfx: kind fora de voice_priority")
+  .refine(a => Object.keys(a.captions.effects).every(n => Object.prototype.hasOwnProperty.call(a.sfx, n)),
+    "captions.effects: efeito fora de audio.sfx");
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
