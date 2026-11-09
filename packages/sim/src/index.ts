@@ -11,3 +11,6 @@ export {
 export { perceive } from "./ai/percept.ts";
 export { chooseTarget, utilityScore, utilityTerms, type TargetChoice, type UtilityTerms } from "./ai/utility.ts";
 export { playHeadless, measureStuck, newStuckMeter, type HeadlessResult, type StuckMeter } from "./headless.ts";
+export {
+  chasedTarget, coinsFor, credit, creditHunter, newScore, newScoreTrack, scaledPoints, scoreTotal, winsCoins,
+} from "./score.ts";

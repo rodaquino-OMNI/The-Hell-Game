@@ -314,11 +314,11 @@ describe("5. perseguição de 4,3 m/s e tabela de dificuldade (D-03 b, GDD-v0.2 
     const z = quiet(hard); openPuzzle(hard, z, 0);
     expect(z.puzzle!.zoneWidth).toBeCloseTo(b.puzzles.timing.zone * t.zone_mult, 10);
     solvePuzzle(hard, z);
-    expect(z.points).toBeCloseTo(b.points.puzzle * t.points_mult, 10);
+    expect(z.points).toBeCloseTo(b.points.events.puzzle.value * t.points_mult, 10);
     const full = quiet(hard); openPuzzle(hard, full, 0);
     for (let k = 0; k < b.generator.puzzles_per_generator; k++) solvePuzzle(hard, full);
     expect(full.gens[0].done).toBe(true);
-    expect(full.points).toBeCloseTo((b.generator.puzzles_per_generator * b.points.puzzle + b.points.generator) * t.points_mult, 10);
+    expect(full.points).toBeCloseTo((b.generator.puzzles_per_generator * b.points.events.puzzle.value + b.points.events.generator.value) * t.points_mult, 10);
     expect(full.points).toBeCloseTo((5 * 10 + 40) * 1.3, 10);
     const gate = quiet(hard);
     for (const x of gate.gens) if (!x.bonus) x.done = true;
