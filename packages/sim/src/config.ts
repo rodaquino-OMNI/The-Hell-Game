@@ -36,6 +36,11 @@ export interface SimConfig {
   brain: HunterBrain;
   /** bots aliados do v1: "prototype" (updateBot, paridade) ou "competent" (ai/bots.ts, R4; GDD-v0.3 §8.5). No protótipo é sempre "prototype". */
   botBrain: BotBrain;
+  /**
+   * cérebro por vaga de sobrevivente (id → cérebro), sobrepondo `botBrain` só naquela vaga. Variante "jogador
+   * iniciante" do simulador (R8 passo 1, D-46: sobrevivente 0 com o bot do protótipo). Vazio na partida padrão.
+   */
+  botBrainBySlot: Readonly<Record<number, BotBrain>>;
   /** parâmetros da IA na dificuldade (GDD-v0.3 §8.4) */
   aiLevel: AiDifficulty;
   /**
@@ -64,6 +69,8 @@ export interface ConfigOptions {
   hunterBrain?: HunterBrain;
   /** sobrepõe `ai.bot_brain` (só vale no v1) */
   botBrain?: BotBrain;
+  /** cérebro por vaga (só vale no v1; ver SimConfig.botBrainBySlot) */
+  botBrainBySlot?: Readonly<Record<number, BotBrain>>;
   /** navmesh para a IA (ex.: RecastNav de "@thehell/sim/nav/recast"); sem isto, a grade A* de reserva (GDD-v0.3 §8.6) */
   nav?: NavQuery;
   trace?: (e: AiTrace) => void;
@@ -75,11 +82,13 @@ export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions =
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";
   const botBrain: BotBrain = v1 ? opts.botBrain ?? balance.ai.bot_brain : "prototype";
-  const grid = brain === "utility" || botBrain === "competent" ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
+  const botBrainBySlot = v1 ? { ...opts.botBrainBySlot } : {};
+  const anyCompetent = botBrain === "competent" || Object.values(botBrainBySlot).includes("competent");
+  const grid = brain === "utility" || anyCompetent ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
   const base = {
     balance, map, v1, difficulty,
     requiredGenerators: map.generators.length,
-    brain, botBrain, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
+    brain, botBrain, botBrainBySlot, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
   };
   if (!v1) {
     return {
@@ -99,6 +108,16 @@ export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions =
     cageTime: d.cage, gateTime: d.gate, zoneMult: d.zone_mult,
     projectileDamage: d.projectile_dmg, trapInterval: d.trap_interval, pointsMult: d.points_mult,
   };
+}
+
+/** cérebro do bot na vaga `id` (sobreposição por vaga ou o padrão da partida) */
+export function botBrainOf(cfg: SimConfig, id: number): BotBrain {
+  return cfg.botBrainBySlot[id] ?? cfg.botBrain;
+}
+
+/** algum bot da partida usa o cérebro competente? (percepção de ruído dos bots, R4) */
+export function anyCompetentBot(cfg: SimConfig): boolean {
+  return cfg.botBrain === "competent" || Object.values(cfg.botBrainBySlot).includes("competent");
 }
 
 /**

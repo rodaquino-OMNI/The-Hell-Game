@@ -459,6 +459,7 @@ export const BalanceSchema = z.object({
     target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
     search_samples: z.number().int().positive(), chase_projection: pos, memory_investigate_time: pos,      // técnicos (§8.1; D-35)
+    dash_reacquire_dist: pos.positive(),                                                                   // §8.4, §9.1 (R8 passo 1; LACUNA)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
     anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6

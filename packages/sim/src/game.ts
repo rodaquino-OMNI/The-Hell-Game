@@ -4,7 +4,7 @@
 // revisto, vida escalada, tabela de dificuldade, anti-tunnel, recuo, telegraph e regras de gerador do §6.2.
 import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
-import { hunterMaxHp, type SimConfig } from "./config.ts";
+import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee } from "./perception.ts";
@@ -121,7 +121,7 @@ function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = t
     if (H.ai) H.ai.heard = { x: at.x, z: at.z, at: g.t, dur: cfg.balance.ai.hearing_investigate_time };
   }
   if (event) emit(g, { type: "noise", kind, x: at.x, z: at.z, radius, heard });
-  if (cfg.botBrain === "competent") botsHear(cfg, g, kind, at); // percepção dos bots competentes (R4)
+  if (anyCompetentBot(cfg)) botsHear(cfg, g, kind, at); // percepção dos bots competentes (R4)
   return heard;
 }
 
@@ -243,7 +243,7 @@ export function attack(cfg: SimConfig, g: GameState, s: Survivor) {
   if (s.cls === "Mecânico") {
     const dx = H.x - s.x, dz = H.z - s.z, k = Math.hypot(dx, dz) || 1;
     const facing = (-Math.sin(s.a) * dx - Math.cos(s.a) * dz) / k;
-    if (k < c.mechanic.bolt.range && ((s.bot && cfg.botBrain === "prototype") || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
+    if (k < c.mechanic.bolt.range && ((s.bot && botBrainOf(cfg, s.id) === "prototype") || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
       s.atk = c.mechanic.bolt.cooldown;
       H.hp -= c.mechanic.bolt.damage;
       H.slow = c.mechanic.bolt.slow_time;
@@ -572,10 +572,13 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     }
   }
 
-  if (cfg.botBrain === "competent") {
-    const fx = botEffects(cfg, g);
-    for (const s of g.survivors) if (s.bot && s.st === "ok") updateBotAi(cfg, g, s, dt, fx);
-  } else for (const s of g.survivors) if (s.bot && s.st === "ok") updateBot(cfg, g, s, dt);
+  // cérebro por vaga (`botBrainOf`): na partida padrão todas as vagas usam `cfg.botBrain`
+  const fx = anyCompetentBot(cfg) ? botEffects(cfg, g) : null;
+  for (const s of g.survivors) {
+    if (!s.bot || s.st !== "ok") continue;
+    if (fx && botBrainOf(cfg, s.id) === "competent") updateBotAi(cfg, g, s, dt, fx);
+    else updateBot(cfg, g, s, dt);
+  }
   updateHunter(cfg, g, dt);
 
   g.projectiles = g.projectiles.filter(p => {
@@ -585,7 +588,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     return !dead;
   });
   g.traps = g.traps.filter(t => {
-    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && cfg.botBrain === "prototype" && s.cls === "Mecânico" && s.bot));
+    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && s.bot && botBrainOf(cfg, s.id) === "prototype" && s.cls === "Mecânico"));
     if (s) { s.slow = b.hunter.trap.slow_time; if (!s.bot) msg(g, "trap_caught"); return false; }
     return true;
   });
