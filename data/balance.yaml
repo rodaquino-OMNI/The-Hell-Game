@@ -451,9 +451,10 @@ net:
 # fora do grafo do §8.2 reprovam sempre.
 # Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
 # para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado). Medição de 09/11/2026
-# (`pnpm sim --check --noise=10`, bots do protótipo, hunter_brain utility, grade A*). Desvios: hunter_win 0 / 0;
-# duration_mean 11,14 s (easy) / 4,65 s; captures_per_match 0,065 (nightmare) / 0,0215; short_match_rate 0,051 (easy)
-# / 0,0211; chase_median 16,8 s (hard) / 7,4 s. Ao regravar a linha de base com outro comportamento (ex.: bots do R4),
+# (`pnpm sim --check --noise=10`, bots do protótipo, hunter_brain utility, grade A*, com a D-21
+# `generator.completed_reveal_global: true`). Desvio máx por dificuldade / no agregado: hunter_win 0 / 0;
+# duration_mean 9,75 s (easy) / 3,67 s; captures_per_match 0,062 (nightmare) / 0,0235; short_match_rate 0,040 (easy)
+# / 0,0164; chase_median 26,3 s (hard) / 7,7 s. Ao regravar a linha de base com outro comportamento (ex.: bots do R4),
 # medir de novo e revisar estes valores no mesmo PR.
 sim:
   short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
@@ -461,8 +462,8 @@ sim:
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
   regression:
     hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.02, pooled_max_worsening: 0.005}  # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 48, pooled_max_worsening: 20}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.28, pooled_max_worsening: 0.092}    # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.22, pooled_max_worsening: 0.09}                     # §7.6: < 5%
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 42, pooled_max_worsening: 16}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.27, pooled_max_worsening: 0.1}      # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.17, pooled_max_worsening: 0.07}                     # §7.6: < 5%
     # §8.5 (aceite: mediana ≥ 15 s). Com < 10 episódios a mediana oscila > 12 s entre lotes: não é comparada.
-    chase_median:       {worse: lower, max_worsening: 72, pooled_max_worsening: 32, min_samples: 10}
+    chase_median:       {worse: lower, max_worsening: 112, pooled_max_worsening: 33, min_samples: 10}
