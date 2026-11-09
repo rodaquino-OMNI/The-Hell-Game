@@ -62,10 +62,10 @@ describe("musicStateFor: 10 cenários e conflitos de prioridade", () => {
     chase(g, 1); expect(state(g)).toBe("tension");
   });
 
-  it("6. IA do R3: modo chase ou attack com o jogador como alvo → perseguição; investigate/patrol com alvo → não", () => {
+  it("6. IA do R3: modo chase, attack ou recoil com o jogador como alvo → perseguição; investigate/patrol/cage com alvo → não", () => {
     const g = game(true);
-    for (const mode of ["chase", "attack"] as const) { chase(g, P, mode); expect(state(g)).toBe("chase"); }
-    for (const mode of ["investigate", "patrol", "recoil", "cage"] as const) { chase(g, P, mode); expect(state(g)).toBe("ambient"); }
+    for (const mode of ["chase", "attack", "recoil"] as const) { chase(g, P, mode); expect(state(g)).toBe("chase"); }
+    for (const mode of ["investigate", "patrol", "cage"] as const) { chase(g, P, mode); expect(state(g)).toBe("ambient"); }
     hunterAt(g, R - EPS); chase(g, P, "investigate"); expect(state(g)).toBe("tension");
   });
 
@@ -91,6 +91,23 @@ describe("musicStateFor: 10 cenários e conflitos de prioridade", () => {
     expect(state(g, P)).not.toBe("chase");
     chase(g, -1); expect(state(g, 2)).toBe("tension");
     expect(state(g, 99)).toBe("ambient"); // id inexistente: sem distância
+  });
+
+  it("alvo velho do caçador básico: jogador preso com target nele → resgate, não perseguição; morto → ambiente", () => {
+    for (const utility of [false, true]) {
+      const g = game(utility); hunterAt(g, R / 2); chase(g); cage(g, P);
+      expect(state(g)).toBe("rescue");
+      g.survivors[P].st = "dead"; expect(state(g)).toBe("ambient");
+    }
+  });
+
+  it("jogador fora de jogo (morto ou escapado): sem tensão nem perseguição; pressão final e resgate valem (LACUNA)", () => {
+    for (const st of ["dead", "out"] as const) {
+      const g = game(true); hunterAt(g, R / 2); chase(g); g.survivors[P].st = st;
+      expect(state(g)).toBe("ambient");
+      cage(g, 1); expect(state(g)).toBe("rescue");
+      g.gateStarted = true; expect(state(g)).toBe("final_pressure");
+    }
   });
 
   it("é pura: não altera o estado", () => {
