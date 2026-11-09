@@ -43,7 +43,8 @@ let live: "off" | "polite" | null = null;
 
 function render(list: readonly Caption[]) {
   const el = $("cap");
-  el.innerHTML = list.map(captionHtml).join("");
+  // role="log" fica no contêiner; a lista é um <ul> de verdade dentro dele (o papel de log tiraria a semântica de lista)
+  el.innerHTML = list.length ? `<ul>${list.map(captionHtml).join("")}</ul>` : "";
   shown.clear();
   el.hidden = list.length === 0;
 }

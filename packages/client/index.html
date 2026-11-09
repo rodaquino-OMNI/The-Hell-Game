@@ -87,7 +87,8 @@ body.retro #me,body.retro #top,body.retro #tm{display:none!important}
 body.retro #hint{bottom:calc(104px + env(safe-area-inset-bottom,0px))}body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 body.retro #spec{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 /* legendas de som (V8b): centro embaixo, acima da dica (e da barra de estado no retro); sobe com o painel de espectador */
-#cap{left:50%;transform:translateX(-50%);bottom:calc(60px + env(safe-area-inset-bottom,0px));margin:0;padding:0;list-style:none;display:flex;flex-direction:column;align-items:center;gap:4px;width:max-content;max-width:min(92vw,46ch);pointer-events:none}
+#cap{left:50%;transform:translateX(-50%);bottom:calc(60px + env(safe-area-inset-bottom,0px));width:max-content;max-width:min(92vw,46ch);pointer-events:none}
+#cap ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 #spec:not([hidden])~#cap{bottom:calc(170px + env(safe-area-inset-bottom,0px))}
 body.retro #cap{bottom:calc(150px + env(safe-area-inset-bottom,0px))}body.retro #spec:not([hidden])~#cap{bottom:calc(260px + env(safe-area-inset-bottom,0px))}
 .cp{display:flex;align-items:center;gap:6px;max-width:100%;background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:3px 8px;overflow-wrap:anywhere}
@@ -105,7 +106,7 @@ body.retro #cap{bottom:calc(150px + env(safe-area-inset-bottom,0px))}body.retro 
 <div id="pings" class="p" role="group" data-i18n-aria-label="ping.title"><div id="pcd"></div><ul id="pf"></ul></div>
 <div id="sb" role="group" data-i18n-aria-label="retro.bar" hidden></div>
 <div id="spec" class="p" hidden><h2 id="spt"></h2><div id="spw"></div><button type="button" id="spn" data-i18n="spec.next"></button><small data-i18n="spec.note"></small></div>
-<ul id="cap" role="log" data-i18n-aria-label="hud.captions" aria-live="off" hidden></ul>
+<div id="cap" role="log" data-i18n-aria-label="hud.captions" aria-live="off" hidden></div>
 </div>
 <div id="pz" class="p"><div id="pzc"></div><button type="button" id="pzx" data-i18n="puzzle.exit"></button></div>
 <main id="menu">

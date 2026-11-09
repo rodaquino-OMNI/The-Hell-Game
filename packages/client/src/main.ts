@@ -97,8 +97,11 @@ setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
 setupCaptions();
 /** gancho de teste das legendas (tools/a11y/axe.mjs; só com ?debug=1): publica a legenda de um efeito como se ele
- *  tivesse tocado em `pos` (sem `pos`, sem direção), ouvida pelo jogador com a câmera atual */
-exposeDebugHook("__thehellCaptions", { emit: (name: string, pos?: { x: number; z: number }) => getCaptionBus().emit({ name, pos: pos ?? null, ear: G?.survivors[0] ?? null, yaw: view.yaw }) });
+ *  tivesse tocado em `pos` (sem `pos`, sem direção), ouvida pelo jogador com a câmera atual, e escolhe o tempo na tela */
+exposeDebugHook("__thehellCaptions", {
+  emit: (name: string, pos?: { x: number; z: number }) => getCaptionBus().emit({ name, pos: pos ?? null, ear: G?.survivors[0] ?? null, yaw: view.yaw }),
+  duration: (s: number) => getCaptionBus().setDuration(s),
+});
 startPadLoop(() => G);
 // mudo do master (D-41) na tecla da ação `mute` (remapeável, V8; padrão M), com aviso na linha de mensagens do HUD;
 // o slider de volume geral do menu de opções acompanha

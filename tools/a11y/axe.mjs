@@ -236,39 +236,43 @@ async function gamepadFlow(page, n) {
 }
 
 /** faixa de legendas (V8b; GDD-v0.3 §12.4): o caçador à direita gera "passos" com seta no setor 2 e ×2 na fusão; a
- *  legenda mais longa dos catálogos cabe na tela sem estourar nos 3 tamanhos de fonte (ui.options.font_scales) */
+ *  legenda mais longa dos catálogos cabe na tela sem estourar nos 3 tamanhos de fonte (ui.options.font_scales).
+ *  Emissão e leitura do DOM no mesmo evaluate (o barramento avisa de forma síncrona): com a máquina carregada, o
+ *  relógio da partida pode vencer a legenda entre duas chamadas do Playwright */
 async function captionsCheck(page, locale, T) {
-  const n = `${locale}/legendas`;
-  const emit = (name, dx) => game(page, ([nm, d]) => { const p = window.__thehell().survivors[0]; return !!window.__thehellCaptions.emit(nm, d === null ? undefined : { x: p.x + d, z: p.z }); }, [name, dx]);
-  if (!(await emit("step_hunter", 6))) { fail(`${n}: o barramento recusou a legenda (legendas desligadas?)`); return; }
-  await emit("step_hunter", 6);
-  await emit("rescue", null);
-  await page.waitForSelector("#cap li", { state: "visible", timeout: STALL_MS });
-  const info = await page.evaluate(() => {
-    const cap = document.getElementById("cap");
-    return { live: cap.getAttribute("aria-live"), items: [...cap.querySelectorAll("li")].map(li => ({ text: li.textContent, rot: li.querySelector(".ca")?.getAttribute("style") ?? "", danger: li.classList.contains("hz") })) };
-  });
-  if (info.live !== "off") fail(`${n}: aria-live "${info.live}" durante a partida (esperado off)`);
-  const steps = info.items.find(i => i.text.includes(T["caption.hunter_steps"]));
-  const right = (2 * 360) / balance.ui.threat_sectors;
-  if (!steps || !steps.rot.includes(`rotate(${right}deg)`) || !steps.text.includes("×2") || !steps.danger) fail(`${n}: passos do caçador sem seta à direita, ×2 ou borda de perigo: ${JSON.stringify(info.items)}`);
-  if (!info.items.some(i => i.text.includes(T["caption.rescue"]) && !i.rot)) fail(`${n}: resgate sem a legenda sem direção: ${JSON.stringify(info.items)}`);
-  // quebra de linha: troca o texto pela legenda mais longa do idioma e mede nos 3 tamanhos de fonte
+  const n = `${locale}/legendas`, ac = balance.audio.captions;
   const longest = Object.entries(T).filter(([k]) => k.startsWith("caption.") && !k.startsWith("caption.sound_")).map(([, v]) => v).sort((a, b) => b.length - a.length)[0];
-  for (const [size, scale] of Object.entries(balance.ui.options.font_scales)) {
-    const r = await page.evaluate(([txt, sc]) => {
+  // tempo na tela no máximo da lista durante a conferência (volta ao padrão no fim)
+  await game(page, (s) => window.__thehellCaptions.duration(s), Math.max(...ac.durations));
+  const r = await page.evaluate(([scales, txt]) => {
+    const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
+    const ok = [c.emit("step_hunter", { x: p.x + 6, z: p.z }), c.emit("step_hunter", { x: p.x + 6, z: p.z }), c.emit("rescue")].every(Boolean);
+    const cap = document.getElementById("cap");
+    const items = [...cap.querySelectorAll("li")].map(li => ({ text: li.textContent, rot: li.querySelector(".ca")?.getAttribute("style") ?? "", danger: li.classList.contains("hz") }));
+    const wrap = {};
+    for (const [size, sc] of Object.entries(scales)) {
       document.documentElement.style.setProperty("--ui-scale", String(sc));
-      const ct = document.querySelector("#cap li .ct");
-      ct.firstChild.textContent = txt;
-      const cap = document.getElementById("cap").getBoundingClientRect();
-      const lis = [...document.querySelectorAll("#cap li")].map(li => ({ r: li.getBoundingClientRect(), over: li.scrollWidth > li.clientWidth + 1 }));
-      return { left: cap.left, right: cap.right, top: cap.top, w: innerWidth, h: innerHeight, over: lis.some(l => l.over || l.r.left < 0 || l.r.right > innerWidth) };
-    }, [longest, scale]);
-    if (r.over || r.left < 0 || r.right > r.w || r.top < 0) fail(`${n}: legenda de ${longest.length} caracteres estoura com a fonte ${size}: ${JSON.stringify(r)}`);
-    if (size === "xlarge") await axe(page, `${n}-fonte-${scale}`);
-  }
+      const ct = cap.querySelector("li .ct");
+      if (ct) ct.firstChild.textContent = txt;
+      const b = cap.getBoundingClientRect();
+      const over = [...cap.querySelectorAll("li")].some(li => { const q = li.getBoundingClientRect(); return li.scrollWidth > li.clientWidth + 1 || q.left < 0 || q.right > innerWidth; });
+      wrap[size] = { over: over || b.left < 0 || b.right > innerWidth || b.top < 0, width: Math.round(b.width) };
+    }
+    return { ok, live: cap.getAttribute("aria-live"), items, wrap };
+  }, [balance.ui.options.font_scales, longest]);
+  if (!r.ok) { fail(`${n}: o barramento recusou a legenda (legendas desligadas?)`); return; }
+  if (r.live !== "off") fail(`${n}: aria-live "${r.live}" durante a partida (esperado off)`);
+  const steps = r.items.find(i => i.text.includes(T["caption.hunter_steps"]));
+  const right = (2 * 360) / balance.ui.threat_sectors;
+  if (!steps || !steps.rot.includes(`rotate(${right}deg)`) || !steps.text.includes("×2") || !steps.danger) fail(`${n}: passos do caçador sem seta à direita, ×2 ou borda de perigo: ${JSON.stringify(r.items)}`);
+  if (!r.items.some(i => i.text.includes(T["caption.rescue"]) && !i.rot)) fail(`${n}: resgate sem a legenda sem direção: ${JSON.stringify(r.items)}`);
+  for (const [size, w] of Object.entries(r.wrap)) if (w.over) fail(`${n}: legenda de ${longest.length} caracteres estoura com a fonte ${size}: ${JSON.stringify(w)}`);
+  // axe com a fonte maior e as legendas na tela (renovadas na hora)
+  await game(page, () => { const p = window.__thehell().survivors[0]; window.__thehellCaptions.emit("step_hunter", { x: p.x + 6, z: p.z }); window.__thehellCaptions.emit("rescue"); });
+  await axe(page, `${n}-fonte-${balance.ui.options.font_scales.xlarge}`);
   await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), balance.ui.options.font_scales[balance.ui.options.font_default]);
-  report.push(`${n}: seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(balance.ui.options.font_scales).length} tamanhos`);
+  await game(page, (s) => window.__thehellCaptions.duration(s), ac.durations[ac.default_duration_index]);
+  report.push(`${n}: seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
 }
 
 try {
