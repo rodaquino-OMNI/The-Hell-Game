@@ -130,7 +130,8 @@ try {
     return along;
   };
   // partida iniciada e rodando (ao menos um passo, sem fim de jogo) antes de apertar qualquer tecla de movimento
-  await page.waitForFunction(() => { const g = window.__thehell(); return !!g && g.t > 0 && !g.over; }, null, { timeout: HOLD_REAL_MS });
+  await page.waitForFunction(() => { const g = window.__thehell(); return !!g && g.t > 0 && !g.over; }, null, { timeout: HOLD_REAL_MS })
+    .catch(async () => fail(`a partida não começou a rodar em ${HOLD_REAL_MS} ms: ` + await page.evaluate(() => { const g = window.__thehell(); return JSON.stringify(g ? { t: g.t, over: g.over } : "sem partida"); }).catch(e => e.message)));
   const s0 = await read();
   yawZero("início", s0);
   // yaw 0 (main.ts: init) olha para −z (perception.ts: yaw a olha para (−sen a, −cos a)); A anda para −x
