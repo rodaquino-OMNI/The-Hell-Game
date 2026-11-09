@@ -6,7 +6,7 @@
 //   medium-todos (todos os efeitos em 1), medium-zero (todos em 0), um por efeito (snap, affine, gouraud, dither),
 //   low-todos e high-todos (presets de resolução interna). As cenas do V1 rodam com as camadas desligadas (material
 //   isolado); as do V4 ligam as camadas: por preset (low-A, medium-AB, high-ABC), por camada (medium-A, medium-B,
-//   high-C) e dano (aberração), com e sem "reduzir flicker".
+//   high-C) e dano (aberração), com e sem "reduzir flicker"; D-18: medium-cacador-fora (caçador fora do cone).
 // Compara cada captura com tools/visual/ref/<nome>.png por diferença por pixel com tolerância e verifica:
 //   - com tudo em 0 duas capturas seguidas com a câmera parada são idênticas e não há padrão Bayer;
 //   - o dither ligado produz o padrão Bayer; cada efeito sozinho muda a imagem em relação a tudo em 0;
@@ -86,6 +86,8 @@ const SCENES = [
   // V4: aberração cromática no pulso de dano, sem e com "reduzir flicker"
   { name: "medium-dano", preset: "medium", ps1: ALL(1), layers: null, damage: 1 },
   { name: "medium-dano-reduzir", preset: "medium", ps1: ALL(1), layers: null, damage: 1, reduceFlicker: true },
+  // D-18: caçador fora do cone da lanterna (cena de prova de legibilidade), com o contorno
+  { name: "medium-cacador-fora", preset: "medium", ps1: ALL(1), layers: null, leg: LEG },
 ];
 
 let server;
@@ -184,7 +186,15 @@ async function capture(page, ps1, o = {}) {
     h.setReduceFlicker(o.reduceFlicker ?? false);
     h.setHunterOutline(o.outline ?? outline0);
     h.setOverrides({ damage: o.damage ?? 0, time: o.time ?? null });
-    const c = h.capture(view);
+    // o.leg: caçador na posição da cena de prova (a de volta depois da captura) e vista da cena
+    const H = window.__thehell().hunter, P = window.__thehell().survivors[0], saved = [H.x, H.z, H.a];
+    if (o.leg) {
+      const a = o.leg.view.yaw + o.leg.angle * Math.PI / 180;
+      H.x = P.x - Math.sin(a) * o.leg.distance; H.z = P.z - Math.cos(a) * o.leg.distance;
+      H.a = Math.atan2(P.x - H.x, P.z - H.z);
+    }
+    const c = h.capture(o.leg ? o.leg.view : view);
+    [H.x, H.z, H.a] = saved;
     return { ...c, info: h.info(), t: window.__thehell().t };
   }, [ps1, VIEW, o, layerADefaults, outlineDefault]);
   return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")), info: r.info, t: r.t };
@@ -317,10 +327,13 @@ try {
   //    render.legibility.body_keep do contraste que ele tem sem ela;
   //  - corpo do caçador com o contorno (D-18, render.hunter_outline): ≥ render.legibility.min_contrast fora do cone
   //    (LEG) e dentro dele (LEG_IN), com a camada A ligada; o contraste sem o contorno vai no relatório (antes/depois).
-  //    Com o contorno, a fração conservada é só informativa: as scanlines escurecem a linha em valor de tela
-  //    (≈ 0,8 em luminância linear) e o tom das sombras da LUT ergue o fundo, então todo corpo claro o bastante para
-  //    3:1 conserva ≈ 0,89 (medido em 09/11/2026 de 0,87 a 0,91 em potências 0,7 a 3); quem garante a leitura com a
-  //    camada A ligada é o mínimo absoluto
+  //    Com o contorno, a fração conservada vai no relatório, mas não reprova: as scanlines escurecem a linha em valor
+  //    de tela (≈ 0,8 em luminância linear) e o tom das sombras da LUT ergue o fundo, e nenhum ponto da tabela
+  //    potência × amount dá 3:1 e body_keep ≥ 0,9 juntos (revisão do PR #34; ver render.hunter_outline). Decisão de
+  //    arte pendente: até lá vale o body_keep do corpo sem o contorno.
+  //  - máscara do corpo: pixels em que o caçador desenhado chapado (opção `flat` do gancho: ui.text, sem luz, névoa
+  //    nem bloom) difere do fundo sem ele. Conta a silhueta inteira (cabeça oval, farrapos de hunter.farrapos) mesmo
+  //    onde a cor some no muro; antes contava só os pixels já visíveis sem o contorno
   {
     const lg = balance.render.legibility;
     const probe = async (o) => {
@@ -334,7 +347,7 @@ try {
         H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
         H.a = Math.atan2(P.x - H.x, P.z - H.z);
         H.windup = o.windup ? { kind: "melee", t: 0, total: 0.4 } : null;
-        return h.capture(LEG.view, { hidden: o.hidden ?? [] });
+        return h.capture(LEG.view, { hidden: o.hidden ?? [], flat: o.flat ?? [] });
       }, [o.leg ?? LEG, o, layerADefaults, outlineDefault]);
       return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")) };
     };
@@ -352,14 +365,15 @@ try {
     };
     const A0 = A_ALL(0);
     const bg = await probe({ hidden: ["hunter"] }), bgOff = await probe({ hidden: ["hunter"], layerA: A0 });
+    const flat = await probe({ flat: ["hunter"] }), flatOff = await probe({ flat: ["hunter"], layerA: A0 });
     const bare = await probe({ outline: 0 }), bareOff = await probe({ layerA: A0, outline: 0 });
-    const cb = contrast(bare, bg, bare, bg), cb0 = contrast(bareOff, bgOff, bareOff, bgOff);
-    // D-18: o corpo com o contorno, fora e dentro do cone. A máscara de pixels do caçador vem sempre da captura sem o
-    // contorno (a borda não aumenta a área medida)
+    const cb = contrast(flat, bg, bare, bg), cb0 = contrast(flatOff, bgOff, bareOff, bgOff);
+    // D-18: o corpo com o contorno, fora e dentro do cone, na mesma máscara chapada
     const body = await probe({}), bodyOff = await probe({ layerA: A0 });
-    const cbRim = contrast(bare, bg, body, bg), cbRim0 = contrast(bareOff, bgOff, bodyOff, bgOff);
-    const bgIn = await probe({ leg: LEG_IN, hidden: ["hunter"] }), bareIn = await probe({ leg: LEG_IN, outline: 0 }), bodyIn = await probe({ leg: LEG_IN });
-    const ci = contrast(bareIn, bgIn, bodyIn, bgIn), ciBare = contrast(bareIn, bgIn, bareIn, bgIn);
+    const cbRim = contrast(flat, bg, body, bg), cbRim0 = contrast(flatOff, bgOff, bodyOff, bgOff);
+    const bgIn = await probe({ leg: LEG_IN, hidden: ["hunter"] }), flatIn = await probe({ leg: LEG_IN, flat: ["hunter"] });
+    const bareIn = await probe({ leg: LEG_IN, outline: 0 }), bodyIn = await probe({ leg: LEG_IN });
+    const ci = contrast(flatIn, bgIn, bodyIn, bgIn), ciBare = contrast(flatIn, bgIn, bareIn, bgIn);
     const fmt = (c) => `${c.cr.toFixed(2)}:1 (Y ${c.lf.toFixed(4)} × fundo ${c.lb.toFixed(4)}, ${c.n} px)`;
     console.log(`legibilidade D-18 (contorno ${outlineDefault}): fora do cone ${fmt(cbRim)} (sem camada A ${cbRim0.cr.toFixed(2)}:1, conserva ${(cbRim.cr / cbRim0.cr).toFixed(3)}), sem contorno ${fmt(cb)}; dentro do cone ${fmt(ci)}, sem contorno ${fmt(ciBare)}`);
     if (!ci.n) fail("legibilidade: caçador fora da cena de prova dentro do cone");

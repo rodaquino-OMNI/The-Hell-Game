@@ -142,7 +142,7 @@ function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefi
     for (const mesh of meshes) {
       const m = mesh.material as Ps1Material, map = m.uniforms.tMap.value as THREE.Texture | null;
       if (!map || m.name !== "atlas") continue;
-      if (!cache.has(map)) { const nm = new Ps1Material({ lit: true, map: skinAtlas(map, skin) }); nm.name = m.name; cache.set(map, nm); }
+      if (!cache.has(map)) { const nm = new Ps1Material({ lit: true, map: skinAtlas(map, skin), rim: "PS1_RIM" in m.defines }); nm.name = m.name; cache.set(map, nm); }
       mesh.material = cache.get(map)!;
     }
   }

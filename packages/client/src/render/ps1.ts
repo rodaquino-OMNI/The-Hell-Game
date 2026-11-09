@@ -36,6 +36,11 @@ export const ps1Uniforms = {
 export const ditherUniform = { value: cfg.dither };
 
 const ho = balance.render.hunter_outline;
+/** cor do contorno: token × amount, cada canal limitado a 1 */
+function rimColor(hex: number, amount: number): THREE.Color {
+  const c = new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace).multiplyScalar(amount);
+  return c.setRGB(Math.min(1, c.r), Math.min(1, c.g), Math.min(1, c.b), THREE.LinearSRGBColorSpace);
+}
 /**
  * contorno do caçador (D-18): uniformes compartilhados pelos materiais com `rim` (o mesmo objeto em todos).
  * uRim = intensidade de 0 a 1 (acessibilidade); uRimColor já leva render.hunter_outline.amount; uRimPower = expoente
@@ -43,8 +48,9 @@ const ho = balance.render.hunter_outline;
  */
 export const rimUniforms = {
   uRim: { value: ho.intensity },
-  // valor cru do token, como os demais materiais (scene.ts desliga o ColorManagement, mas este módulo carrega antes)
-  uRimColor: { value: new THREE.Color().setHex(tok(ho.color), THREE.LinearSRGBColorSpace).multiplyScalar(ho.amount) },
+  // valor cru do token, como os demais materiais (scene.ts desliga o ColorManagement, mas este módulo carrega antes);
+  // cada canal fica ≤ 1 (sem branco saturado; o teste de render-layers confere amount × token ≤ 1 nos dados)
+  uRimColor: { value: rimColor(tok(ho.color), ho.amount) },
   uRimPower: { value: ho.power },
 };
 /** intensidade atual do contorno do caçador (0 a 1) */
@@ -266,8 +272,9 @@ void main() {
   outgoing = mix( perFragment, perVertex, uGouraud ) * BRDF_Lambert( diffuseColor.rgb );
 #endif
 #ifdef PS1_RIM
-  // contorno somado à cor (não depende da luz da cena); a névoa adiante o apaga com a distância como ao resto
-  outgoing += uRimColor * vRim;
+  // contorno somado à cor (não depende da luz da cena), sem passar da cor do contorno (o que já era mais claro fica
+  // como estava): a borda nunca estoura em branco; a névoa adiante o apaga com a distância como ao resto
+  outgoing = min( outgoing + uRimColor * vRim, max( outgoing, uRimColor ) );
 #endif
   // alfa = máscara de emissivo para o bloom da camada A (0 = emissivo); o passe final escreve alfa 1 na tela
   gl_FragColor = vec4( outgoing, 1.0 - uEmissive );

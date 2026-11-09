@@ -299,7 +299,11 @@ render:
   # por vértice (fresnel) no Ps1Material do caçador: cor = token × amount, somada antes da névoa; power = expoente do
   # fresnel (maior = borda mais fina). intensity de 0 a 1 (acessibilidade, V8). Fixo no tempo (sem pulsar: "reduzir
   # flicker", GDD-v0.3 §12.4). Medido em tools/visual/compare.mjs (corpo fora e dentro do cone ≥ legibility.min_contrast)
-  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 2.2, power: 2}
+  # amount × token ≤ 1 por canal (sem branco saturado; hunter.espectro tem máx. 206/255, então amount ≤ 1,23).
+  # Escolha (revisão do PR #34, 09/11/2026; máscara do corpo inteiro): power 1 e amount 1,15 dão 3,21:1 fora do cone
+  # e conservam 0,897 com a camada A. Nenhum ponto da tabela potência × amount (0,6 a 4 × 0,6 a 1,23) dá 3:1 e
+  # body_keep ≥ 0,9 ao mesmo tempo (o mais perto: power 1 e amount 1,05, 2,96:1 e 0,900): decisão de arte pendente
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
   states:

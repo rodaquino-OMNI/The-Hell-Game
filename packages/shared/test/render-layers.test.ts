@@ -48,6 +48,11 @@ describe("contorno do caçador (D-18; Art Bible §5.3)", () => {
     expect(r.hunter_outline.intensity).toBeLessThanOrEqual(1);
   });
 
+  it("amount × token ≤ 1 em cada canal (sem branco saturado)", () => {
+    const rgb5 = (palette.tokens[r.hunter_outline.color] as { rgb5: number[] }).rgb5;
+    for (const v of rgb5) expect((r.hunter_outline.amount * Math.round((v * 255) / 31)) / 255).toBeLessThanOrEqual(1);
+  });
+
   it("intensidade fora de 0..1 e cor que não é token são recusadas", () => {
     expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: )[\d.]+/, "$11.5"))).toThrow();
     expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: [\d.]+, color: )[a-z_.]+/, "$1\"#5a5e66\""))).toThrow();
