@@ -1,7 +1,7 @@
 // Stems de música (item A-3 do V5; GDD-v0.3 §11, C-13): os 5 MP3 gerados por tools/audio/compose.ts existem, têm o
 // mesmo comprimento em número inteiro de compassos, loudness −16 LUFS ±1 com pico real ≤ −1 dBTP (ffmpeg ebur128) e
 // fecham o loop sem degrau. Usa ffmpeg/ffprobe do sistema. Sem o binário: na CI (process.env.CI) o teste FALHA
-// (o passo "Áudio: ffmpeg para os testes de stems" do ci.yml instala); fora da CI o bloco é pulado com aviso.
+// (o passo "Áudio: ffmpeg (stems A-3 e loudness A-7)" do ci.yml instala); fora da CI o bloco é pulado com aviso.
 //
 // Comprimento: o exato vem da DECODIFICAÇÃO (ffmpeg respeita o atraso e o padding do cabeçalho Xing/LAME, como o
 // Chromium, conferido em tools/audio/check-loop.mjs). A duração que o ffprobe informa é quadros × 1152 amostras e inclui
@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
 import { circular, junctionOk, junctionStats } from "../../../tools/audio/junction.mjs";
+import { hasBinaries, measureLoudness } from "../../../tools/audio/ebur128.mjs";
 
 const root = new URL("../../../", import.meta.url).pathname;
 const bal = loadBalanceFile(root + "data/balance.yaml");
@@ -31,7 +32,7 @@ const CLICK = 0.02, CLICK_DECAY = Math.round(0.1 * SR);
 /** folga do teste: tempo de ffmpeg por arquivo em máquina carregada (ms) */
 const TIMEOUT = 120_000;
 
-const hasFfmpeg = ["ffmpeg", "ffprobe"].every(b => spawnSync(b, ["-version"]).status === 0);
+const hasFfmpeg = hasBinaries(["ffmpeg", "ffprobe"]);
 const inCI = !!process.env.CI;
 if (!hasFfmpeg && !inCI) console.warn("audio-stems: ffmpeg/ffprobe ausente no PATH; testes de loudness e loop PULADOS (fora da CI)");
 
@@ -44,15 +45,6 @@ function decode(path: string): Float32Array[] {
   const ch = [new Float32Array(n), new Float32Array(n)];
   for (let i = 0; i < n; i++) { ch[0][i] = all[2 * i]; ch[1][i] = all[2 * i + 1]; }
   return ch;
-}
-
-function ebur128(path: string): { I: number; TP: number } {
-  const r = spawnSync("ffmpeg", ["-nostats", "-hide_banner", "-i", path, "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" });
-  const s = r.stderr.slice(r.stderr.lastIndexOf("Summary:"));
-  return {
-    I: Number(/I:\s+(-?[\d.]+)\s+LUFS/.exec(s)?.[1]),
-    TP: Number(/True peak:\s+Peak:\s+(-?[\d.]+)\s+dBFS/.exec(s)?.[1]),
-  };
 }
 
 function probe(path: string) {
@@ -116,7 +108,7 @@ describe("stems de música (A-3)", () => {
 
     it("loudness −16 LUFS ±1 e pico real ≤ −1 dBTP (ebur128)", () => {
       for (const s of music.stems) {
-        const { I, TP } = ebur128(file(s));
+        const { I, TP } = measureLoudness(file(s));
         expect(Math.abs(I - bal.audio.loudness_lufs), `${s}: ${I} LUFS`).toBeLessThanOrEqual(bal.audio.loudness_tolerance);
         expect(TP, `${s}: ${TP} dBTP`).toBeLessThanOrEqual(bal.audio.true_peak_dbtp);
       }

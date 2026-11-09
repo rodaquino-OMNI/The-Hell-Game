@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadBalanceFile } from "../../packages/shared/src/node.ts";
+import { type Loudness, measureLoudness } from "./ebur128.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright") as typeof import("playwright");
@@ -57,17 +58,11 @@ function wavBytes(ch: Float32Array[]): Buffer {
   return b;
 }
 
-interface Loudness { I: number; TP: number }
-/** loudness integrado (LUFS) e pico real (dBTP) pelo filtro ebur128 do ffmpeg (o resumo sai em stderr) */
+/** loudness integrado (LUFS) e pico real (dBTP) pelo ebur128 do ffmpeg (tools/audio/ebur128.mjs); silêncio é erro aqui */
 function measure(file: string): Loudness {
-  const r = spawnSync("ffmpeg", ["-nostats", "-hide_banner", "-i", file, "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" });
-  if (r.status !== 0) throw new Error("ffmpeg ebur128 falhou: " + r.stderr);
-  const err = r.stderr;
-  const summary = err.slice(err.lastIndexOf("Summary:"));
-  const I = Number(/I:\s+(-?[\d.]+|-inf)\s+LUFS/.exec(summary)?.[1]);
-  const TP = Number(/True peak:\s+Peak:\s+(-?[\d.]+|-inf)\s+dBFS/.exec(summary)?.[1]);
-  if (!Number.isFinite(I) || !Number.isFinite(TP)) throw new Error("resumo do ebur128 ilegível:\n" + summary);
-  return { I, TP };
+  const m = measureLoudness(file);
+  if (!Number.isFinite(m.I) || !Number.isFinite(m.TP)) throw new Error(`ebur128 sem valor finito em ${file}: I ${m.I}, TP ${m.TP}`);
+  return m;
 }
 
 // ---------- masterização ----------
