@@ -1,4 +1,5 @@
 // Dados comuns aos testes da IA do caçador (R3): configs v1 com `hunterBrain: utility` e cenários montados à mão.
+// Desde o marco MJ-B a config é a de produção, fixada explicitamente: bots `competent` (sobreponha com `opts`).
 import {
   createGame, makeConfig, NO_INPUT, step, type AiTrace, type ClassName, type ConfigOptions, type Difficulty, type GameState,
   type Percept, type PlayerInput, type SeenSurvivor, type SimConfig,
@@ -9,7 +10,7 @@ export { balance, map };
 export const b = balance;
 
 export function aiCfg(difficulty: Difficulty = "normal", opts: ConfigOptions = {}): SimConfig {
-  return makeConfig(balance, map, { ruleset: "v1", hunterBrain: "utility", difficulty, ...opts });
+  return makeConfig(balance, map, { ruleset: "v1", hunterBrain: "utility", botBrain: "competent", difficulty, ...opts });
 }
 export const normal = aiCfg("normal");
 

@@ -1,8 +1,10 @@
 // Porta de regressão do simulador (GDD-v0.3 C-15, decisão D-05 a): compara as métricas de cada grupo com a linha de
 // base versionada (data/sim/baseline.json) e reprova se alguma PIORAR mais que a tolerância de `sim.regression`
 // (data/balance.yaml). As bandas do GDD-v0.2 §7.6 só definem a DIREÇÃO de "piora" das métricas `worse: band`
-// (afastar-se da banda); elas não reprovam sozinhas até o beta (D-05). Lógica pura, testada em
-// packages/sim/test/sim-regression.test.ts.
+// (afastar-se da banda); elas não reprovam sozinhas até o beta (D-05). Exceção: `floor` é um PISO ABSOLUTO de aceite
+// que reprova independente da linha de base (chase_median ≥ 15 s, GDD-v0.3 §8.5; marco MJ-B), só nos grupos das
+// dificuldades de `floor_groups` (o aceite do §8.5 é contra o caçador Normal) e quando a amostra do grupo atual tiver
+// ≥ min_samples. Lógica pura, testada em packages/sim/test/sim-regression.test.ts.
 import { METRIC_BOUNDS, type GroupMetrics, type MetricName } from "./metrics.ts";
 
 /** regra de uma métrica (`sim.regression.<métrica>` em data/balance.yaml) */
@@ -14,12 +16,20 @@ interface RuleBase {
   /** abaixo desta amostra (partidas; chase_median: episódios) a métrica não é comparada */
   min_samples?: number;
 }
-export type Rule = RuleBase & ({ worse: "higher" | "lower" } | { worse: "band"; band: readonly [number, number] });
+export type Rule = RuleBase & (
+  | { worse: "higher" }
+  /**
+   * floor: piso absoluto (valor abaixo dele reprova com amostra ≥ min_samples, mesmo sem base ou com tolerância a
+   * medir), só nos grupos "mapa/<dificuldade>" com a dificuldade em `floor_groups` (o agregado "mapa/all" não entra)
+   */
+  | { worse: "lower"; floor?: number; floor_groups?: readonly string[] }
+  | { worse: "band"; band: readonly [number, number] }
+);
 export type Rules = Partial<Record<MetricName, Rule>>;
 
-export type Status = "igual" | "melhora" | "piora tolerada" | "PIORA" | "ausente" | "sem base" | "amostra pequena" | "a medir";
+export type Status = "igual" | "melhora" | "piora tolerada" | "PIORA" | "ABAIXO DO PISO" | "ausente" | "sem base" | "amostra pequena" | "a medir";
 /** status que reprovam a porta */
-export const FAILING: readonly Status[] = ["PIORA", "ausente"];
+export const FAILING: readonly Status[] = ["PIORA", "ABAIXO DO PISO", "ausente"];
 
 export interface Comparison {
   group: string;
@@ -35,6 +45,10 @@ export interface Comparison {
    * (base ± tolerância passa de 0 ou de 1), então só uma troca de lado da banda (ou nada) reprovaria
    */
   saturated: boolean;
+  /** piso absoluto da regra (null = sem piso) */
+  floor: number | null;
+  /** o piso vigiou este grupo (amostra atual ≥ min_samples) */
+  floorActive: boolean;
 }
 
 /** linha de base: metadados de geração + métricas por grupo ("mapa/dificuldade") */
@@ -89,6 +103,13 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 /** sufixo do grupo agregado de todas as dificuldades de um mapa (tools/sim/run.ts) */
 export const POOLED = "/all";
 
+/** piso absoluto da regra no grupo (só `worse: lower`, só nas dificuldades de `floor_groups`); null = sem piso */
+export function floorOf(rule: Rule, group: string): number | null {
+  if (rule.worse !== "lower" || rule.floor === undefined) return null;
+  const difficulty = group.slice(group.lastIndexOf("/") + 1);
+  return rule.floor_groups?.includes(difficulty) ? rule.floor : null;
+}
+
 /** tolerância da regra para o grupo */
 export function toleranceFor(group: string, rule: Rule): number | null {
   return group.endsWith(POOLED) ? (rule.pooled_max_worsening !== undefined ? rule.pooled_max_worsening : rule.max_worsening) : rule.max_worsening;
@@ -97,14 +118,18 @@ export function toleranceFor(group: string, rule: Rule): number | null {
 /** compara uma métrica de um grupo */
 export function compareMetric(group: string, metric: MetricName, rule: Rule, base: Partial<GroupMetrics> | undefined, cur: Partial<GroupMetrics> | undefined): Comparison {
   const b = base?.[metric], c = cur?.[metric], tol = toleranceFor(group, rule);
+  const min = rule.min_samples ?? 1, floor = floorOf(rule, group);
+  const floorActive = floor !== null && !!cur && isNum(c) && samples(metric, cur) >= min;
   const row = (status: Status, worse: number | null = null): Comparison => ({
     group, metric, before: isNum(b) ? b : null, after: isNum(c) ? c : null, worsening: worse, tolerance: tol, status,
-    saturated: isNum(b) && tol !== null && saturated(metric, rule, b, tol),
+    saturated: isNum(b) && tol !== null && saturated(metric, rule, b, tol), floor, floorActive,
   });
-  if (!base || b === undefined) return row("sem base");
+  // piso absoluto: reprova pelo valor atual, com ou sem linha de base (grupo novo também)
+  const belowFloor = floorActive && (c as number) < floor! - EPS;
+  if (!base || b === undefined) return row(belowFloor ? "ABAIXO DO PISO" : "sem base");
   // métrica (ou grupo) que existia na linha de base e sumiu do resultado atual: quebra de instrumentação, reprova
   if (!cur || c === undefined || (c !== null && !isNum(c))) return row("ausente");
-  const min = rule.min_samples ?? 1;
+  if (belowFloor) return row("ABAIXO DO PISO", isNum(b) ? worsening(rule, b, c as number) : null);
   if (b === null || c === null || samples(metric, base) < min || samples(metric, cur) < min) return row(b === null && c !== null ? "sem base" : "amostra pequena");
   if (!isNum(b)) return row("sem base");
   if (tol === null) return row("a medir");
@@ -132,8 +157,8 @@ const fmt = (v: number | null, metric: MetricName) =>
 const fmtDelta = (v: number | null, metric: MetricName) =>
   v === null ? "—" : seconds(metric) ? `${v.toFixed(1)} s` : fraction(metric) ? `${(100 * v).toFixed(1)} p.p.` : v.toFixed(2);
 
-/** linha que efetivamente vigia (comparada e sem saturação) */
-const active = (r: Comparison) => !r.saturated && !["amostra pequena", "sem base", "a medir"].includes(r.status);
+/** linha que efetivamente vigia (comparada e sem saturação, ou com o piso absoluto ativo) */
+const active = (r: Comparison) => r.floorActive || (!r.saturated && !["amostra pequena", "sem base", "a medir"].includes(r.status));
 
 /** métricas sem nenhum grupo que vigie de fato (todas saturadas, com amostra pequena ou a medir) */
 export function inactiveMetrics(rows: readonly Comparison[]): MetricName[] {
@@ -145,7 +170,7 @@ export function inactiveMetrics(rows: readonly Comparison[]): MetricName[] {
 export function comparisonMarkdown(rows: readonly Comparison[]): string {
   const lines = ["| grupo | métrica | antes | depois | piora | tolerância | status | saturada |", "| --- | --- | --- | --- | --- | --- | --- | --- |"];
   for (const r of rows) {
-    const tol = r.tolerance === null ? "a medir" : fmtDelta(r.tolerance, r.metric);
+    const tol = (r.tolerance === null ? "a medir" : fmtDelta(r.tolerance, r.metric)) + (r.floor === null ? "" : ` (piso ${fmt(r.floor, r.metric)})`);
     lines.push(`| ${r.group} | ${r.metric} | ${fmt(r.before, r.metric)} | ${fmt(r.after, r.metric)} | ${fmtDelta(r.worsening, r.metric)} | ${tol} | ${r.status} | ${r.saturated ? "sim" : "—"} |`);
   }
   const off = inactiveMetrics(rows);

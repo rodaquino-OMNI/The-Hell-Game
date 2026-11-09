@@ -68,14 +68,15 @@ describe("despacho e dados (ai.bot_brain)", () => {
   it("revisão qa B-4: a grade comum ao caçador e aos bots usa o maior raio dos dois", () => {
     expect(cfg.grid!.radius).toBe(Math.max(b.hunter.radius, b.survivor.bot_radius));
   });
-  it("padrão prototype; o ruleset prototype ignora a sobreposição; v1 aceita competent e monta a grade", () => {
-    expect(b.ai.bot_brain).toBe("prototype");
-    expect(makeConfig(b, map, { botBrain: "competent" }).botBrain).toBe("prototype");
-    expect(makeConfig(b, map, { ruleset: "v1" }).botBrain).toBe("prototype");
+  it("padrão competent (marco MJ-B); o ruleset prototype ignora a sobreposição; v1 aceita prototype e competent", () => {
+    expect(b.ai.bot_brain).toBe("competent");
+    expect(makeConfig(b, map).botBrain).toBe("competent");
+    expect(makeConfig(b, map, { ruleset: "prototype", botBrain: "competent" }).botBrain).toBe("prototype");
+    expect(makeConfig(b, map, { ruleset: "v1", botBrain: "prototype" }).botBrain).toBe("prototype");
     const basic = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "competent" });
     expect(basic.botBrain).toBe("competent");
     expect(basic.grid).not.toBeNull();
-    expect(makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic" }).grid).toBeNull();
+    expect(makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" }).grid).toBeNull();
   });
   it("schema: bot_brain é enum e ai.bots é estrito", () => {
     expect(BalanceSchema.safeParse({ ...b, ai: { ...b.ai, bot_brain: "smart" } }).success).toBe(false);
@@ -84,7 +85,7 @@ describe("despacho e dados (ai.bot_brain)", () => {
     expect(BalanceSchema.safeParse({ ...b, ai: { ...b.ai, bots: { ...b.ai.bots, personalities: {} } } }).success).toBe(false);
   });
   it("bots do protótipo não ganham estado de IA; os competentes sim, no primeiro passo", () => {
-    const proto = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility" });
+    const proto = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility", botBrain: "prototype" });
     const g = createGame(proto, "Curandeiro", 5);
     step(proto, g, NO_INPUT);
     expect(g.survivors.some(s => s.ai)).toBe(false);
@@ -557,7 +558,7 @@ describe("determinismo e simulador", () => {
     H.x = 25; H.z = -25; H.stun = 1e9;
     step(cfg, g, NO_INPUT);
     expect(s.slow).toBeGreaterThan(0); // bot competente cai na armadilha
-    const pc = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility" }), p = createGame(pc, "Curandeiro", 43);
+    const pc = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility", botBrain: "prototype" }), p = createGame(pc, "Curandeiro", 43);
     const m = p.survivors.find(x => x.cls === "Mecânico")!;
     p.traps.push({ id: 99, x: m.x, z: m.z }); p.hunter.stun = 1e9;
     step(pc, p, NO_INPUT);

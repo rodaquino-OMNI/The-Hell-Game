@@ -66,6 +66,7 @@ export function setupInput(game: () => GameState | undefined) {
   };
   onkeyup = e => keyUp(e.code);
   document.addEventListener("pointerlockchange", () => mouseFilter.lockChange(!!document.pointerLockElement));
+  document.addEventListener("pointerlockerror", () => mouseFilter.lockError());
   onmousemove = e => {
     if (!mouseFilter.accept(!!document.pointerLockElement, e.movementX, e.movementY)) return;
     const G = game();
@@ -152,7 +153,9 @@ export function requestPuzzleExit() { pending.puzzleExit = true; }
 
 /** tenta capturar o ponteiro no canvas (falha silenciosa sem suporte) */
 export function lockPointer(canvas: HTMLCanvasElement) {
-  try { const p = canvas.requestPointerLock() as unknown as Promise<void> | undefined; p?.catch?.(() => {}); } catch { /* sem pointer lock */ }
+  // o salto espúrio pode chegar sem lock, antes do pointerlockchange: o descarte vale desde o pedido (pointer-filter.ts)
+  mouseFilter.requested();
+  try { const p = canvas.requestPointerLock() as unknown as Promise<void> | undefined; p?.catch?.(() => {}); } catch { mouseFilter.lockError(); /* sem pointer lock: o pedido não fica pendente */ }
 }
 
 const axisKeys = (neg: ControlAction, posA: ControlAction) => (held(prefs.keys, posA, keys) ? 1 : 0) - (held(prefs.keys, neg, keys) ? 1 : 0);
