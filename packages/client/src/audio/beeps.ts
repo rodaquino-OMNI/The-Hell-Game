@@ -1,17 +1,20 @@
-// Áudio da fase 0: osciladores, como no protótipo.
-let audio: AudioContext | null = null;
+// Áudio da fase 0: osciladores, como no protótipo, tocados pelo barramento `sfx` do motor (engine.ts, item A-1).
+import { getEngine } from "./engine.ts";
 
-/** cria o contexto de áudio (precisa de gesto do usuário, por isso só no início da partida) */
+/** cria e desbloqueia o contexto de áudio (precisa de gesto do usuário, por isso só no início da partida) */
 export function initAudio() {
-  try { audio = new AudioContext(); } catch { audio = null; }
+  void getEngine().unlock();
 }
 
 export function beep(f: number, d: number, v: number) {
-  if (!audio) return;
+  // sem contexto (antes do primeiro gesto ou sem Web Audio) não cria um: fica em silêncio, como no protótipo
+  const e = getEngine(), audio = e.context;
+  const out = audio ? e.busInput("sfx") : null;
+  if (!audio || !out) return;
   try {
     const o = audio.createOscillator(), gn = audio.createGain();
     o.frequency.value = f; gn.gain.setValueAtTime(v, audio.currentTime); gn.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + d);
-    o.connect(gn); gn.connect(audio.destination); o.start(); o.stop(audio.currentTime + d);
+    o.connect(gn); gn.connect(out); o.start(); o.stop(audio.currentTime + d);
   } catch { /* áudio indisponível */ }
 }
 
