@@ -145,11 +145,26 @@ vec3 ps1Irradiance( const in vec3 geometryPosition, const in vec3 n, const in fl
   return irradiance;
 }
 #if NUM_SPOT_LIGHTS > 0
-// lanterna do jogador (camada B): cone e atenuação do SpotLight do three.js
+// lanterna do jogador (camada B): cone e atenuação do SpotLight do three.js, as mesmas contas de getSpotLightInfo e
+// getDistanceAttenuation (lights_pars_begin), na mesma ordem, com um atalho: com decay = 1 (render.layer_b.lantern)
+// pow( d, 1 ) vira d. No SwiftShader o pow (exp2 e log2) por vértice pesa na camada B, e pow( d, 1 ) = d ali, então
+// a imagem fica idêntica (D-44 a)
 vec3 ps1Spot( const in vec3 geometryPosition, const in vec3 n ) {
-  IncidentLight spot;
-  getSpotLightInfo( spotLights[ 0 ], geometryPosition, spot );
-  return saturate( dot( n, spot.direction ) ) * spot.color;
+  vec3 lVector = spotLights[ 0 ].position - geometryPosition;
+  vec3 direction = normalize( lVector );
+  float spotAttenuation = getSpotAttenuation( spotLights[ 0 ].coneCos, spotLights[ 0 ].penumbraCos, dot( direction, spotLights[ 0 ].direction ) );
+  vec3 color = vec3( 0.0 );
+  if ( spotAttenuation > 0.0 ) {
+    float lightDistance = length( lVector );
+    // desvio uniforme (decay vem do uniforme da luz): o pow só roda com decay ≠ 1
+    float decayed = lightDistance;
+    if ( spotLights[ 0 ].decay != 1.0 ) decayed = pow( lightDistance, spotLights[ 0 ].decay );
+    float distanceFalloff = 1.0 / max( decayed, 0.01 );
+    if ( spotLights[ 0 ].distance > 0.0 ) distanceFalloff *= pow2( saturate( 1.0 - pow4( lightDistance / spotLights[ 0 ].distance ) ) );
+    color = spotLights[ 0 ].color * spotAttenuation;
+    color *= distanceFalloff;
+  }
+  return saturate( dot( n, direction ) ) * color;
 }
 #endif
 #endif
@@ -207,9 +222,12 @@ void main() {
   // borda de luz: 1 onde a normal fica de lado para a câmera, 0 de frente (Gouraud: interpolado entre vértices)
   vRim = uRim * pow( 1.0 - saturate( dot( n, normalize( vViewPosition ) ) ), uRimPower );
   #endif
-  // coordenadas da sombra da lanterna (chunk do three.js)
-  vec4 worldPosition = modelMatrix * vec4( transformed, 1.0 );
-  #include <shadowmap_vertex>
+  // coordenadas da sombra da lanterna: as do chunk shadowmap_vertex do three.js sem o deslocamento pela normal, que
+  // pede a normal em mundo (inversa da viewMatrix e normalize) em todo vértice e só vale com shadow.normalBias ≠ 0;
+  // a lanterna fixa normalBias = 0 (environment.ts), então o resultado é o mesmo, mais barato (D-44 a)
+  #if NUM_SPOT_LIGHT_COORDS > 0
+  vSpotLightCoord[ 0 ] = spotLightMatrix[ 0 ] * ( modelMatrix * vec4( transformed, 1.0 ) );
+  #endif
 #endif
   #include <fog_vertex>
 }
