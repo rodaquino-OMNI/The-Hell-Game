@@ -91,6 +91,11 @@ const AudioSchema = z.object({
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
   loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
+  /** A-7: pasta da música (relativa a public/) e licenças aceitas no creditos.csv (tools/audio/loudness.mjs) */
+  loudness_check: z.object({
+    music_dir: z.string().regex(/^audio\/[a-z0-9_/-]+[a-z0-9_-]$/, "music_dir relativo a public/, dentro de audio/"),
+    licenses: z.array(z.string().min(1)).min(1).refine(a => new Set(a).size === a.length, "licenças repetidas"),
+  }).strict(),
   ducking_db: z.number().max(0),
   buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
   volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
@@ -115,9 +120,23 @@ const AudioSchema = z.object({
     breath: z.object({ stamina_below: num.positive().max(1), period: z.tuple([pos.positive(), pos.positive()]) }).strict(),
     hum: z.object({ radius: pos.positive(), period: pos.positive() }).strict(),
   }).strict(),
+  /** A-6: legendas de som (GDD v0.3 §12.4); efeito do catálogo → chave i18n `caption.*` */
+  captions: z.object({
+    /** D-39 e D-40 (docs/plano-construcao.md §7) */
+    enabled_default: z.boolean(),
+    durations: z.array(pos.positive()).min(1), default_duration_index: int.nonnegative(),
+    max_on_screen: int.positive(), merge_window: pos,
+    /** categoria = ícone direcional da Visual (GDD v0.3 §11, L218) */
+    effects: z.record(z.string().regex(/^[a-z_]+$/), z.object({
+      key: z.string().regex(/^caption\.[a-z_]+$/),
+      category: z.enum(["hunter_steps", "hunter_attack", "generator", "survivor"]),
+    }).strict()),
+  }).strict().refine(c => c.default_duration_index < c.durations.length, "captions.default_duration_index fora de durations"),
 }).strict()
   .refine(a => Object.values(a.sfx).every(s => Object.prototype.hasOwnProperty.call(a.voice_priority, s.kind)),
-    "sfx: kind fora de voice_priority");
+    "sfx: kind fora de voice_priority")
+  .refine(a => Object.keys(a.captions.effects).every(n => Object.prototype.hasOwnProperty.call(a.sfx, n)),
+    "captions.effects: efeito fora de audio.sfx");
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
