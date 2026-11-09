@@ -311,13 +311,15 @@ describe("audio/spatial: mapa padrão = cfg.map efetivo (R7)", () => {
   };
   afterEach(() => { vi.doUnmock("../src/data.ts"); vi.resetModules(); });
 
-  it("sem deps.map, usa cfg.map de data.ts: hoje ele traz todas as paredes do pátio e a linha FREE fica livre", () => {
+  it("sem deps.map, usa cfg.map de data.ts: traz todas as paredes do pátio e o pilar (−10, 0) do v1, que oclui a linha FREE", () => {
     for (const w of patio.walls) expect(simCfg.map.walls).toContainEqual(w);
-    expect(isOccluded(simCfg.map, FREE.listener, FREE.source)).toBe(false);
+    expect(simCfg.map.walls).toContainEqual(PILLAR); // maps.v1.short_loop_pillars ligada (D-23)
+    expect(isOccluded(patio, FREE.listener, FREE.source)).toBe(false); // no mapa de topo a linha é livre
+    expect(isOccluded(simCfg.map, FREE.listener, FREE.source)).toBe(true);
     expect(isOccluded(simCfg.map, BEHIND.listener, BEHIND.source)).toBe(true);
     const sp = createSpatial({ engine: engineOnly(), cfg });
     sp.updateListener(cam(FREE.listener.x, FREE.listener.z));
-    expect(sp.play("footstep", src(), { bus: "sfx", pos: FREE.source })!.occluded).toBe(false);
+    expect(sp.play("footstep", src(), { bus: "sfx", pos: FREE.source })!.occluded).toBe(true);
   });
 
   it("uma parede que só existe no mapa efetivo (pilar do v1) oclui a voz; o mapa de topo não é lido", async () => {

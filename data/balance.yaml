@@ -323,11 +323,9 @@ maps:
     fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5); inerte com 3 sobreviventes
     # D-25 b: ligada depois que o cliente passou a desenhar o portão lateral pela arena da partida (PR #79,
     # render/scene.ts gatePose/addGate/placeCage; revisão do R7-mapas, B-1).
-    # D-23 b: o cliente já desenha cfg.map.walls (#79), mas segue desligada: com os pilares ligados, a mediana de
-    # perseguição do Difícil cai de 29,9 s para 2,2 s na linha de base (50 partidas, 20 episódios), com ou sem a D-50.
-    # Os episódios curtos começavam numa troca de alvo (`chaseEpisodes`): vaivém do caçador, corrigido pela histerese
-    # contra o alvo lembrado e pela D-52 (plano §7); com elas, 33,7 s em 1.000 partidas do Difícil com os pilares.
-    short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
+    # D-23 b: ligada depois de corrigido o vaivém de alvo do caçador (histerese contra o alvo lembrado, D-52 e D-53,
+    # plano §7), que encurtava as perseguições perto dos pilares; o cliente desenha cfg.map.walls desde o #79.
+    short_loop_pillars: true        # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
     side_exit: true                 # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
     # LACUNA (revisão do R7-mapas), RESOLVIDA pela D-50 (docs/plano-construcao.md §7): o pilar de 1 × 1 m deixava o
     # caçador acertar sem linha de visão pela quina (alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre
@@ -480,7 +478,14 @@ render:
   # 1,2 = 1,99 / 0,926, 2,84 / 0,904, 3,34 / 0,895; power 1,5 × 1,2 = 2,54 / 0,908; power 2 × 1,2 = 2,12 / 0,911;
   # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
   # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
-  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
+  # retro_scale (issue #48, resposta 3b do filho do Rodrigo, 09/11/2026: na 1ª pessoa do modo Retro (?retro=1) o
+  # caçador continua parecendo ele, mas o contorno fica claro demais; respostas 1a e 2a: manter o contorno forte na
+  # 3ª pessoa): fator sobre a intensidade escolhida (opção do jogador, V8) só no Retro em 1ª pessoa; a 3ª pessoa fica
+  # igual. Escolha: o menor fator (passo 0,05) que mantém o corpo fora do cone ≥ legibility.min_contrast (Art Bible
+  # §5.3) no Retro em 1ª pessoa nos três presets, na cena LEG com a máscara chapada de tools/visual/compare.mjs.
+  # Contraste fora do cone com o fator 1 / 0,7 / 0,4: low 4,70 / 3,84 / 2,96; medium 4,76 / 3,91 / 3,02;
+  # high 3,61 / 3,06 / 2,45 (o high limita: 0,65 dá 2,95). Conferido em tools/visual/compare.mjs (legibilidade Retro)
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7}
   models:
     survivor_tris: [300, 600]
     hunter_tris: [800, 1200]
