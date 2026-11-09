@@ -8,7 +8,8 @@
 //  2. espectro.glb com falha (route.abort): a partida começa com o modelo de reserva, cujos olhos também acendem no
 //     primeiro quadro do primeiro preparo.
 // Leitura por quadro: requestAnimationFrame registrado antes do laço do jogo lê o estado deixado pelo quadro anterior
-// (simulação e sincronização das malhas do mesmo quadro). Ganchos só com ?debug=1 (D-33).
+// (simulação e sincronização das malhas do mesmo quadro). Ganchos só com ?debug=1 (D-33). Regras v1 (`?ruleset=v1`):
+// só nelas o caçador tem preparo (hunter.windup, packages/sim/src/game.ts updateHunterV1), como em tools/audio/e2e-director.mjs.
 // Uso: node tools/e2e/espera-personagens.mjs [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre)
 import { createRequire } from "node:module";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -20,9 +21,15 @@ try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require(
 
 /** atraso do .glb do caçador (pedido da supervisão: 6 s, acima da janela de ~1 s vista no staging) */
 const DELAY_MS = 6000;
-/** espera máxima do primeiro preparo depois do início (s de relógio real; folga para máquina carregada) */
-const WINDUP_WAIT_MS = 90000;
-const SEED = 1234;
+/** espera máxima do primeiro preparo depois do início (ms de relógio real): o SwiftShader na CPU desenha poucos quadros
+ *  por segundo e o laço limita o quadro a client.max_frame_dt, então a partida anda mais devagar que o relógio */
+const WINDUP_WAIT_MS = 240000;
+/** preset e tela pequenos: menos rasterização na CPU (a prova é de ordem de eventos, não de imagem) */
+const PRESET = "low", VIEWPORT = { width: 640, height: 360 };
+/** semente com o primeiro preparo cedo nas regras v1 (projétil em G.t ≈ 9,7 s, caçador a ≈ 23 m do jogador parado:
+ *  dentro de audio.director.hunter_audible_radius, então o telegraph sonoro também é conferido); varredura headless de
+ *  createGame + step com o jogador parado, sementes 1 a 3000 */
+const SEED = 40;
 const HUNTER_GLB = /\/models\/espectro\.glb(\?|$)/;
 
 const failures = [];
@@ -48,12 +55,12 @@ function installRecorder() {
 }
 
 async function scenario(browser, name, route) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, locale: "pt-BR" });
+  const page = await browser.newPage({ viewport: VIEWPORT, locale: "pt-BR" });
   page.on("pageerror", e => fail(`${name}: pageerror ${e.message}`));
   // teto ui.start_wait_s atingido: com o .glb atrasado só DELAY_MS, é máquina lenta demais para esta prova
   page.on("console", m => { if (m.type() === "warning" && m.text().includes("ui.start_wait_s")) (page.__timeouts ??= []).push(m.text()); });
   await page.route(HUNTER_GLB, route);
-  await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&ruleset=v1&seed=${SEED}&preset=${PRESET}`, { waitUntil: "load" });
   await page.evaluate(installRecorder);
   await page.focus("#go");
   const tClick = Date.now();
@@ -64,15 +71,16 @@ async function scenario(browser, name, route) {
 /** primeiro preparo: olhos acesos no primeiro quadro; telegraph sonoro (se tocou) no mesmo G.t */
 async function checkWindup(page, name, form) {
   const t0 = Date.now();
-  let frames = [];
+  // só um resumo a cada leitura (a lista inteira sai no fim): não pesar no laço da página
   while (Date.now() - t0 < WINDUP_WAIT_MS) {
-    frames = await page.evaluate(() => window.__e2eFrames);
-    const i = frames.findIndex(x => x.windup);
-    if (i >= 0 && frames.length - i >= 60) break;
-    await sleep(250);
+    const { n, i } = await page.evaluate(() => ({ n: window.__e2eFrames.length, i: window.__e2eFrames.findIndex(x => x.windup) }));
+    if (i >= 0 && n - i >= 60) break;
+    await sleep(500);
   }
+  const frames = await page.evaluate(() => window.__e2eFrames);
   const i = frames.findIndex(x => x.windup);
-  if (i < 0) { fail(`${name}: nenhum preparo do caçador em ${WINDUP_WAIT_MS / 1000} s`); return; }
+  const last = frames[frames.length - 1];
+  if (i < 0) { fail(`${name}: nenhum preparo do caçador em ${WINDUP_WAIT_MS / 1000} s (${frames.length} quadros gravados, último G.t = ${last?.t}, caçador ${last?.form})`); return; }
   const f = frames[i];
   console.log(`${name}: primeiro preparo (${f.windup}) em G.t = ${f.t.toFixed(3)} s; caçador ${f.form}, olhos ${f.eyes ? "acesos" : "APAGADOS"}`);
   if (f.form !== form) fail(`${name}: no primeiro quadro do preparo o caçador é '${f.form}', esperado '${form}'`);
