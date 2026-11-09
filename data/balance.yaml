@@ -385,9 +385,29 @@ render:
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------
 audio:
   music:
+    # A-2 (music.ts / musicState.ts). Um stem por estado musical; o nome é também o arquivo
+    # `audio/music/<stem>.mp3` (contrato com o A-3). GDD-v0.3 §11: 5 stems (ambiente, tensão, perseguição,
+    # pressão final, resgate).
     stems: [ambient, tension, chase, final_pressure, rescue]
-    tension_radius: 25
-    crossfade_bars: 1
+    tension_radius: 25                # GDD-v0.3 §11 e GDD-v0.2 §11: tensão com o caçador a < 25 m
+    crossfade_bars: 1                 # GDD-v0.3 §11: crossfade de 1 compasso
+    # Andamento, compasso e tom: decisão do Rodrigo, 09/11/2026 (sessão Áudio): 90 BPM, 4/4, Ré menor, síntese PS1
+    # pura. Compasso = beats_per_bar × 60 / bpm = 2,667 s; a troca de stem cai no início do compasso seguinte
+    # (GDD-v0.3 §11). `key` é lido pela composição procedural (A-3).
+    bpm: 90
+    beats_per_bar: 4
+    key: "D minor"
+    # LACUNA (GDD não define): ganho linear do stem ativo (os inativos ficam em 0). Proposta: 1, porque os stems já
+    # saem masterizados a −16 LUFS (GDD-v0.3 §11, medido no A-7); o volume do jogador fica no barramento `music`.
+    layer_gain: 1
+    # LACUNA (GDD não define): constantes de tempo (s) do ducking (GDD-v0.3 §11: −8 dB em eventos críticos).
+    # Proposta: ataque 0,05 s (a música abaixa em ~150 ms, junto com o evento) e soltura 0,5 s (volta em ~1,5 s,
+    # sem "bombear").
+    duck_attack: 0.05
+    duck_release: 0.5
+    # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
+    # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
+    start_lead: 0.1
   max_voices: 32
   occlusion_lowpass_hz: 800
   loudness_lufs: -16
