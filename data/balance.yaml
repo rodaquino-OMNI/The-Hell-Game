@@ -221,8 +221,15 @@ ai:
   hearing_investigate_time: 8
   target_weights: {proximity: 0.35, generator_progress: 0.25, injured: 0.20, isolated: 0.15, protected: -0.25}
   target_switch_margin: 0.15
+  # D-53 (§8.3, aceite: "não alterna de alvo mais de 1 vez por segundo"): intervalo mínimo entre trocas de alvo do
+  # caçador utility. Exceções: alvo capturado, preso, morto ou que escapou; alvo que deixou de ser candidato e lembrado.
+  target_switch_min_interval: 1.0
   isolated_radius: 8
   protected_radius: 4
+  # D-52 (§8.3, valor LACUNA): histerese do termo "protegido" por tempo mínimo no estado. A leitura instantânea
+  # (Atacador a menos de protected_radius) só liga ou desliga o termo depois de ficar este tempo seguido no valor
+  # oposto. 1 s = o aceite do §8.3 ("não alterna de alvo mais de 1 vez por segundo").
+  protected_hold: 1
   # Números técnicos da IA sem valor no GDD (LACUNA registrada no relatório do R3; valores conservadores):
   patrol_reach: 2                   # §8.2: chegou ao gerador/portão da patrulha (mesmo valor do protótipo, prototype_extras.patrol.reach)
   search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
@@ -318,7 +325,8 @@ maps:
     # render/scene.ts gatePose/addGate/placeCage; revisão do R7-mapas, B-1).
     # D-23 b: o cliente já desenha cfg.map.walls (#79), mas segue desligada: com os pilares ligados, a mediana de
     # perseguição do Difícil cai de 29,9 s para 2,2 s na linha de base (50 partidas, 20 episódios), com ou sem a D-50.
-    # Os episódios curtos começam numa troca de alvo (`chaseEpisodes`), não no golpe pela quina; investigar antes de ligar.
+    # Os episódios curtos começavam numa troca de alvo (`chaseEpisodes`): vaivém do caçador, corrigido pela histerese
+    # contra o alvo lembrado e pela D-52 (plano §7); com elas, 33,7 s em 1.000 partidas do Difícil com os pilares.
     short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
     side_exit: true                 # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
     # LACUNA (revisão do R7-mapas), RESOLVIDA pela D-50 (docs/plano-construcao.md §7): o pilar de 1 × 1 m deixava o
