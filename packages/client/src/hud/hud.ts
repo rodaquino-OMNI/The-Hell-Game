@@ -3,6 +3,7 @@
 // Textos só por chave de tradução (i18n/); cores só por token da paleta (palette.ts); números de data/balance.yaml.
 import type { GameState, Survivor, Vec } from "@thehell/sim";
 import { beep } from "../audio/beeps.ts";
+import { directorEnabled } from "../audio/director.ts";
 import { $, balance, px } from "../data.ts";
 import { num, t, type Key } from "../i18n/index.ts";
 import { className, directionText, pingName } from "../text.ts";
@@ -68,7 +69,8 @@ export function hud(G: GameState, dt: number, yaw: number) {
   const spec = isSpectating(G), viewer: Vec = (spec ? spectatorTarget(G) : null) ?? P;
   const dh = Math.hypot(viewer.x - H.x, viewer.z - H.z);
   heartbeat -= dt;
-  if (!G.over && !spec && heartbeat <= 0 && dh < px.heartbeat.radius) {
+  // com o diretor de áudio ligado o batimento sai de audio/director.ts (mesma fórmula); aqui tocaria em dobro
+  if (!directorEnabled() && !G.over && !spec && heartbeat <= 0 && dh < px.heartbeat.radius) {
     beep(55, 0.12, 0.35); setTimeout(() => beep(48, 0.12, 0.25), 160);
     heartbeat = px.heartbeat.base_interval + (dh / px.heartbeat.radius) * px.heartbeat.range_interval;
   }

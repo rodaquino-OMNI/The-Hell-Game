@@ -35,7 +35,7 @@ describe("audio/sfx: catálogo em dados (A-5)", () => {
     expect(() => BalanceSchema.parse(raw)).not.toThrow();
     for (const n of [...DIRECTOR_SFX, ...SOUND_NAMES]) expect(names, n).toContain(n);
     for (const n of names) expect(A.voice_priority, `${n}.kind`).toHaveProperty(A.sfx[n].kind);
-    expect(A.director_enabled).toBe(false); // D-32: desligado até a ligação em main.ts e os stems do A-3
+    expect(A.director_enabled).toBe(true); // D-41: ligado no PR de ligação (V5), commit separado e revertível
   });
 
   it("o schema recusa receita mal formada e kind fora de voice_priority", () => {
