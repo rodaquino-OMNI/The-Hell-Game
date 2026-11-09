@@ -53,6 +53,9 @@ export function chooseLayout(map: GameMap, seed: number): LayoutChoice {
 const TOP = new WeakMap<GameMap, GameMap>();
 
 /** mapa de topo de um mapa efetivo de `mapForV1`; qualquer outro mapa volta como está */
+// Atenção: a referência ao mapa de topo vive numa WeakMap ligada ao OBJETO. Um clone de cfg.map (structuredClone,
+// JSON, postMessage) perde essa referência: passado a makeConfig, as flags não são reaplicadas e, no protótipo, o
+// clone com pilares seria usado como está. Passe sempre a referência original (como ui/difficulty.ts faz).
 export function topMapOf(map: GameMap): GameMap {
   return TOP.get(map) ?? map;
 }
