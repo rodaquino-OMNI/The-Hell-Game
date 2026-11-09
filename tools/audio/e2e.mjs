@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// e2e do motor de áudio (item A-1 do V5, GDD v0.3 §11). Lê o gancho só-leitura window.__thehellAudio
+// e2e do motor de áudio (item A-1 do V5, GDD v0.3 §11). Lê o gancho só-leitura window.__thehellAudio (só com ?debug=1, D-33)
 // (packages/client/src/audio/engine.ts) e confere:
 //  1. antes do clique o AudioContext não existe (state "none"): prova a criação preguiçosa. Não dá para provar o
 //     bloqueio de autoplay aqui: no Chromium headless do Playwright um contexto criado sem gesto já nasce "running",
@@ -51,7 +51,9 @@ try {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.goto(url, { waitUntil: "load" });
+  // ganchos de depuração só com ?debug=1 (D-33, packages/client/src/debug-hooks.ts)
+  const debugUrl = new URL(url); debugUrl.searchParams.set("debug", "1");
+  await page.goto(debugUrl.href, { waitUntil: "load" });
   const read = () => page.evaluate(() => typeof window.__thehellAudio === "function" ? window.__thehellAudio() : null);
   const before = await read();
   if (!before) await fail("gancho window.__thehellAudio ausente");

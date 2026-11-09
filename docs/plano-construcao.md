@@ -212,6 +212,7 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-17 | a) anunciar o MJ-A ao fechar o A2 (Rodrigo, 09/11/2026) | o A2 fecha com o cajado de mago variante (a), sem caduceu (escolha do aprovador, issue #24) |
 | D-18 | b) contorno sutil no caçador (Rodrigo, 09/11/2026) | legibilidade do caçador fora da lanterna (1,43:1 contra 3:1 da Art Bible §5.3) resolvida com contorno/borda de luz discreto, sem clarear a cena; entra na preparação do marco A3 |
 | D-19 | a) produção só no MJ-B (Rodrigo, 09/11/2026) | o MJ-A fica no staging; o deploy de produção acontece quando as regras v1 entrarem (MJ-B), com pedido explícito do Rodrigo |
+| D-33 | ganchos de depuração do cliente só com ?debug=1 (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `window.__thehell*` (`__thehell`, `__thehellRender`, `__thehellCharactersReady`, `__thehellAudio`, `__thehellView`) só existem com `?debug=1` (`packages/client/src/debug-hooks.ts`); as ferramentas de teste e captura abrem a página com o parâmetro; `tools/smoke.mjs` prova a ausência sem ele. Pré-requisito de qualquer publicação em produção |
 
 ## 8. Riscos principais
 

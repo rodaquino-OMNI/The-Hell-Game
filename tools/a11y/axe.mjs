@@ -117,7 +117,7 @@ try {
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
 
     // ---------- menu inicial ----------
-    await page.goto(`${url}/?seed=${SEED}`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
     const lang = await page.evaluate(() => document.documentElement.lang);
     if (lang !== locale) fail(`${locale}: idioma detectado ${lang}`);
     const start = await page.textContent("#go");
@@ -188,7 +188,7 @@ try {
     if (pt) await shot(page, "fim-prototipo");
 
     // ---------- v1: espectador e fim com end.team / end.reason / end.individual ----------
-    await page.goto(`${url}/?seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
     await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
     await game(page, () => { const g = window.__thehell(); g.survivors[0].st = "dead"; g.survivors[0].hp = 0; });
@@ -213,7 +213,7 @@ try {
     if (pt) await shot(page, "fim-v1");
 
     // v1, limite de tempo com o jogador vivo: "não escapou" (não "morreu", erro do END_TEXT antigo)
-    await page.goto(`${url}/?seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
     await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
