@@ -43,9 +43,8 @@ function quiet(c: SimConfig = all, cls: ClassName = "Curandeiro") {
 function solve(c: SimConfig, g: GameState) { g.puzzle!.kind = "timing"; g.puzzle!.t = g.puzzle!.zoneCenter; tap(g, { puzzleSpace: true }, c); }
 
 describe("dados de pontos (GDD-v0.2 §7.1)", () => {
-  it("[Implementado] ligados, [Proposta] desligados por padrão; valores do §7.1", () => {
-    const on = Object.entries(b.points.events).filter(([, e]) => e.enabled).map(([k]) => k);
-    expect(on.sort()).toEqual(["bonus_generator", "bonus_puzzle", "generator", "puzzle"]);
+  it("sobrevivente: todos ligados (D-30 a); caçador: todos desligados (D-31 a); valores do §7.1", () => {
+    expect(Object.values(b.points.events).every(e => e.enabled)).toBe(true);
     expect(Object.values(b.points.hunter_events).every(e => !e.enabled)).toBe(true);
     const vals = Object.fromEntries(Object.entries(b.points.events).map(([k, e]) => [k, e.value]));
     expect(vals).toEqual({
@@ -79,8 +78,9 @@ describe("eventos do sobrevivente (v1)", () => {
   it("bot pontua o próprio conserto, sem somar em g.points (placar por sobrevivente)", () => {
     const g = quiet(); const bot = g.survivors[1];
     bot.st = "ok"; const gen = g.gens.find(x => !x.bonus)!; bot.x = gen.x; bot.z = gen.z;
-    run(g, b.survivor.bot.puzzle_time + 0.5, {}, all);
-    expect(bot.score.objectives).toBeGreaterThanOrEqual(ev("puzzle").value);
+    expect(bot.cls).toBe("Mecânico");
+    run(g, b.classes.mechanic.bot_puzzle_time + 0.5, {}, all);
+    expect(bot.score.objectives).toBe(ev("puzzle").value);
     expect(pointsOf(g).some(e => e.who === bot.id && e.event === "puzzle")).toBe(true);
     expect(g.points).toBe(0);
   });
@@ -203,6 +203,7 @@ describe("eventos do caçador (v1)", () => {
   });
   it("chasedTarget: utility usa os modos chase/attack/recoil e a memória", () => {
     const g = quiet(); const ai = newHunterAi(); g.hunter.ai = ai;
+    for (const s of g.survivors) s.st = "ok";
     expect(chasedTarget(g)).toBe(-1);
     ai.mode = "chase"; ai.target = 2; expect(chasedTarget(g)).toBe(2);
     ai.mode = "attack"; expect(chasedTarget(g)).toBe(2);
@@ -220,14 +221,28 @@ describe("eventos do caçador (v1)", () => {
 });
 
 describe("evento desligado não pontua", () => {
-  it("com os padrões ([Proposta] desligadas) resgate, bloqueio, escapar e caçador não pontuam", () => {
-    const g = quiet(v1, "Atacador"); const c = g.survivors[1];
+  it("com `enabled: false` explícito, resgate, bloqueio e caçador não pontuam", () => {
+    const off = makeConfig(balanceWith(x => {
+      for (const e of Object.values(x.points.events)) e.enabled = false;
+      for (const e of Object.values(x.points.hunter_events)) e.enabled = false;
+    }), map, { ruleset: "v1" });
+    const g = quiet(off, "Atacador"); const c = g.survivors[1];
     c.st = "cage"; c.cage = 1e9; c.x = P(g).x; c.z = P(g).z;
-    run(g, b.cage.rescue_time + 0.1, { interactHeld: true }, v1);
-    ability(v1, g, P(g)); hit(v1, g, P(g), 10, "melee");
+    run(g, b.cage.rescue_time + 0.1, { interactHeld: true }, off);
+    ability(off, g, P(g)); hit(off, g, P(g), 10, "melee");
     expect(scoreTotal(P(g).score)).toBe(0);
     expect(g.hunterPoints).toBe(0);
     expect(pointsOf(g)).toEqual([]);
+  });
+  it("com os padrões (D-30/D-31): resgate e bloqueio pontuam o sobrevivente; o caçador não pontua", () => {
+    const g = quiet(v1, "Atacador"); const c = g.survivors[1];
+    c.st = "cage"; c.cage = 1e9; c.x = P(g).x; c.z = P(g).z;
+    run(g, b.cage.rescue_time + 0.1, { interactHeld: true }, v1);
+    ability(v1, g, P(g)); hit(v1, g, P(g), 10, "melee"); hit(v1, g, P(g), b.survivor.hp, "melee");
+    expect(P(g).score).toMatchObject({ altruism: ev("rescue").value, boldness: ev("block_bolt").value });
+    expect(P(g).st).toBe("cage");
+    expect(g.hunterPoints).toBe(0);
+    expect(pointsOf(g).every(e => e.who !== -1)).toBe(true);
   });
   it("[Implementado] desligado também deixa de pontuar", () => {
     const c = v1All("normal", x => { x.points.events.puzzle.enabled = false; });
@@ -312,6 +327,121 @@ describe("moedas por dificuldade (GDD-v0.2 §7.2, GDD-v0.3 D-04)", () => {
     const out = quiet(esc); out.gateOpen = out.gateStarted = true;
     P(out).x = out.arena.gate.x; P(out).z = out.arena.exitZ + (out.arena.gate.z < out.arena.exitZ ? -1 : 1);
     tap(out, {}, esc);
-    expect(endOf(out)).toMatchObject({ individual: "escaped", coins: e.base_coins + e.win_coins });
+    expect(endOf(out)).toMatchObject({ individual: "escaped", coins: e.base_coins + e.win_coins + ev("escape").value * e.points_to_coins }); // escapar pontua (D-30)
+  });
+});
+
+describe("ajustes da revisão QA", () => {
+  it("A1: sem perseguição fantasma depois da captura (Pesadelo, atordoado 3 s, resgate em t+4, nada em t+18)", () => {
+    const c = v1All("nightmare");
+    const g = quiet(c, "Curandeiro"); const H = g.hunter;
+    H.stun = 0; H.x = P(g).x; H.z = P(g).z - 1; H.a = Math.PI; H.dash = 1e9; H.projectile = 1e9; H.trap = 1e9;
+    for (let i = 0; i < 60 * 60 && P(g).st === "ok"; i++) tap(g, {}, c);
+    expect(P(g).st).toBe("cage");
+    const tCap = g.t;
+    H.stun = b.classes.fighter.strike.stun; H.x = 25; H.z = 25; // Atacador atordoa e o caçador fica longe
+    expect(g.scoreTrack.chase).toBeNull();
+    run(g, 4, {}, c);
+    // resgate (equivalente ao de um aliado): livre, imune; o caçador ainda tem o id antigo como alvo
+    P(g).st = "ok"; P(g).hp = b.cage.rescue_hp; P(g).immune = b.cage.immunity; P(g).x = SPOT.x; P(g).z = SPOT.z;
+    H.stun = 1e9; // segue parado com o alvo antigo
+    while (g.t < tCap + 18) tap(g, {}, c);
+    expect(P(g).score.boldness).toBe(0);
+    expect(g.scoreTrack.chase).toBeNull();
+    expect(chasedTarget(g)).toBe(-1);
+  });
+  it("A1: perseguição em curso de quem virou gaiola/morto fecha sem crédito", () => {
+    const g = quiet(); const c = g.survivors[1];
+    c.st = "dead"; g.scoreTrack.chase = { target: 1, since: g.t - 100 };
+    tap(g, {}, all);
+    expect(g.scoreTrack.chase).toBeNull();
+    expect(c.score.boldness).toBe(0);
+  });
+  it("A1: recaptura não credita perseguição longa de perseguição fantasma", () => {
+    const g = quiet(); const H = g.hunter;
+    hit(all, g, P(g), b.survivor.hp, "melee"); // 1ª captura; H.target fica no id 0
+    H.target = 0;
+    P(g).st = "ok"; P(g).immune = 0; P(g).antiTunnel = 0; P(g).hp = 1;
+    run(g, b.points.hunter_events.long_chase.min_time + 1, {}, all);
+    const before = g.hunterPoints;
+    hit(all, g, P(g), b.survivor.hp, "melee");
+    expect(g.hunterPoints - before).toBe(hev("capture").value + hev("kill").value + hev("hit").value); // sem long_chase
+  });
+  it("A2: Turbo do Mecânico no v1 conta como quebra-cabeça e, ao concluir, como gerador; no protótipo não pontua", () => {
+    const g = quiet(all, "Mecânico"); const gen = g.gens.find(x => !x.bonus)!;
+    gen.n = b.generator.puzzles_per_generator - 1; P(g).x = gen.x; P(g).z = gen.z;
+    ability(all, g, P(g));
+    expect(gen.done).toBe(true);
+    expect(P(g).score.objectives).toBe(ev("puzzle").value + ev("generator").value);
+    const proto = makeConfig(b, map, { ruleset: "prototype" });
+    const p = createGame(proto, "Mecânico", 1); const pg = p.gens.find(x => !x.bonus)!;
+    pg.n = b.generator.puzzles_per_generator - 1; P(p).x = pg.x; P(p).z = pg.z;
+    ability(proto, p, P(p));
+    expect(pg.done).toBe(true);
+    expect(p.points).toBe(0);
+  });
+  it("A3: o último sobrevivente que escapa perseguido há mais de 15 s recebe chase_escape antes do resumo", () => {
+    const g = quiet(); g.gateOpen = g.gateStarted = true;
+    g.hunter.target = 0; // caçador atordoado, ainda com o jogador como alvo
+    g.scoreTrack.chase = { target: 0, since: g.t - b.points.events.chase_escape.min_time - 1 };
+    P(g).x = g.arena.gate.x; P(g).z = g.arena.exitZ + (g.arena.gate.z < g.arena.exitZ ? -1 : 1);
+    tap(g, {}, all);
+    const e = g.events.find((x): x is EndEv => x.type === "end")!;
+    expect(e.score).toMatchObject({ boldness: ev("chase_escape").value, survival: ev("escape").value });
+  });
+  it("A3: perseguição em curso no fim por limite de tempo também fecha (closeChase)", () => {
+    const g = quiet(); g.hunter.target = 0;
+    g.scoreTrack.chase = { target: 0, since: g.t - b.points.events.chase_escape.min_time - 1 };
+    g.t = b.match.hard_time_limit;
+    tap(g, {}, all);
+    expect(g.over).toBe(true);
+    expect(P(g).score.boldness).toBe(ev("chase_escape").value);
+  });
+  it("A6: `winCoins` no evento end separa vitória do bônus", () => {
+    const esc = makeConfig({ ...b, economy: { ...b.economy, win_coins_to: "escaped" } }, map, { ruleset: "v1" });
+    const g = quiet(esc); g.hunter.hp = 0; tap(g, {}, esc);
+    expect(endOf(g)).toMatchObject({ win: true, winCoins: false, coins: b.economy.base_coins });
+    const a = quiet(v1); a.hunter.hp = 0; tap(a, {}, v1);
+    expect(endOf(a)).toMatchObject({ win: true, winCoins: true });
+  });
+  it("T3: âncoras de moedas com um gerador — Difícil vitória 167, Pesadelo derrota 164", () => {
+    for (const [d, won, coins] of [["hard", true, 167], ["nightmare", false, 164]] as const) {
+      const c = makeConfig(b, map, { ruleset: "v1", difficulty: d });
+      const g = quiet(c); openPuzzle(c, g, 0);
+      for (let k = 0; k < b.generator.puzzles_per_generator; k++) solve(c, g);
+      if (won) g.hunter.hp = 0; else P(g).st = "dead";
+      tap(g, {}, c);
+      expect(endOf(g)).toMatchObject({ win: won, coins });
+    }
+  });
+  it("T6: bloqueio que anula projétil credita block_bolt", () => {
+    const g = quiet(all, "Atacador");
+    ability(all, g, P(g));
+    g.projectiles.push({ id: 99, x: P(g).x, z: P(g).z, vx: 0, vz: 0, t: 1 });
+    tap(g, {}, all);
+    expect(g.projectiles).toHaveLength(0);
+    expect(P(g).hp).toBe(b.survivor.hp);
+    expect(P(g).score.boldness).toBe(ev("block_bolt").value);
+  });
+  it.each(["basic", "utility"] as const)("T1: perseguição real > 15 s com o cérebro %s credita chase_escape", brain => {
+    const c = makeConfig(balanceWith(), map, { ruleset: "v1", hunterBrain: brain });
+    const g = createGame(c, "Curandeiro", 3);
+    for (const s of g.survivors) if (s.bot) s.st = "dead";
+    g.reveal = 1e9;
+    const H = g.hunter;
+    H.x = SPOT.x; H.z = SPOT.z - 5; H.a = Math.PI; H.dash = 1e9; H.projectile = 1e9; H.trap = 1e9;
+    P(g).x = SPOT.x; P(g).z = SPOT.z; P(g).a = 0;
+    // o jogador fica parado e imune: o caçador persegue e golpeia sem capturar
+    const min = b.points.events.chase_escape.min_time;
+    let i = 0;
+    // revelado nos 2 primeiros segundos para vencer o tempo de reação da IA utility (GDD-v0.2 §8.4)
+    for (; i < (min + 2) * 60; i++) { P(g).immune = 1e9; if (i < 120) P(g).revealed = 1; tap(g, {}, c); }
+    expect(g.scoreTrack.chase).toMatchObject({ target: 0 });
+    expect(g.t - g.scoreTrack.chase!.since).toBeGreaterThan(min);
+    // some: vai para longe (canto oposto) e a perseguição acaba quando a memória expira
+    P(g).x = -H.x; P(g).z = -H.z; H.stun = 0;
+    for (let k = 0; k < 60 * 60 && P(g).score.boldness === 0; k++) { P(g).immune = 1e9; tap(g, {}, c); }
+    expect(P(g).score.boldness).toBe(ev("chase_escape").value);
+    expect(P(g).st).toBe("ok");
   });
 });

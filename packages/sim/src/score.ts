@@ -10,7 +10,7 @@ import {
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export const newScore = (): Score => Object.fromEntries(SCORE_CATEGORIES.map(c => [c, 0])) as Score;
-export const newScoreTrack = (): ScoreTrack => ({ chase: null, revealHit: [] });
+export const newScoreTrack = (): ScoreTrack => ({ chase: null, revealHit: [], stale: -1 });
 export const scoreTotal = (s: Score) => SCORE_CATEGORIES.reduce((n, c) => n + s[c], 0);
 
 /** valor × multiplicador da dificuldade (§7.3), arredondado por `points.rounding` (LACUNA §7.1 × §7.3): sempre inteiro */
@@ -63,11 +63,12 @@ export function onHunterHit(cfg: SimConfig, g: GameState, s: Survivor, by: "mele
 export function onCapture(cfg: SimConfig, g: GameState, s: Survivor) {
   if (!cfg.v1) return;
   creditHunter(cfg, g, "capture");
-  const c = g.scoreTrack.chase;
+  const tr = g.scoreTrack, c = tr.chase;
   if (c && c.target === s.id) {
     if (g.t - c.since > cfg.balance.points.hunter_events.long_chase.min_time) creditHunter(cfg, g, "long_chase");
-    g.scoreTrack.chase = null; // capturado: a perseguição acabou sem fuga
+    tr.chase = null; // capturado: a perseguição acabou sem fuga
   }
+  tr.stale = s.id; // o alvo do caçador pode seguir neste id sem que haja perseguição (ver chasedTarget)
 }
 
 /**
@@ -77,6 +78,12 @@ export function onCapture(cfg: SimConfig, g: GameState, s: Survivor) {
  * ou, depois de perdê-lo de vista, ainda vai à última posição vista (`alertTime` > 0, memória de §8.1).
  */
 export function chasedTarget(g: GameState): number {
+  const id = rawTarget(g), tr = g.scoreTrack;
+  // só persegue quem está livre; o alvo que sobra do último capturado não conta
+  return id >= 0 && id !== tr.stale && g.survivors[id].st === "ok" ? id : -1;
+}
+
+function rawTarget(g: GameState): number {
   const H = g.hunter, ai = H.ai;
   if (ai) return ai.mode === "chase" || ai.mode === "attack" || ai.mode === "recoil" ? (ai.target >= 0 ? ai.target : ai.memory?.id ?? -1) : -1;
   if (H.target >= 0) return H.target;
@@ -92,13 +99,22 @@ export function chasedTarget(g: GameState): number {
 export function trackScore(cfg: SimConfig, g: GameState) {
   const tr = g.scoreTrack;
   tr.revealHit = tr.revealHit.filter(id => g.survivors[id].revealed > 0);
-  const id = chasedTarget(g), c = tr.chase;
-  if (c && c.target !== id) {
-    const s = g.survivors[c.target];
-    if ((s.st === "ok" || s.st === "out") && g.t - c.since > cfg.balance.points.events.chase_escape.min_time) credit(cfg, g, s, "chase_escape");
-    tr.chase = null;
-  }
+  if (tr.stale >= 0 && rawTarget(g) !== tr.stale) tr.stale = -1;
+  const id = chasedTarget(g);
+  if (tr.chase && tr.chase.target !== id) closeChase(cfg, g);
   if (id >= 0 && !tr.chase) tr.chase = { target: id, since: g.t };
+}
+
+/**
+ * Fecha a perseguição em curso: credita `chase_escape` se durou mais que `min_time` e o alvo segue livre ou escapou;
+ * se ele foi preso ou morreu, fecha sem crédito. Chamado também no fim da partida (último a escapar em perseguição).
+ */
+export function closeChase(cfg: SimConfig, g: GameState) {
+  const c = g.scoreTrack.chase;
+  if (!c) return;
+  const s = g.survivors[c.target];
+  if ((s.st === "ok" || s.st === "out") && g.t - c.since > cfg.balance.points.events.chase_escape.min_time) credit(cfg, g, s, "chase_escape");
+  g.scoreTrack.chase = null;
 }
 
 /**

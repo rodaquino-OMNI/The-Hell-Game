@@ -234,6 +234,11 @@ export type GameEvent =
       team?: Team; reason?: EndReason; individual?: Individual;
       /** só no v1: placar do jogador nas 4 categorias do §7.1 */
       score?: Score;
+      /**
+       * só no v1: o jogador recebeu o bônus `economy.win_coins` (regra `economy.win_coins_to`). Com `escaped`, `win`
+       * pode ser true sem bônus (venceu com o time, mas não escapou).
+       */
+      winCoins?: boolean;
     };
 
 /** rastreio da pontuação do v1 (perseguição em curso e revelações já pontuadas); dado puro */
@@ -242,6 +247,11 @@ export interface ScoreTrack {
   chase: { target: number; since: number } | null;
   /** sobreviventes cuja revelação atual já rendeu `revelação eficaz` ao caçador */
   revealHit: number[];
+  /**
+   * último capturado (−1 = nenhum): o alvo do caçador pode ficar parado nele depois da captura (atordoado, ninguém
+   * livre); enquanto o alvo bruto for este id, não há perseguição. Limpo quando o alvo bruto muda.
+   */
+  stale: number;
 }
 
 export interface GameState {

@@ -8,7 +8,7 @@ import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
-import { coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
+import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
 import {
   ARROWS, CLASSES, type Arena, type ClassName, type GameEvent, type GameState, type Generator, type Hunter,
   type MsgKey, type NoiseKind, type Outcome, type PlayerInput, type Survivor, type Vec,
@@ -205,7 +205,8 @@ export function ability(cfg: SimConfig, g: GameState, s: Survivor) {
     const gen = g.gens.find(x => !x.bonus && !x.done && dist(x, s) < c.mechanic.turbo.range);
     if (!gen) return;
     gen.n++;
-    if (gen.n >= cfg.balance.generator.puzzles_per_generator) finishGenerator(cfg, g, gen);
+    if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o Turbo avança um quebra-cabeça e pontua como tal (§7.1)
+    if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
     s.cd = c.mechanic.turbo.cooldown;
     if (!s.bot) msg(g, "turbo");
   } else {
@@ -579,8 +580,10 @@ function endV1(cfg: SimConfig, g: GameState, r: MatchEnd) {
   g.over = true;
   g.puzzle = null;
   // bônus de vitória conforme `economy.win_coins_to` (padrão alive, decisão do Rodrigo 09/11/2026); pontos já com points_mult (§7.3)
-  const coins = coinsFor(cfg, winsCoins(cfg, r.team === "survivors", individual), g.points);
-  emit(g, { type: "end", win, outcome, coins, time: Math.floor(g.t), team: r.team, reason: r.reason, individual, score: { ...player(g).score } });
+  closeChase(cfg, g); // perseguição em curso no fim (ex.: o último escapou perseguido) pontua antes do resumo
+  const winCoins = winsCoins(cfg, r.team === "survivors", individual);
+  const coins = coinsFor(cfg, winCoins, g.points);
+  emit(g, { type: "end", win, outcome, coins, time: Math.floor(g.t), team: r.team, reason: r.reason, individual, score: { ...player(g).score }, winCoins });
 }
 
 function end(cfg: SimConfig, g: GameState, win: boolean, outcome: "escaped" | "hunter_down" | "died") {
