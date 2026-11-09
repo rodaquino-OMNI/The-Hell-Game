@@ -29,7 +29,7 @@ Staging: https://the-hell-staging.fly.dev (v1 por padrão; smoke 3/3). Produçã
 
 ## 3. O problema que sobra: o caçador quase nunca vence
 
-Diagnóstico de 09/11 (1.000 partidas por dificuldade, sementes 1..1000, só medição). **O caçador encontra e acerta, mas o dano não vira captura.**
+Diagnóstico de 09/11 (1.000 partidas por dificuldade, sementes 1..1000, só medição). **O caçador encontra e acerta, mas quase não captura.**
 
 | Normal | Medido |
 | --- | --- |
@@ -41,7 +41,7 @@ Diagnóstico de 09/11 (1.000 partidas por dificuldade, sementes 1..1000, só med
 | Cura sobre dano | 126 de 187 (67% do dano é reposto) |
 
 - Percepção e busca estão iguais ao GDD §8.2. Aumentar o alcance do cone ou mandar o caçador ao gerador em conserto não muda a captura (0,085–0,090).
-- O dano se espalha entre 3 sobreviventes e a cura do Curandeiro repõe 2/3 dele; só 41% das partidas têm alguém abaixo de 40 de vida.
+- O dano se espalha entre 3 sobreviventes e só 41% das partidas têm alguém abaixo de 40 de vida. A cura repõe 2/3 do dano, mas a grade abaixo mostra que mudar a cura quase não altera o resultado.
 - Os mapas do R7 não mudaram o quadro (Pesadelo 12,8–16,6%).
 - "0,06 perseguição por partida" contava só perseguições que terminam em captura; o caçador não está cego.
 
@@ -52,7 +52,7 @@ Diagnóstico de 09/11 (1.000 partidas por dificuldade, sementes 1..1000, só med
 | Dano do golpe × cura do Curandeiro (opção E) | golpe 15–34 × cura 45/30/20 | 0,9% |
 | Condição de vitória (opção D): maioria escapa, ou caçador vence com 2 capturas | golpe 15 e 20 | 0,5% |
 
-Nenhuma alavanca, sozinha, chega perto dos 45–55%. Em todas as células, a fuga individual fica entre 83 e 98% e **a partida dura 4,3–4,6 min**, abaixo da meta de 6–8 min (§7.6). O gargalo provável é o **ritmo do objetivo**: os bots consertam e saem antes que o caçador acumule dano em alguém. Isso é inferência, e a próxima medição é tempo de conserto, número de geradores e tempo do portão.
+Nenhuma alavanca, sozinha, chega perto dos 45–55%. Em todas as células, a fuga individual fica entre 83 e 99% e **a partida dura 4,3–4,6 min**, abaixo da meta de 6–8 min (§7.6). O gargalo provável é o **ritmo do objetivo**: os bots consertam e saem antes que o caçador acumule dano em alguém. Isso é inferência, e a próxima medição é tempo de conserto, número de geradores e tempo do portão.
 
 Hipótese a conferir com você: o bot competente pode estar consertando mais rápido do que um humano consegue.
 
