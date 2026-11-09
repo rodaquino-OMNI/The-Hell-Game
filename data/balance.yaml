@@ -410,6 +410,28 @@ audio:
   # arrastado não grava a cada quadro; o ganho muda na hora). Proposta: 0,25 s; também grava ao sair da página
   # (pagehide).
   volume_persist_delay: 0.25
+  # A-4 (voices.ts): prioridade por tipo de voz (inteiro; maior = mais importante). Com as audio.max_voices vagas
+  # ocupadas, a voz nova derruba a ativa de menor prioridade (a mais antiga entre as empatadas) se a prioridade da
+  # nova for maior ou igual; senão é recusada (GDD-v0.3 §11, "limite de 32 vozes por prioridade";
+  # docs/handoff/plano-audio-v5.md §1, "a 33ª derruba a de menor prioridade e mais antiga").
+  # A ordem segue a legibilidade de jogo: o telegraph é o aviso obrigatório de habilidade do caçador (GDD-v0.3 §11,
+  # "Telegraph sonoro"; GDD-v0.2 §11, "parte do telegraph"), depois o caçador e o batimento (ameaça), o gerador
+  # (objetivo), os passos, a UI e o ambiente.
+  # LACUNA (o GDD não define a tabela nem os valores numéricos): proposta abaixo, decisão do Rodrigo pendente.
+  voice_priority: {telegraph: 100, hunter: 90, heartbeat: 80, generator: 50, footstep: 40, ui: 30, ambience: 10}
+  # A-4 (spatial.ts): parâmetros do PannerNode de cada voz. panning_model HRTF: GDD-v0.3 §11 e GDD-v0.2 §11.
+  # LACUNA (o GDD não define o modelo de distância nem as distâncias). Proposta: "inverse" (padrão da Web Audio,
+  # https://webaudio.github.io/web-audio-api/#dom-pannernode-distancemodel), volume cheio até 2 m, queda 1/d depois
+  # e teto em 60 m (= render.camera.far, o que a câmera ainda enxerga; o pátio tem 62 m de lado).
+  panner: {panning_model: HRTF, distance_model: inverse, ref_distance: 2, max_distance: 60, rolloff_factor: 1}
+  # LACUNA (o GDD só fixa o corte de 800 Hz): constante de tempo (s) da rampa setTargetAtTime do passa-baixa quando a
+  # voz entra ou sai de oclusão. Proposta: 0,05 s (~95% em 0,15 s), sem estalo ao cruzar a quina de uma parede. Sem
+  # oclusão o filtro abre até a frequência de Nyquist do contexto (sampleRate / 2), isto é, fica transparente.
+  occlusion_ramp_tc: 0.05
+  # LACUNA (o GDD não define): altura (m) padrão da fonte sonora no eixo y do render quando quem toca não informa.
+  # Proposta: 1,2 m, perto do peito de um sobrevivente (survivor.height 1,75 m), abaixo do olho da câmera em 1ª pessoa
+  # (render.camera.eye_height 1,5 m).
+  source_height: 1.2
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:
