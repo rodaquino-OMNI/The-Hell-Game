@@ -1,6 +1,7 @@
 // Cena e relógio comuns dos scripts que abrem o jogo para capturar ou medir (tools/visual/compare.mjs,
-// tools/perf/budget.mjs, tools/art/a2-capturas.mjs, a2b-capturas.mjs, a3-capturas.mjs): semente, regras, cena de prova
-// de legibilidade e a abertura com o relógio do Playwright parado, numa ordem única.
+// tools/perf/budget.mjs, tools/art/a2-capturas.mjs, a2b-capturas.mjs, a3-capturas.mjs, r7-capturas.mjs): semente, regras,
+// cena de prova de legibilidade e a abertura com o relógio do Playwright parado, numa ordem única. SEED e RULES também
+// em tools/a11y/axe.mjs e tools/ui/r6-e2e.mjs; r7-capturas.mjs usa só SEED e gotoPaused (regras v1 com map_flags).
 // Ordem: install → pauseAt → goto. O relógio é instalado e pausado ANTES de navegar: o Playwright reaplica o relógio a
 // cada documento novo, e o boot do cliente não arma timer antes do #go (packages/client/src/main.ts: frames.start só
 // em start()). Pausar depois do goto corria contra o relógio, que já anda em tempo real: com o carregamento lento,
