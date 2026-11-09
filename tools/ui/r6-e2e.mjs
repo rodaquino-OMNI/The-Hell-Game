@@ -72,6 +72,8 @@ try {
   const mult = balance.difficulty_table[PICK].points_mult;
   const difm = await page.textContent("#difm");
   check(difm.includes(new Intl.NumberFormat("pt-BR").format(mult)), `multiplicador ${mult} ausente: "${difm}"`);
+  const goal = await page.textContent("#goal");
+  check(goal.includes(`(${balance.difficulty_table[PICK].gate} s)`), `objetivo sem o portão de ${PICK} (${balance.difficulty_table[PICK].gate} s): "${goal}"`);
   const outline = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
   check(outline !== "none", "foco sem contorno visível no seletor");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-dificuldade.png") });
@@ -104,7 +106,7 @@ try {
   const total = cats.reduce((s, c) => s + score[c], 0);
   check((await page.textContent("#rstot")) === new Intl.NumberFormat("pt-BR").format(total), "total diferente da soma");
   const coins = await page.textContent("#rsc");
-  check(coins.includes(String(balance.economy.win_coins)), `vitória sem o bônus de vitória na linha de moedas: "${coins}"`);
+  check(coins.includes(new Intl.NumberFormat("pt-BR").format(balance.economy.win_coins)), `vitória sem o bônus de vitória na linha de moedas: "${coins}"`);
   check((await page.textContent("#rsteam"))?.includes(T["score.team"].match(/survivors \{([^}]*)\}/)[1]), "resultado da equipe ausente");
   check(await page.isVisible("#rsind"), "resultado individual ausente");
   check((await page.evaluate(() => document.activeElement?.id)) === "again", "foco não foi para Jogar de novo");
@@ -112,7 +114,9 @@ try {
 
   // ---------- protótipo: sem score, sem resumo ----------
   await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype&lang=pt-BR`, { waitUntil: "load" });
-  check((await page.textContent("#difm")).includes(T["difficulty.prototype_note"]), "protótipo sem o aviso de dificuldade");
+  const protoNote = await page.textContent("#difm");
+  check(protoNote === T["difficulty.prototype_note"], `protótipo: nota deveria ser só o aviso, veio "${protoNote}"`);
+  check((await page.textContent("#goal")).includes(`(${balance.generator.gate_time} s)`), "protótipo: objetivo sem generator.gate_time");
   await page.click("#go");
   await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
   await game(() => { window.__thehell().hunter.hp = 0; });

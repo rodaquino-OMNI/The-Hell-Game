@@ -4,8 +4,9 @@ import { loadBalanceFile } from "@thehell/shared/node";
 import { makeConfig, SCORE_CATEGORIES, type GameEvent } from "@thehell/sim";
 import { map } from "../src/data.ts";
 import { setLocale, t } from "../src/i18n/index.ts";
-import { DIFFICULTY_STORE, difficulties, difficultyNote, loadDifficulty, matchConfig, pointsMult, saveDifficulty, type KeyStore } from "../src/ui/difficulty.ts";
+import { DIFFICULTY_STORE, difficulties, difficultyNote, loadDifficulty, matchConfig, saveDifficulty, type KeyStore } from "../src/ui/difficulty.ts";
 import { resultsSummary } from "../src/ui/results.ts";
+import { goalText } from "../src/text.ts";
 
 const bal = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
 type End = Extract<GameEvent, { type: "end" }>;
@@ -36,7 +37,7 @@ describe("resumo de fim de partida (results.ts)", () => {
     const yes = resultsSummary(v1End, bal)!.coinsText;
     expect(yes).toContain("263");
     expect(yes).toContain(String(bal.economy.win_coins));
-    expect(yes).toContain("bônus de vitória de");
+    expect(yes).toContain(`(inclui ${bal.economy.win_coins} moedas pela vitória)`);
     const no = resultsSummary({ ...v1End, win: true, winCoins: false, individual: "dead" }, bal)!.coinsText;
     expect(no).toContain("sem bônus de vitória");
   });
@@ -59,7 +60,6 @@ describe("resumo de fim de partida (results.ts)", () => {
 describe("dificuldade (difficulty.ts)", () => {
   it("níveis e multiplicadores vêm de difficulty_table", () => {
     expect(difficulties(bal)).toEqual(["easy", "normal", "hard", "nightmare"]);
-    for (const d of difficulties(bal)) expect(pointsMult(d, bal)).toBe(bal.difficulty_table[d].points_mult);
   });
 
   it("sem escolha salva (ou com valor inválido) usa o padrão dos dados", () => {
@@ -93,9 +93,23 @@ describe("dificuldade (difficulty.ts)", () => {
     expect(proto.difficulty).toBe("nightmare");
   });
 
-  it("nota do multiplicador; no protótipo avisa que a dificuldade não altera a partida", () => {
+  it("nota: multiplicador efetivo no v1; no protótipo só o aviso (pointsMult é sempre 1)", () => {
     setLocale("pt-BR");
-    expect(difficultyNote("hard", true, bal)).toBe(t("difficulty.points_mult", { mult: bal.difficulty_table.hard.points_mult }));
-    expect(difficultyNote("hard", false, bal)).toContain(t("difficulty.prototype_note"));
+    const v1 = makeConfig(bal, map, { ruleset: "v1" });
+    expect(difficultyNote("hard", v1)).toBe(t("difficulty.points_mult", { mult: bal.difficulty_table.hard.points_mult }));
+    const proto = makeConfig(bal, map, { ruleset: "prototype" });
+    expect(difficultyNote("hard", proto)).toBe(t("difficulty.prototype_note"));
+    expect(matchConfig(proto, "hard").pointsMult).toBe(1);
+  });
+
+  it("objetivo do menu usa o portão da dificuldade da partida", () => {
+    setLocale("pt-BR");
+    const v1 = makeConfig(bal, map, { ruleset: "v1" });
+    for (const d of difficulties(bal)) {
+      const gate = matchConfig(v1, d).gateTime;
+      expect(gate).toBe(bal.difficulty_table[d].gate);
+      expect(goalText(bal, 4, 3, gate)).toContain(`(${gate} s)`);
+    }
+    expect(goalText(bal, 4, 3)).toContain(`(${bal.generator.gate_time} s)`);
   });
 });

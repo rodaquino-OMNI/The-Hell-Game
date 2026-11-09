@@ -4,7 +4,7 @@ import { CLASSES, type ClassName, type GameEvent } from "@thehell/sim";
 import { $, balance, cfg, map } from "../data.ts";
 import { t } from "../i18n/index.ts";
 import { classDescription, className, endStats, endText, goalText } from "../text.ts";
-import { difficultyText, setupDifficulty } from "./difficulty.ts";
+import { difficultyText, matchConfig, setupDifficulty } from "./difficulty.ts";
 import { applyStaticText, setupLanguagePicker } from "./locale.ts";
 import { showResults } from "./results.ts";
 import { shop, updateCoins } from "./shop.ts";
@@ -19,7 +19,7 @@ function menuText() {
   const classBox = $("cls");
   [...classBox.children].forEach((b, i) => { b.textContent = className(CLASSES[i]); });
   $("desc").textContent = classDescription(balance, selected);
-  $("goal").textContent = goalText(balance, map.generators.length, map.bonus.length);
+  $("goal").textContent = goalText(balance, map.generators.length, map.bonus.length, matchConfig(cfg).gateTime);
   difficultyText();
   updateCoins();
 }
@@ -37,7 +37,7 @@ export function setupMenu(onStart: () => void) {
     };
     classBox.appendChild(b);
   }
-  setupDifficulty($("go").parentElement!, cfg.v1);
+  setupDifficulty($("go").parentElement!, cfg, menuText);
   menuText();
   (classBox.children[0] as HTMLButtonElement).click();
   setupLanguagePicker($("langs"), menuText);

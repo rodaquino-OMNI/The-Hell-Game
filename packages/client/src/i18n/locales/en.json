@@ -110,7 +110,7 @@
   "score.survival": "Survival",
   "score.boldness": "Boldness",
   "score.total": "Total",
-  "score.coins": "+{coins, plural, one {# coin} other {# coins}} {bonus, select, yes {(includes the {win} victory bonus)} other {(no victory bonus)}}",
+  "score.coins": "+{coins, plural, one {# coin} other {# coins}} {bonus, select, yes {(includes {win, plural, one {# coin} other {# coins}} for winning)} other {(no victory bonus)}}",
   "score.team": "Team: {team, select, survivors {victory} other {defeat}}",
   "score.individual": "You: {individual, select, escaped {escaped} dead {died} other {did not escape}}",
 

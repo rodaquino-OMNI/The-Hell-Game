@@ -110,7 +110,7 @@
   "score.survival": "Supervivencia",
   "score.boldness": "Audacia",
   "score.total": "Total",
-  "score.coins": "+{coins, plural, one {# moneda} other {# monedas}} {bonus, select, yes {(incluye el bono de victoria de {win})} other {(sin bono de victoria)}}",
+  "score.coins": "+{coins, plural, one {# moneda} other {# monedas}} {bonus, select, yes {(incluye {win, plural, one {# moneda} other {# monedas}} por la victoria)} other {(sin bono de victoria)}}",
   "score.team": "Equipo: {team, select, survivors {victoria} other {derrota}}",
   "score.individual": "Tú: {individual, select, escaped {escapaste} dead {moriste} other {no escapaste}}",
 

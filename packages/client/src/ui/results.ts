@@ -35,20 +35,42 @@ export function resultsSummary(e: EndEvent, b: Balance = balance): ResultsSummar
   return { rows, total, coins: e.coins, coinsText, team: e.team, individual: e.individual };
 }
 
+/** elemento com id opcional e texto (textContent: nada de HTML vindo das traduções) */
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, id?: string): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  if (id) e.id = id;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** linha da tabela: cabeçalho de linha e valor */
+function row(label: string, value: number, valueId?: string): HTMLTableRowElement {
+  const tr = el("tr");
+  const th = el("th", label);
+  th.scope = "row";
+  tr.append(th, el("td", num(value), valueId));
+  return tr;
+}
+
 /** monta (ou esconde) o resumo dentro da tela de fim, antes de `before` */
 export function showResults(e: EndEvent, before: Element = $("again")) {
   document.getElementById("rs")?.remove();
   const s = resultsSummary(e);
   if (!s) return;
-  const box = document.createElement("section");
-  box.id = "rs";
+  const box = el("section", undefined, "rs");
   box.setAttribute("aria-labelledby", "rst");
-  const rowsHtml = s.rows.map(r => `<tr data-cat="${r.category}"><th scope="row">${r.label}</th><td>${num(r.points)}</td></tr>`).join("");
-  box.innerHTML =
-    `<h2 id="rst">${t("score.title")}</h2>` +
-    `<table><tbody>${rowsHtml}</tbody><tfoot><tr><th scope="row">${t("score.total")}</th><td id="rstot">${num(s.total)}</td></tr></tfoot></table>` +
-    `<p id="rsc">${s.coinsText}</p>` +
-    (s.team ? `<p id="rsteam">${t("score.team", { team: s.team })}</p>` : "") +
-    (s.individual ? `<p id="rsind">${t("score.individual", { individual: s.individual })}</p>` : "");
+  const body = el("tbody");
+  for (const r of s.rows) {
+    const tr = row(r.label, r.points);
+    tr.dataset.cat = r.category;
+    body.append(tr);
+  }
+  const foot = el("tfoot");
+  foot.append(row(t("score.total"), s.total, "rstot"));
+  const table = el("table");
+  table.append(body, foot);
+  box.append(el("h2", t("score.title"), "rst"), table, el("p", s.coinsText, "rsc"));
+  if (s.team) box.append(el("p", t("score.team", { team: s.team }), "rsteam"));
+  if (s.individual) box.append(el("p", t("score.individual", { individual: s.individual }), "rsind"));
   before.before(box);
 }

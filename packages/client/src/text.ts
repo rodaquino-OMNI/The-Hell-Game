@@ -24,8 +24,9 @@ export function classDescription(b: Balance, cls: ClassName): string {
   });
 }
 
-export function goalText(b: Balance, generators: number, bonus: number): string {
-  return t("menu.goal", { generators, puzzles: b.generator.puzzles_per_generator, gate: b.generator.gate_time, bonus });
+/** `gate`: abertura do portão da partida (no v1 vem da dificuldade, `SimConfig.gateTime`; padrão `generator.gate_time`) */
+export function goalText(b: Balance, generators: number, bonus: number, gate: number = b.generator.gate_time): string {
+  return t("menu.goal", { generators, puzzles: b.generator.puzzles_per_generator, gate, bonus });
 }
 
 const MSG: Record<MsgKey, Key> = {
