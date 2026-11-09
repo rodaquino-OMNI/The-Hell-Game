@@ -71,6 +71,8 @@
   "ping.title": "Pings",
   "ping.ready": "Pings 1–4: ready",
   "ping.cooldown": "Pings 1–4: {n} s",
+  "hud.captions": "Sound captions",
+  "hud.caption_count": "×{n}",
 
   "spec.dead": "YOU DIED",
   "spec.escaped": "YOU ESCAPED!",
@@ -176,6 +178,10 @@
   "opt.sec.controls": "Controls",
   "opt.sec.keys": "Keys",
   "opt.sec.gamepad": "Gamepad",
+  "opt.sec.captions": "Sound captions",
+  "opt.captions": "Show sound captions",
+  "opt.caption_duration": "Time on screen",
+  "opt.caption_seconds": "{s} s",
   "opt.ps1.snap": "Vertex jitter",
   "opt.ps1.affine": "Texture warping",
   "opt.ps1.gouraud": "Per-vertex lighting",
@@ -258,6 +264,6 @@
   "caption.generator_done": "Rising hum: generator completed",
   "caption.cage": "Bars slam: survivor caged",
   "caption.rescue": "Relief chord: survivor rescued",
-  "caption.sound_muted": "Sound muted (M to unmute)",
-  "caption.sound_unmuted": "Sound on (M to mute)"
+  "caption.sound_muted": "Sound muted ({key} to unmute)",
+  "caption.sound_unmuted": "Sound on ({key} to mute)"
 }

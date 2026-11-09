@@ -26,7 +26,7 @@
 .c-healer{--cc:var(--class-curandeiro)}.c-mechanic{--cc:var(--class-mecanico)}.c-fighter{--cc:var(--class-atacador)}
 .pt.wounded .st{color:var(--ui-danger)}.pt.caged .st{color:var(--fx-preso)}.pt.dead .st,.pt.escaped .st{color:var(--ui-text-dim)}
 .pt.dead .nm{text-decoration:line-through}
-#hint{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;max-width:90vw}
+#hint{text-align:center;max-width:90vw}
 #msg{left:50%;transform:translateX(-50%);top:30%;font-size:calc(18px * var(--ui-scale,1));color:var(--ui-danger);text-shadow:0 0 6px var(--ui-bg);text-align:center}
 #pings{left:calc(8px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:40vw}
 #pf{margin:0;padding:0;list-style:none}#pf li{color:var(--ui-accent)}
@@ -34,7 +34,7 @@
 @keyframes pulse{50%{opacity:.55}}
 @media (prefers-reduced-motion:reduce){#threat{animation:none}}
 .reduce-flicker #threat{animation:none}
-#spec{left:50%;transform:translateX(-50%);bottom:calc(60px + env(safe-area-inset-bottom,0px));text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
+#spec{text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
 #spec h2{margin:0;font-size:calc(20px * var(--ui-scale,1));color:var(--ui-danger)}
 .b{height:8px;background:var(--ui-bg);margin:3px 0;width:170px}.b i{display:block;height:100%}
 .danger{color:var(--ui-danger)}
@@ -86,20 +86,36 @@ button[aria-disabled="true"]{cursor:progress;border-style:dashed}
 .sb-tm .pt+.pt{margin-top:0}.sb-tm .pt .nm{display:none}.sb-tm .pt .ci svg{width:20px;height:20px}
 .c-protector{--cc:var(--class-protetor)}.c-scout{--cc:var(--class-batedor)}
 body.retro #me,body.retro #top,body.retro #tm{display:none!important}
-body.retro #hint{bottom:calc(104px + env(safe-area-inset-bottom,0px))}body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
-body.retro #spec{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+/* legendas de som (V8b): centro embaixo, acima da dica (e da barra de estado no retro); sobe com o painel de espectador */
+/* coluna do centro embaixo (V8b): legendas, painel de espectador e dica empilhados num só fluxo, sem sobreposição em
+   qualquer tamanho de fonte ou de tela; no ?retro=1 a coluna começa acima da barra de estado */
+#bot{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px;width:max-content;max-width:92vw;pointer-events:none}
+#bot>.p{position:static;pointer-events:auto}
+body.retro #bot{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+/* a coluna sobe acima do painel de pings quando as larguras se cruzam (hud/layout.ts; 8px = o gap da coluna) */
+#bot.lift{bottom:calc(14px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
+body.retro #bot.lift{bottom:calc(104px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
+#cap{max-width:min(92vw,46ch)}
+#cap ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.cp{display:flex;align-items:center;gap:6px;max-width:100%;background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:3px 8px;overflow-wrap:anywhere}
+.cp.hz{border-color:var(--ui-danger)}.cp.hz .ca{color:var(--ui-danger)}
+.ca{flex:none;display:inline-flex;width:1.3em;height:1.3em}.ca svg{width:100%;height:100%}.cn{flex:none;color:var(--ui-accent);font-weight:bold}
 </style></head><body>
 <canvas id="c" role="img" data-i18n-aria-label="app.canvas"></canvas><div id="vg"></div>
 <div id="hud" hidden>
 <div id="me" class="p"></div>
 <div id="top" class="p"></div>
 <ul id="tm" class="p" data-i18n-aria-label="team.title"></ul>
-<div id="hint" class="p" hidden></div>
 <div id="msg" role="status" aria-live="polite"></div>
 <div id="threat" role="img" hidden></div>
 <div id="pings" class="p" role="group" data-i18n-aria-label="ping.title"><div id="pcd"></div><ul id="pf"></ul></div>
 <div id="sb" role="group" data-i18n-aria-label="retro.bar" hidden></div>
+<div id="bot">
+<div id="cap" role="log" data-i18n-aria-label="hud.captions" aria-live="off" hidden></div>
 <div id="spec" class="p" hidden><h2 id="spt"></h2><div id="spw"></div><button type="button" id="spn" data-i18n="spec.next"></button><small data-i18n="spec.note"></small></div>
+<div id="hint" class="p" hidden></div>
+</div>
 </div>
 <div id="pz" class="p"><div id="pzc"></div><button type="button" id="pzx" data-i18n="puzzle.exit"></button></div>
 <main id="menu">

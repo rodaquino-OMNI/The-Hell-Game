@@ -3,7 +3,7 @@
 // detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
 // audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
-import { CONTROL_ACTIONS } from "./controls.ts";
+import { CONTROL_ACTIONS, SAFE_KEY_CODE } from "./controls.ts";
 
 const num = z.number().finite();
 const pos = num.nonnegative();
@@ -18,6 +18,8 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+  /** V8b: faixa de legendas de som (GDD v0.3 §12.4) */
+  captions: z.object({ fade: pos, opacity_steps: z.number().int().positive() }).strict(),
   /** D-45: teto da espera pelos personagens antes da partida (s) */
   start_wait_s: pos.positive(),
   /** V8 (F2-08): menu de opções (GDD v0.3 §12.4) */
@@ -33,7 +35,7 @@ const UiSchema = z.object({
     sensitivity: z.object({ min: num.positive(), max: num.positive(), default: num.positive(), step: num.positive() }).strict()
       .refine(s => s.min <= s.default && s.default <= s.max, "sensitivity: min ≤ default ≤ max"),
     invert_y: z.boolean(),
-    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
+    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(SAFE_KEY_CODE, "tecla fora do conjunto seguro (controls.ts SAFE_KEY_CODE)"))),
     toggle_run: z.boolean(), toggle_interact: z.boolean(),
     gamepad: z.object({
       deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1), menu_stick: num.gt(0).max(1),

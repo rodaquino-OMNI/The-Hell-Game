@@ -71,6 +71,8 @@
   "ping.title": "Pings",
   "ping.ready": "Pings 1–4: prontos",
   "ping.cooldown": "Pings 1–4: {n} s",
+  "hud.captions": "Legendas de som",
+  "hud.caption_count": "×{n}",
 
   "spec.dead": "VOCÊ MORREU",
   "spec.escaped": "VOCÊ ESCAPOU!",
@@ -176,6 +178,10 @@
   "opt.sec.controls": "Controles",
   "opt.sec.keys": "Teclas",
   "opt.sec.gamepad": "Controle (gamepad)",
+  "opt.sec.captions": "Legendas de som",
+  "opt.captions": "Mostrar legendas de som",
+  "opt.caption_duration": "Tempo na tela",
+  "opt.caption_seconds": "{s} s",
   "opt.ps1.snap": "Tremor de vértice",
   "opt.ps1.affine": "Distorção de textura",
   "opt.ps1.gouraud": "Luz por vértice",
@@ -258,6 +264,6 @@
   "caption.generator_done": "Zumbido subindo: gerador concluído",
   "caption.cage": "Grade batendo: sobrevivente preso",
   "caption.rescue": "Acorde de alívio: sobrevivente salvo",
-  "caption.sound_muted": "Som mudo (M para ligar)",
-  "caption.sound_unmuted": "Som ligado (M para mudo)"
+  "caption.sound_muted": "Som mudo ({key} para ligar)",
+  "caption.sound_unmuted": "Som ligado ({key} para mudo)"
 }
