@@ -16,7 +16,8 @@ export function rulesetOverride(search: string, debug: boolean = debugEnabled(se
   const p = new URLSearchParams(search).get("ruleset");
   return p === "v1" || p === "prototype" ? p : undefined;
 }
-const ruleset = typeof location === "undefined" ? undefined : rulesetOverride(location.search, urlDebug);
+/** sobreposição em vigor (main.ts a reaplica na config dos quebra-cabeças acessíveis) */
+export const ruleset = typeof location === "undefined" ? undefined : rulesetOverride(location.search, urlDebug);
 export const cfg = makeConfig(balance, map, { ruleset });
 export const px = balance.prototype_extras;
 export const $ = (id: string) => document.getElementById(id)!;

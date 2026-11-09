@@ -18,6 +18,11 @@ export function createApp(publicDir: string): express.Express {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMain) {
   const dir = process.env.PUBLIC_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
-  const port = Number(process.env.PORT) || 8080;
-  createApp(dir).listen(port, () => console.log(`THE HELL ${VERSION} ouvindo na porta ${port}`));
+  // PORT=0: porta livre escolhida pelo sistema, anunciada na linha abaixo (scripts de teste: tools/lib/server.mjs)
+  const port = process.env.PORT === "0" ? 0 : Number(process.env.PORT) || 8080;
+  const srv = createApp(dir).listen(port, () => {
+    const addr = srv.address();
+    // tools/lib/server.mjs lê a porta real desta linha (regex /ouvindo na porta (\d+)/): mantenha o texto em sincronia
+    console.log(`THE HELL ${VERSION} ouvindo na porta ${typeof addr === "object" && addr ? addr.port : port}`);
+  });
 }

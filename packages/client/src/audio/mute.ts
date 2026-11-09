@@ -4,7 +4,8 @@
 // antes também é gravado, para o M desfazer o mudo depois de recarregar a página; sem ele (ou se for 0) volta ao padrão
 // `audio.buses.master` de data/balance.yaml.
 // Tecla: KeyM não é usada por input.ts (WASD, setas, Espaço, Shift, Q, E, V, X, Esc, Backspace), hud/hud.ts (1–4,
-// Espaço) nem ui/shop.ts (Esc); não há remapeamento de teclas no cliente.
+// Espaço) nem ui/shop.ts (Esc). Com o remapeamento do V8 a tecla vem da ação `mute` (ui.controls.keyboard): main.ts
+// passa `isKey` (input.ts isMuteKey); sem ele vale MUTE_KEY.
 import { balance } from "../data.ts";
 import { getBusVolume, setBusVolume, type VolumeName } from "./engine.ts";
 
@@ -54,12 +55,12 @@ export function createMuteToggle(deps: MuteDeps): MuteToggle {
   };
 }
 
-/** liga a tecla M em `target`: alterna o mudo e avisa `notify(mudo)`. Ignora repetição, modificadores e campos de
- *  texto. Devolve a função que desliga. */
-export function installMuteKey(target: EventTarget, notify: (muted: boolean) => void = () => {}, toggle: MuteToggle = createMuteToggle({ get: getBusVolume, set: setBusVolume })): () => void {
+/** liga a tecla M (ou as de `isKey`, remapeáveis) em `target`: alterna o mudo e avisa `notify(mudo)`. Ignora repetição,
+ *  modificadores e campos de texto. Devolve a função que desliga. */
+export function installMuteKey(target: EventTarget, notify: (muted: boolean) => void = () => {}, toggle: MuteToggle = createMuteToggle({ get: getBusVolume, set: setBusVolume }), isKey: (code: string) => boolean = c => c === MUTE_KEY): () => void {
   const onKey = (ev: Event) => {
     const e = ev as KeyboardEvent;
-    if (e.code !== MUTE_KEY || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!isKey(e.code) || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target as { tagName?: string; isContentEditable?: boolean } | null;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
     notify(toggle.toggle());
