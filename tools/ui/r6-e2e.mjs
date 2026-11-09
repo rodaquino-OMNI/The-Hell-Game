@@ -14,6 +14,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { RULES, SEED } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -29,7 +30,6 @@ const T = JSON.parse(readFileSync(join(root, "packages/client/src/i18n/locales/p
 const palette = JSON.parse(readFileSync(join(root, "data/art/palette.json"), "utf8"));
 /** fração em que a contagem é congelada para a captura e a conferência "no meio" */
 const MID = 0.5;
-const SEED = 1234;
 /** dificuldade escolhida no teste: a 3ª da tabela (Difícil), diferente do padrão dos dados */
 const PICK = Object.keys(balance.difficulty_table)[2];
 /** tempo de jogo (s de simulação) antes de encerrar a partida pelo gancho */
@@ -199,7 +199,7 @@ try {
   await page.evaluate(() => localStorage.removeItem("thehell.options"));
 
   // ---------- protótipo: sem score, sem resumo ----------
-  await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype&lang=pt-BR`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}&lang=pt-BR`, { waitUntil: "load" });
   const protoNote = await page.textContent("#difm");
   check(protoNote === T["difficulty.prototype_note"], `protótipo: nota deveria ser só o aviso, veio "${protoNote}"`);
   check((await page.textContent("#goal")).includes(`(${balance.generator.gate_time} s)`), "protótipo: objetivo sem generator.gate_time");
