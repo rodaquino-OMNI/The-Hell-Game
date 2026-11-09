@@ -349,7 +349,11 @@ export type GameEvent =
       winCoins?: boolean;
     }
   /** só no modo tutorial (D-34): a etapa `step` (posição `index` em `tutorial.steps`) foi concluída */
-  | { type: "tutorial_step"; step: TutorialStepName; index: number; done: true }
+  | {
+      type: "tutorial_step"; step: TutorialStepName; index: number; done: true;
+      /** só quando a etapa foi pulada (`skipTutorialStep`, telemetria de FTUE do GDD-v0.3 §12.3); ausente na conclusão normal */
+      skipped?: true;
+    }
   /** só no modo tutorial: a última etapa foi concluída; a partida para (`over`). `time` = segundos inteiros (FTUE, §12.3) */
   | { type: "tutorial_end"; time: number };
 
@@ -370,6 +374,12 @@ export interface TutorialState {
   target: TutorialTarget | null;
   /** progresso da etapa atual: metros andados em "move", acertos em "puzzle"; 0 nas demais */
   progress: number;
+  /**
+   * meta de `progress` na etapa atual (`tutorialGoal`): metros em "move", acertos em "puzzle", 1 nas demais. Com
+   * `step === null` (fim) vale 0 e `progress` também. Nas etapas binárias (generator, rescue, ability) `progress`
+   * fica em 0 e a barra só vai de 0 a 1 na conclusão (a etapa seguinte já começa com `progress` 0).
+   */
+  goal: number;
 }
 
 /** rastreio da pontuação do v1 (perseguição em curso e revelações já pontuadas); dado puro */

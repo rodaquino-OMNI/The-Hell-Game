@@ -1,5 +1,6 @@
 // Modo tutorial (Treino do GDD-v0.3 §12.3; D-34): etapas, alvos e conclusão vêm de `tutorial` em data/balance.yaml.
 // O laço de regras é o de game.ts; aqui só fica o roteiro: quem é o alvo de cada etapa e quando ela termina.
+import { releaseFromCage } from "./cage.ts";
 import type { SimConfig } from "./config.ts";
 import type { GameState, TutorialStepName, TutorialTarget, Vec } from "./types.ts";
 
@@ -48,8 +49,18 @@ export function startTutorial(cfg: SimConfig, g: GameState) {
     break; // um aliado preso basta para a etapa de resgate; os demais (team_size > 2) ficam parados
   }
   const steps = b.tutorial.steps;
-  g.tutorial = { step: steps[0], index: 0, target: null, progress: 0 };
+  g.tutorial = { step: steps[0], index: 0, target: null, progress: 0, goal: tutorialGoal(cfg, steps[0]) };
   g.tutorial.target = targetFor(g, steps[0], null);
+}
+
+/**
+ * Meta de `progress` da etapa: `tutorial.move.distance` (m) em "move", `tutorial.puzzle.count` em "puzzle"; as demais
+ * são uma ação só (1 = feita). 0 depois da última etapa.
+ */
+export function tutorialGoal(cfg: SimConfig, step: TutorialStepName | null): number {
+  const tb = cfg.balance.tutorial;
+  if (step === null) return 0;
+  return step === "move" ? tb.move.distance : step === "puzzle" ? tb.puzzle.count : 1;
 }
 
 /** etapa atual concluída neste passo? Atualiza `progress` */
@@ -85,12 +96,35 @@ export function updateTutorial(cfg: SimConfig, g: GameState, f: TutorialFrame) {
   if (!t || t.step === null) return;
   // alvo revisto a cada passo: mantém o atual enquanto válido, senão o gerador não concluído mais próximo
   if (t.target?.kind !== "cage") t.target = targetFor(g, t.step, t.target);
-  if (!stepDone(cfg, g, f)) return;
-  const steps = cfg.balance.tutorial.steps;
-  g.events.push({ type: "tutorial_step", step: t.step, index: t.index, done: true });
+  if (stepDone(cfg, g, f)) advance(cfg, g, false);
+}
+
+/**
+ * Pula a etapa atual (acessibilidade: pular só a etapa difícil, como o quebra-cabeça com tempo). Emite o mesmo
+ * `tutorial_step` com `skipped: true` e avança como na conclusão normal; depois da última, `tutorial_end`. Não faz nada
+ * fora do modo tutorial nem depois do fim. Devolve true se pulou. O quebra-cabeça aberto fecha sem acerto, erro nem
+ * crédito; pular "rescue" solta o aliado (efeito do resgate, sem mensagem "rescued" e sem pontos).
+ */
+export function skipTutorialStep(cfg: SimConfig, g: GameState): boolean {
+  const t = g.tutorial;
+  if (!t || t.step === null || g.over) return false;
+  g.puzzle = null; // um quebra-cabeça aberto bloquearia o resgate (game.ts exige !g.puzzle)
+  if (t.step === "rescue" && t.target?.kind === "cage") {
+    const c = g.survivors[t.target.id];
+    if (c.st === "cage") releaseFromCage(cfg, g, c);
+  }
+  advance(cfg, g, true);
+  return true;
+}
+
+/** conclui a etapa atual (`skipped` só aparece no evento quando a etapa foi pulada) e encerra depois da última */
+function advance(cfg: SimConfig, g: GameState, skipped: boolean) {
+  const t = g.tutorial!, steps = cfg.balance.tutorial.steps;
+  g.events.push({ type: "tutorial_step", step: t.step!, index: t.index, done: true, ...(skipped ? { skipped: true as const } : {}) });
   t.index++;
   t.progress = 0;
   t.step = t.index < steps.length ? steps[t.index] : null;
+  t.goal = tutorialGoal(cfg, t.step);
   t.target = targetFor(g, t.step, t.target);
   if (t.step === null) {
     g.over = true;

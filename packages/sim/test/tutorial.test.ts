@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  createGame, makeConfig, NO_INPUT, step, TUTORIAL_STEPS, type ClassName, type GameEvent, type GameState, type PlayerInput,
+  createGame, makeConfig, skipTutorialStep, tutorialGoal, NO_INPUT, step, TUTORIAL_STEPS, type ClassName, type GameEvent, type GameState, type PlayerInput,
   type SimConfig, type TutorialStepName,
 } from "../src/index.ts";
 import { gridFromMap, type GridNav } from "../src/nav/index.ts";
@@ -85,7 +85,7 @@ describe("modo tutorial (D-34, GDD-v0.3 §12.3)", () => {
     const g = createGame(prod, "Mecânico", 7, { mode: "tutorial" });
     expect(g.survivors).toHaveLength(tb.team_size);
     expect(g.survivors[1].st).toBe("cage");
-    expect(g.tutorial).toEqual({ step: "move", index: 0, target: null, progress: 0 });
+    expect(g.tutorial).toEqual({ step: "move", index: 0, target: null, progress: 0, goal: tb.move.distance });
     // modo normal: nada muda (sem a chave `tutorial`, mesma equipe de sempre)
     const n = createGame(prod, "Mecânico", 7);
     expect("tutorial" in n).toBe(false);
@@ -137,7 +137,7 @@ describe("modo tutorial (D-34, GDD-v0.3 §12.3)", () => {
     }
     expect(seen).toEqual(tb.steps);
     expect(g.over).toBe(true);
-    expect(g.tutorial).toEqual({ step: null, index: tb.steps.length, target: null, progress: 0 });
+    expect(g.tutorial).toEqual({ step: null, index: tb.steps.length, target: null, progress: 0, goal: 0 });
     expect(ended).toEqual({ type: "tutorial_end", time: Math.floor(g.t) });
     expect(frames).toBeLessThan(60 * 120);
     // depois do fim a partida não anda
@@ -189,6 +189,12 @@ describe("modo tutorial (D-34, GDD-v0.3 §12.3)", () => {
   function finish(c: SimConfig, g: GameState) {
     for (let i = 0; i < 60 * 120 && !g.over; i++) step(c, g, playerInput(c, g, i));
   }
+  /** roda o jogador simulado até a etapa atual mudar (ou o tutorial acabar) */
+  function finishNormally(c: SimConfig, g: GameState) {
+    const k = g.tutorial!.index;
+    for (let i = 0; i < 60 * 120 && !g.over && g.tutorial!.index === k; i++) step(c, g, playerInput(c, g, i));
+    expect(g.tutorial!.index).toBe(k + 1);
+  }
   const required = (g: GameState) => g.gens.flatMap((x, i) => (x.bonus ? [] : [i]));
   const last = balance.generator.puzzles_per_generator - 1;
 
@@ -223,6 +229,132 @@ describe("modo tutorial (D-34, GDD-v0.3 §12.3)", () => {
     expect(g.over).toBe(true);
   });
 
+  it("goal: meta de progress por etapa, vinda dos dados", () => {
+    expect(tutorialGoal(prod, "move")).toBe(tb.move.distance);
+    expect(tutorialGoal(prod, "puzzle")).toBe(tb.puzzle.count);
+    for (const s of ["generator", "rescue", "ability"] as const) expect(tutorialGoal(prod, s)).toBe(1);
+    expect(tutorialGoal(prod, null)).toBe(0);
+    const g = createGame(prod, "Curandeiro", 2, { mode: "tutorial" });
+    for (const s of tb.steps) {
+      expect(g.tutorial!.step).toBe(s);
+      expect(g.tutorial!.goal).toBe(tutorialGoal(prod, s));
+      skipTutorialStep(prod, g);
+    }
+    expect(g.tutorial!.goal).toBe(0);
+  });
+
+  it("skip: cada etapa emite tutorial_step com skipped: true; a última fecha o tutorial", () => {
+    for (let k = 0; k < tb.steps.length; k++) {
+      const g = createGame(prod, "Mecânico", 6, { mode: "tutorial" });
+      for (let j = 0; j < k; j++) skipTutorialStep(prod, g);
+      g.events.length = 0;
+      const s = tb.steps[k];
+      expect(g.tutorial!.step).toBe(s);
+      expect(skipTutorialStep(prod, g)).toBe(true);
+      const last = k === tb.steps.length - 1;
+      expect(g.events).toEqual([
+        { type: "tutorial_step", step: s, index: k, done: true, skipped: true },
+        ...(last ? [{ type: "tutorial_end", time: Math.floor(g.t) }] : []),
+      ]);
+      expect(g.tutorial).toMatchObject({ index: k + 1, step: last ? null : tb.steps[k + 1], progress: 0 });
+      expect(g.over).toBe(last);
+      // depois de pular, a etapa seguinte se conclui normalmente (sem skipped)
+      if (!last) {
+        finishNormally(prod, g);
+        const ev = g.events.filter(e => e.type === "tutorial_step" && e.index === k + 1);
+        expect(ev).toHaveLength(1);
+        expect("skipped" in ev[0]).toBe(false);
+      }
+    }
+  });
+
+  it("skip: nada depois de tutorial_end nem fora do modo tutorial", () => {
+    const g = createGame(prod, "Atacador", 8, { mode: "tutorial" });
+    while (g.tutorial!.step !== null) skipTutorialStep(prod, g);
+    const snap = JSON.stringify(g);
+    expect(skipTutorialStep(prod, g)).toBe(false);
+    expect(JSON.stringify(g)).toBe(snap);
+    for (const c of [prod, protoCfg]) {
+      const n = createGame(c, "Atacador", 8);
+      step(c, n, NO_INPUT);
+      const before = JSON.stringify(n);
+      expect(skipTutorialStep(c, n)).toBe(false);
+      expect(JSON.stringify(n)).toBe(before);
+    }
+  });
+
+  /** pula etapas até chegar a `name` */
+  const skipTo = (c: SimConfig, g: GameState, name: TutorialStepName) => { while (g.tutorial!.step !== name) skipTutorialStep(c, g); };
+
+  it("skip com progress > 0 em move: zera o progresso e avança", () => {
+    const g = createGame(prod, "Curandeiro", 5, { mode: "tutorial" });
+    for (let i = 0; i < 30; i++) step(prod, g, { ...NO_INPUT, forward: 1, yaw: Math.PI / 2 });
+    expect(g.tutorial!.progress).toBeGreaterThan(0);
+    expect(g.tutorial!.progress).toBeLessThan(tb.move.distance);
+    g.events.length = 0;
+    expect(skipTutorialStep(prod, g)).toBe(true);
+    expect(g.events).toEqual([{ type: "tutorial_step", step: "move", index: 0, done: true, skipped: true }]);
+    expect(g.tutorial).toMatchObject({ step: tb.steps[1], index: 1, progress: 0, goal: tutorialGoal(prod, tb.steps[1]) });
+  });
+
+  it("skip de puzzle com o quebra-cabeça aberto: fecha sem acerto, erro nem crédito; o resgate funciona depois", () => {
+    for (const c of [prod, protoCfg]) {
+      const g = createGame(c, "Curandeiro", 12, { mode: "tutorial" });
+      skipTo(c, g, "puzzle");
+      const T = g.tutorial!.target!, P = g.survivors[0];
+      P.x = T.x + 1; P.z = T.z;
+      step(c, g, { ...NO_INPUT, interact: true });
+      expect(g.puzzle).not.toBeNull();
+      const gen = g.gens[T.id], before = JSON.stringify({ n: gen.n, fails: gen.fails, points: g.points, score: P.score });
+      g.events.length = 0;
+      expect(skipTutorialStep(c, g)).toBe(true);
+      expect(g.puzzle).toBeNull();
+      expect(JSON.stringify({ n: gen.n, fails: gen.fails, points: g.points, score: P.score })).toBe(before);
+      expect(g.events.map(e => e.type)).toEqual(["tutorial_step"]);
+      expect(g.tutorial!.step).toBe("rescue");
+      finishNormally(c, g); // o jogador simulado anda até a gaiola e segura a interação
+      expect(g.survivors[1].st).toBe("ok");
+      expect(g.events.some(e => e.type === "msg" && e.key === "rescued")).toBe(true);
+    }
+  });
+
+  it("ability depois de rescue pulada (Curandeiro e Atacador): aliado solto sem mensagem nem pontos", () => {
+    for (const cls of ["Curandeiro", "Atacador"] as const) {
+      const g = createGame(prod, cls, 13, { mode: "tutorial" });
+      skipTo(prod, g, "rescue");
+      const A = g.survivors[1], P = g.survivors[0];
+      const pts = JSON.stringify({ points: g.points, score: P.score });
+      g.events.length = 0;
+      expect(skipTutorialStep(prod, g)).toBe(true);
+      expect(A.st).toBe("ok");
+      expect([A.hp, A.immune, A.z]).toEqual([balance.cage.rescue_hp, balance.cage.immunity, g.arena.cage.z + balance.prototype_extras.rescued_offset]);
+      expect(g.events).toEqual([{ type: "tutorial_step", step: "rescue", index: tb.steps.indexOf("rescue"), done: true, skipped: true }]);
+      expect(JSON.stringify({ points: g.points, score: P.score })).toBe(pts);
+      expect(g.tutorial!.step).toBe("ability");
+      finishNormally(prod, g);
+      expect(g.over).toBe(true);
+      const ev = g.events.filter(e => e.type === "tutorial_step" && e.step === "ability");
+      expect(ev).toEqual([{ type: "tutorial_step", step: "ability", index: tb.steps.indexOf("ability"), done: true }]);
+    }
+  });
+
+  it("determinismo do skip: mesma semente e skip no mesmo quadro dão o mesmo hash", () => {
+    const run = (seed: number, at: number) => {
+      const g = createGame(prod, "Mecânico", seed, { mode: "tutorial" });
+      const events: GameEvent[] = [];
+      for (let i = 0; i < 60 * 120 && !g.over; i++) {
+        if (i === at || g.tutorial!.step === "puzzle") skipTutorialStep(prod, g);
+        step(prod, g, playerInput(prod, g, i));
+        events.push(...g.events.splice(0));
+      }
+      expect(g.over).toBe(true);
+      return createHash("sha256").update(JSON.stringify([g, events])).digest("hex");
+    };
+    const ref = run(21, 20);
+    for (let i = 0; i < 20; i++) expect(run(21, 20)).toBe(ref);
+    expect(run(21, 40)).not.toBe(ref);
+  });
+
   it("sem fim por tempo: a gaiola não mata e o limite duro não encerra", () => {
     const g = createGame(prod, "Atacador", 9, { mode: "tutorial" });
     const n = Math.ceil(Math.max(prod.cageTime, balance.match.hard_time_limit) * 60) + 60;
@@ -239,12 +371,15 @@ describe("determinismo do modo tutorial", () => {
     const r = playTutorial(c, "Mecânico", seed);
     return createHash("sha256").update(JSON.stringify([r.g, r.events])).digest("hex");
   };
+  // 202 tutoriais completos: no runner do CI passa dos 5 s padrão do vitest (mesmo caso do teste de determinismo de
+  // rules-v1.test.ts); o limite explícito não afrouxa a asserção, só dá tempo para as 100 repetições.
+  const DETERMINISM_TIMEOUT_MS = 30_000;
   it("mesma semente → mesmo hash em 100 execuções (v1 e protótipo)", () => {
     for (const c of [prod, protoCfg]) {
       const ref = hash(c, 42);
       for (let i = 0; i < 100; i++) expect(hash(c, 42)).toBe(ref);
     }
-  });
+  }, DETERMINISM_TIMEOUT_MS);
   it("semente diferente → partida diferente", () => {
     expect(hash(prod, 42)).not.toBe(hash(prod, 43));
   });

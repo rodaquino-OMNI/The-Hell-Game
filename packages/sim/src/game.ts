@@ -5,6 +5,7 @@
 import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
 import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
+import { releaseFromCage } from "./cage.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee, lineOfSight } from "./perception.ts";
@@ -336,14 +337,10 @@ function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
 function kill(cfg: SimConfig, g: GameState, s: Survivor) { s.st = "dead"; msg(g, "died", { cls: s.cls }); creditHunter(cfg, g, "kill"); }
 
 function free(cfg: SimConfig, g: GameState, c: Survivor, by: Survivor) {
-  const b = cfg.balance;
   // dois sobreviventes podem concluir o mesmo resgate no mesmo passo: só o primeiro solta e pontua
   if (c.st !== "cage") return;
   if (cfg.v1) credit(cfg, g, by, "rescue");
-  c.st = "ok";
-  c.hp = b.cage.rescue_hp;
-  c.immune = b.cage.immunity;
-  c.z = g.arena.cage.z + b.prototype_extras.rescued_offset;
+  releaseFromCage(cfg, g, c);
   msg(g, "rescued", { cls: c.cls });
 }
 
