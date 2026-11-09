@@ -42,6 +42,32 @@ const SimSchema = z.object({
 
 /** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
 const gain01 = num.min(0).max(1);
+/** A-5: camada de síntese de um efeito (oscilador ou ruído branco, filtro opcional, envelope ataque/decaimento) */
+const SfxLayerSchema = z.object({
+  type: z.enum(["osc", "noise"]),
+  wave: z.enum(["sine", "square", "sawtooth", "triangle"]).optional(),
+  freq: pos.positive().optional(), freq_end: pos.positive().optional(),
+  filter: z.enum(["lowpass", "highpass", "bandpass"]).optional(),
+  filter_freq: pos.positive().optional(), filter_end: pos.positive().optional(), q: pos.positive().optional(),
+  attack: pos, decay: pos.positive(), gain: gain01,
+  delay: pos.optional(), repeat: z.number().int().positive().optional(), gap: pos.positive().optional(),
+}).strict()
+  .refine(l => l.type !== "osc" || (l.freq !== undefined && l.wave !== undefined), "osc exige wave e freq")
+  .refine(l => l.type !== "noise" || (l.freq === undefined && l.freq_end === undefined && l.wave === undefined), "noise não tem wave/freq")
+  .refine(l => l.freq_end === undefined || l.freq !== undefined, "freq_end exige freq")
+  .refine(l => (l.filter === undefined) === (l.filter_freq === undefined), "filter e filter_freq andam juntos")
+  .refine(l => (l.filter_end === undefined && l.q === undefined) || l.filter !== undefined, "filter_end/q exigem filter")
+  .refine(l => (l.repeat ?? 1) === 1 || l.gap !== undefined, "repeat > 1 exige gap");
+const modRange = z.tuple([pos, pos]);
+/** A-5: efeito do catálogo `audio.sfx` (kind = chave de voice_priority) */
+const SfxSchema = z.object({
+  kind: z.string().regex(/^[a-z_]+$/),
+  bus: z.enum(["music", "sfx", "voice", "ui"]),
+  spatial: z.boolean(),
+  mod: z.object({ gain: modRange.optional(), pitch: modRange.optional() }).strict().optional(),
+  recipe: z.array(SfxLayerSchema).min(1),
+}).strict();
+
 /** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
 const AudioSchema = z.object({
   music: z.object({
@@ -53,9 +79,23 @@ const AudioSchema = z.object({
     bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
     layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
   }).strict(),
+  /** A-3: parâmetros da composição procedural (tools/audio/compose.ts) */
+  compose: z.object({
+    loop_bars: int.positive(), tail_bars: int.positive(), seed: int.nonnegative(),
+    sample_rate: int.positive(), bitrate_kbps: int.positive(), true_peak_margin_db: pos,
+    limiter_lookahead_s: pos.positive(), limiter_release_s: pos.positive(), loudness_match_lu: pos.positive(),
+    master_max_iterations: int.positive(), tail_floor_db: z.number().negative(),
+    gapless_preroll: int.nonnegative().max(4095), gapless_postroll: int.nonnegative().max(4095), mp3_lead: int.nonnegative(),
+    junction_window: int.positive(), junction_factor: pos.positive(),
+  }).strict(),
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
   loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
+  /** A-7: pasta da música (relativa a public/) e licenças aceitas no creditos.csv (tools/audio/loudness.mjs) */
+  loudness_check: z.object({
+    music_dir: z.string().regex(/^audio\/[a-z0-9_/-]+[a-z0-9_-]$/, "music_dir relativo a public/, dentro de audio/"),
+    licenses: z.array(z.string().min(1)).min(1).refine(a => new Set(a).size === a.length, "licenças repetidas"),
+  }).strict(),
   ducking_db: z.number().max(0),
   buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
   volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
@@ -68,7 +108,35 @@ const AudioSchema = z.object({
     ref_distance: pos.positive(), max_distance: pos.positive(), rolloff_factor: pos,
   }).strict().refine(p => p.max_distance > p.ref_distance, "panner.max_distance deve passar de ref_distance"),
   occlusion_ramp_tc: pos.positive(), source_height: pos,
-}).strict();
+  /** A-5: diretor de áudio atrás de flag (D-32) */
+  director_enabled: z.boolean(),
+  sfx_floor_gain: num.positive().max(1),
+  noise_seconds: pos.positive(), noise_seed: int, sfx_cancel_ramp: pos.positive(),
+  /** A-5: catálogo de efeitos sintetizados (decisão do Rodrigo, 09/11/2026: síntese PS1 pura) */
+  sfx: z.record(z.string().regex(/^[a-z_]+$/), SfxSchema).refine(r => Object.keys(r).length > 0, "sfx vazio"),
+  director: z.object({
+    duck_time: pos.positive(), hunter_stride: pos.positive(), walk_stride: pos.positive(), run_stride: pos.positive(),
+    teleport_dist: pos.positive(), hunter_audible_radius: pos.positive(),
+    breath: z.object({ stamina_below: num.positive().max(1), period: z.tuple([pos.positive(), pos.positive()]) }).strict(),
+    hum: z.object({ radius: pos.positive(), period: pos.positive() }).strict(),
+  }).strict(),
+  /** A-6: legendas de som (GDD v0.3 §12.4); efeito do catálogo → chave i18n `caption.*` */
+  captions: z.object({
+    /** D-39 e D-40 (docs/plano-construcao.md §7) */
+    enabled_default: z.boolean(),
+    durations: z.array(pos.positive()).min(1), default_duration_index: int.nonnegative(),
+    max_on_screen: int.positive(), merge_window: pos,
+    /** categoria = ícone direcional da Visual (GDD v0.3 §11, L218) */
+    effects: z.record(z.string().regex(/^[a-z_]+$/), z.object({
+      key: z.string().regex(/^caption\.[a-z_]+$/),
+      category: z.enum(["hunter_steps", "hunter_attack", "generator", "survivor"]),
+    }).strict()),
+  }).strict().refine(c => c.default_duration_index < c.durations.length, "captions.default_duration_index fora de durations"),
+}).strict()
+  .refine(a => Object.values(a.sfx).every(s => Object.prototype.hasOwnProperty.call(a.voice_priority, s.kind)),
+    "sfx: kind fora de voice_priority")
+  .refine(a => Object.keys(a.captions.effects).every(n => Object.prototype.hasOwnProperty.call(a.sfx, n)),
+    "captions.effects: efeito fora de audio.sfx");
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
@@ -175,6 +243,8 @@ const render = z.object({
   }).strict(),
   layer_cost_factor: num.min(1),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
+  /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */
+  hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive() }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */

@@ -369,8 +369,25 @@ render:
   layer_cost_factor: 1.4
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
-  # caçador fora do cone conserva body_keep do contraste que tem sem a camada A
-  legibility: {min_contrast: 3, body_keep: 0.9}
+  # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,
+  # V8) e com ele. D-38 (supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): body_keep
+  # 0,89 (era 0,9). A Art Bible §5.3 (3:1) tem precedência sobre esta métrica interna: com a camada A as scanlines
+  # (≈ 0,8 em luminância linear) e o tom de sombra da LUT tiram ≈ 10% do contraste de todo corpo claro, e nenhum
+  # ponto potência × amount do contorno dá 3:1 e 0,9 juntos (tabela em hunter_outline abaixo; PR #34)
+  legibility: {min_contrast: 3, body_keep: 0.89}
+  # D-18 (b, 09/11/2026; docs/plano-construcao.md §7): contorno sutil no caçador para a legibilidade fora do cone da
+  # lanterna (Art Bible §5.3: 3:1, WCAG 2.2 1.4.11) sem clarear a cena (luz ambiente e névoa intactas). Borda de luz
+  # por vértice (fresnel) no Ps1Material do caçador: cor = token × amount, somada antes da névoa; power = expoente do
+  # fresnel (maior = borda mais fina). intensity de 0 a 1 (acessibilidade, V8). Fixo no tempo (sem pulsar: "reduzir
+  # flicker", GDD-v0.3 §12.4). Medido em tools/visual/compare.mjs (corpo fora e dentro do cone ≥ legibility.min_contrast)
+  # amount × token ≤ 1 por canal (sem branco saturado; hunter.espectro tem máx. 206/255, então amount ≤ 1,23).
+  # Escolha (revisão do PR #34, 09/11/2026; máscara do corpo inteiro): power 1 e amount 1,15 dão 3,21:1 fora do cone
+  # e conservam 0,897 com a camada A. Nenhum ponto da tabela potência × amount (0,6 a 4 × 0,6 a 1,23) dá 3:1 e
+  # body_keep ≥ 0,9 ao mesmo tempo. Resumo (fora do cone, contraste / fração conservada): power 1 × amount 0,6 / 1,0 /
+  # 1,2 = 1,99 / 0,926, 2,84 / 0,904, 3,34 / 0,895; power 1,5 × 1,2 = 2,54 / 0,908; power 2 × 1,2 = 2,12 / 0,911;
+  # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
+  # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
   states:
@@ -485,11 +502,59 @@ audio:
     # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
     # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
     start_lead: 0.1
+  # A-3 (tools/audio/compose.ts): composição procedural dos stems (docs/handoff/plano-audio-v5.md §2 e §4; decisão do
+  # Rodrigo, 09/11/2026: síntese PS1 pura, sem samples). Parâmetros de renderização e masterização, não de jogo.
+  compose:
+    # 8 compassos = 8 × 4 × 60 / 90 = 21,333 s; dá número inteiro de amostras a 48000 (1 024 000) e a 44100 (940 800),
+    # então o loop fecha exato também se o navegador reamostrar para 44,1 kHz. Todos os stems têm esse comprimento
+    # (o A-2 inicia os 5 juntos e troca no limite de compasso, GDD-v0.3 §11).
+    loop_bars: 8
+    # cauda renderizada depois do loop e somada no início (wrap) para release e reverb; tem de ser maior que a
+    # nota mais longa + resposta ao impulso do reverb (compose.ts confere e falha se não couber)
+    tail_bars: 2
+    # semente do PRNG próprio da composição (ruído, reverb, variações); mesma semente → mesmo PCM
+    seed: 20261109
+    sample_rate: 48000              # Hz; taxa do OfflineAudioContext e do MP3
+    bitrate_kbps: 128               # plano-audio-v5 §2: música estéreo 128 kbps (MP3, GDD-v0.3 C-13)
+    # LACUNA (GDD não define): folga (dB) abaixo de audio.true_peak_dbtp na masterização do PCM, porque a codificação
+    # MP3 sobe o pico real em alguns décimos de dB. Proposta: 0,5 dB.
+    true_peak_margin_db: 0.5
+    # Masterização (compose.ts). LACUNA (GDD não define; são parâmetros de ferramenta, não de jogo). Propostas:
+    limiter_lookahead_s: 0.004      # antecipação do limitador de pico (s): 4 ms, menor que o ataque de qualquer nota
+    limiter_release_s: 0.12         # recuperação do limitador (s): 120 ms, sem "bombear" no andamento de 90 BPM
+    loudness_match_lu: 0.05         # tolerância da busca de ganho (LU): metade da resolução do ebur128 (0,1)
+    master_max_iterations: 16       # tentativas da busca de ganho/limitador antes de falhar
+    tail_floor_db: -60              # o fim da cauda renderizada tem de estar abaixo do pico por esta margem (dB)
+    # MP3 sem lacuna (compose.ts, music.ts). Pré e pós-rolagem: amostras do próprio loop codificadas antes e depois
+    # dele e marcadas como atraso/padding no cabeçalho LAME (2 quadros de 1152; o campo tem 12 bits, ≤ 4095).
+    gapless_preroll: 2304
+    gapless_postroll: 2304
+    # atraso do MP3 antes da 1ª amostra, sem a pré-rolagem: LAME (576) + decodificador (529) = 1105 amostras, medido
+    # com ffprobe (start_time 0,023021 s × 48000) e conferido pelo compose.ts no cabeçalho de cada arquivo. O music.ts
+    # usa (mp3_lead + gapless_preroll) para achar o loop se um navegador ignorar o cabeçalho LAME.
+    mp3_lead: 1105
+    # Junção do loop (test/audio-stems.test.ts e tools/audio/check-loop.mjs): o degrau |x[0] − x[N−1]| e a 2ª
+    # diferença na junção não podem passar de junction_factor × o maior degrau / a maior 2ª diferença em ±junction_window
+    # amostras em volta (sem contar a junção). Calibrado nos 5 stems: natural ≤ 1,30; estalo sintético de 0,02 (qualquer
+    # sentido) ≥ 1,55; 1,4 separa os dois. Janela curta porque, com percussão, a vizinhança longa já tem degraus maiores
+    # que 0,02 e esconderia o estalo.
+    junction_window: 8
+    junction_factor: 1.4
   max_voices: 32
   occlusion_lowpass_hz: 800
   loudness_lufs: -16
   loudness_tolerance: 1
   true_peak_dbtp: -1
+  # A-7 (tools/audio/loudness.mjs, passo da CI): o que conta como música e quais licenças o creditos.csv aceita.
+  # GDD-v0.3 §11 (linha "Mixagem"): a meta de LUFS vale para "todos os arquivos de música"; arquivos de
+  # packages/client/public/audio fora de music_dir são efeitos. LACUNA (GDD não define meta de LUFS para efeitos):
+  # efeitos só passam pelo pico real (true_peak_dbtp).
+  loudness_check:
+    music_dir: audio/music          # relativo a packages/client/public/, como a coluna `arquivo` do creditos.csv
+    # docs/handoff/plano-fases-1-2.md §3, regra 5: "Assets só CC0 ou de licença aberta compatível". Lista aberta:
+    # acrescentar aqui (com a fonte da licença) antes de usar um arquivo com licença nova. Grafia igual à da coluna
+    # `licenca` do creditos.csv.
+    licenses: ["CC0 1.0", "CC-BY 4.0", "MIT"]
   ducking_db: -8
   # A-1 (engine.ts): volume padrão de cada barramento, ganho LINEAR 0–1 aplicado direto no GainNode (0 = mudo,
   # 1 = sem atenuação). Linear e não dB porque é o valor que o slider mostra e o GainNode recebe, e 0 representa o
@@ -515,7 +580,10 @@ audio:
   # "Telegraph sonoro"; GDD-v0.2 §11, "parte do telegraph"), depois o caçador e o batimento (ameaça), o gerador
   # (objetivo), os passos, a UI e o ambiente.
   # LACUNA (o GDD não define a tabela nem os valores numéricos): proposta abaixo, decisão do Rodrigo pendente.
-  voice_priority: {telegraph: 100, hunter: 90, heartbeat: 80, generator: 50, footstep: 40, ui: 30, ambience: 10}
+  # A-5: `event` (golpe recebido, prisão, resgate, gerador concluído: os "eventos críticos" do ducking, GDD-v0.3 §11)
+  # e `breath` (respiração do próprio jogador, GDD-v0.2 §11). LACUNA, proposta: event 85 (abaixo do caçador, acima do
+  # batimento) e breath 60 (acima do gerador e dos passos, porque informa a stamina do próprio jogador).
+  voice_priority: {telegraph: 100, hunter: 90, event: 85, heartbeat: 80, breath: 60, generator: 50, footstep: 40, ui: 30, ambience: 10}
   # A-4 (spatial.ts): parâmetros do PannerNode de cada voz. panning_model HRTF: GDD-v0.3 §11 e GDD-v0.2 §11.
   # LACUNA (o GDD não define o modelo de distância nem as distâncias). Proposta: "inverse" (padrão da Web Audio,
   # https://webaudio.github.io/web-audio-api/#dom-pannernode-distancemodel): ganho = ref / (ref + rolloff·(d − ref))
@@ -534,6 +602,221 @@ audio:
   # Proposta: 1,2 m, perto do peito de um sobrevivente (survivor.height 1,75 m), abaixo do olho da câmera em 1ª pessoa
   # (render.camera.eye_height 1,5 m).
   source_height: 1.2
+  # ---------- A-5: efeitos sintetizados, telegraph e diretor de áudio ----------
+  # D-32 (docs/plano-construcao.md §7: main publicável, coisa pela metade atrás de flag em dados): o diretor
+  # (audio/director.ts) só toca com true. Fica false até a ligação em main.ts e os stems do A-3 estarem verdes;
+  # com false, updateAudio/audioEvents não fazem nada e os bipes da fase 0 continuam por beep().
+  director_enabled: false
+  # Síntese PS1 pura (decisão do Rodrigo, 09/11/2026): todo efeito é sintetizado em tempo de execução a partir da
+  # receita abaixo (zero arquivos, zero licença). Terror leve 12+ (GDD-v0.2 §1; docs/handoff/plano-audio-v5.md §2):
+  # sem gritos, golpe = impacto abafado.
+  # LACUNA (o GDD não define): ganho mínimo do envelope (a rampa exponencial não chega a 0). Proposta: 0,001
+  # (−60 dB), o mesmo dos bipes do protótipo (audio/beeps.ts, `exponentialRampToValueAtTime(0.001, …)`).
+  sfx_floor_gain: 0.001
+  # LACUNA (o GDD não define): buffer de ruído branco gerado uma vez por contexto, duração (s) e semente do PRNG
+  # (mulberry32 de packages/sim/src/rng.ts; semente fixa = mesmo ruído em toda sessão e nos testes). Proposta: 1 s, 1.
+  noise_seconds: 1
+  noise_seed: 1
+  # LACUNA (o GDD não define): rampa linear (s) até o silêncio quando um telegraph é cancelado (atordoamento, preparo
+  # que some sem efeito). Proposta: 0,03 s, curta para o corte soar imediato e longa o bastante para não estalar.
+  sfx_cancel_ramp: 0.03
+  # Catálogo de efeitos. Por efeito: kind (chave de voice_priority), bus (barramento do A-1), spatial (true = toca
+  # na posição da fonte com HRTF e oclusão; false = som do próprio jogador/HUD, pos null), recipe (camadas somadas) e,
+  # opcional, mod: intensidade 0–1 do chamador → multiplicador de ganho e de altura (freq e filtro), interpolados
+  # linearmente entre [mín, máx].
+  # Camada: type osc|noise; wave (osc); freq → freq_end (Hz, rampa exponencial ao longo da camada); filter
+  # lowpass|highpass|bandpass com filter_freq → filter_end e q; attack (s, rampa linear até gain) e decay (s, rampa
+  # exponencial até sfx_floor_gain); delay (s) do início; repeat (vezes) com gap (s) entre inícios.
+  # Valores de timbre: LACUNA (o GDD só pede o efeito, GDD-v0.3 §11 e GDD-v0.2 §11); proposta da sessão Áudio,
+  # para ajuste de ouvido pelo Rodrigo.
+  sfx:
+    # os 5 bipes da fase 0 (GameEvent "sound", packages/sim/src/types.ts; antigo SOUNDS de beeps.ts, valores do
+    # protótipo: [freq, duração, volume]). A 1ª camada de cada um é o bipe original; beeps.ts SOUNDS deriva daqui.
+    puzzle_ok: {kind: ui, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 660, attack: 0, decay: 0.1, gain: 0.2}]}
+    puzzle_fail: {kind: ui, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 120, attack: 0, decay: 0.25, gain: 0.3}]}
+    # golpe recebido: impacto abafado (baque grave + ruído passa-baixa curto), nada de som de carne
+    hit:
+      kind: event
+      bus: sfx
+      spatial: false
+      recipe:
+        - {type: osc, wave: sine, freq: 90, attack: 0, decay: 0.2, gain: 0.4}
+        - {type: noise, filter: lowpass, filter_freq: 300, q: 0.7, attack: 0, decay: 0.08, gain: 0.15}
+    # pontos do jogador local (GameEvent "points" com who = jogador; GDD-v0.2 §7.1): bipe curto de UI
+    points: {kind: ui, bus: ui, spatial: false, recipe: [{type: osc, wave: sine, freq: 880, attack: 0, decay: 0.06, gain: 0.12}]}
+    stun: {kind: hunter, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 200, attack: 0, decay: 0.15, gain: 0.3}]}
+    bolt: {kind: event, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 300, attack: 0, decay: 0.12, gain: 0.3}]}
+    # batimento: o duplo bipe do HUD (hud/hud.ts, beep(55, 0,12, 0,35) e 160 ms depois beep(48, 0,12, 0,25)).
+    # Intensidade = proximidade do caçador (1 − d / prototype_extras.heartbeat.radius): mais perto, mais alto.
+    heartbeat:
+      kind: heartbeat
+      bus: sfx
+      spatial: false
+      mod: {gain: [0.5, 1]}
+      recipe:
+        - {type: osc, wave: sine, freq: 55, attack: 0, decay: 0.12, gain: 0.35}
+        - {type: osc, wave: sine, freq: 48, delay: 0.16, attack: 0, decay: 0.12, gain: 0.25}
+    # telegraph por Windup.kind (GDD-v0.2 §4.1 "pista sonora única"; GDD-v0.3 §11 "som próprio que começa junto com
+    # o telegraph visual"). Quatro assinaturas distintas: golpe = sopro que sobe + rosnado grave; dash = motor
+    # serrilhado que acelera; projétil = três tiques agudos; armadilha = dois estalos metálicos.
+    telegraph_melee:
+      kind: telegraph
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: noise, filter: bandpass, filter_freq: 250, filter_end: 1200, q: 2, attack: 0.35, decay: 0.1, gain: 0.5}
+        - {type: osc, wave: sine, freq: 70, freq_end: 50, attack: 0.3, decay: 0.15, gain: 0.3}
+    telegraph_dash:
+      kind: telegraph
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: sawtooth, freq: 70, freq_end: 280, filter: lowpass, filter_freq: 900, q: 1, attack: 0.3, decay: 0.12, gain: 0.25}
+    telegraph_projectile:
+      kind: telegraph
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: square, freq: 880, freq_end: 1320, filter: lowpass, filter_freq: 3000, q: 0.7, attack: 0.005, decay: 0.08, gain: 0.12, repeat: 3, gap: 0.12}
+    telegraph_trap:
+      kind: telegraph
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: triangle, freq: 1500, freq_end: 900, attack: 0.002, decay: 0.06, gain: 0.2, repeat: 2, gap: 0.18}
+        - {type: noise, filter: highpass, filter_freq: 2500, q: 0.7, attack: 0.002, decay: 0.05, gain: 0.15, repeat: 2, gap: 0.18}
+    # passos. Superfície: LACUNA — o sim não expõe superfície de chão (packages/sim/src/types.ts não tem campo nem
+    # evento), então há uma só por ora; GDD-v0.2 §11 pede "passos por superfície" (pedido à Frente R adiado).
+    step_hunter:
+      kind: hunter
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: noise, filter: lowpass, filter_freq: 220, q: 0.7, attack: 0.005, decay: 0.18, gain: 0.6}
+        - {type: osc, wave: sine, freq: 60, freq_end: 40, attack: 0, decay: 0.15, gain: 0.35}
+    step_walk: {kind: footstep, bus: sfx, spatial: false, recipe: [{type: noise, filter: lowpass, filter_freq: 900, q: 0.7, attack: 0.003, decay: 0.07, gain: 0.18}]}
+    step_run: {kind: footstep, bus: sfx, spatial: false, recipe: [{type: noise, filter: lowpass, filter_freq: 1400, q: 0.7, attack: 0.003, decay: 0.09, gain: 0.28}]}
+    # respiração (GDD-v0.2 §11 "ligada à stamina"): intensidade = falta de stamina abaixo do limiar
+    breath:
+      kind: breath
+      bus: sfx
+      spatial: false
+      mod: {gain: [0.4, 1], pitch: [1, 1.3]}
+      recipe:
+        - {type: noise, filter: bandpass, filter_freq: 700, filter_end: 500, q: 1.5, attack: 0.25, decay: 0.35, gain: 0.12}
+    # zumbido do gerador (GDD-v0.2 §11 "timbre do gerador por progresso"): intensidade = n / puzzles_per_generator;
+    # mais progresso = mais agudo (até 2×, uma oitava) e mais alto. Pulso redisparado a cada director.hum.period.
+    generator_hum:
+      kind: generator
+      bus: sfx
+      spatial: true
+      mod: {gain: [0.4, 1], pitch: [1, 2]}
+      recipe:
+        - {type: osc, wave: sawtooth, freq: 55, filter: lowpass, filter_freq: 400, q: 2, attack: 0.25, decay: 0.75, gain: 0.12}
+        - {type: osc, wave: sine, freq: 110, attack: 0.25, decay: 0.75, gain: 0.06}
+    generator_done:
+      kind: event
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: triangle, freq: 220, freq_end: 440, attack: 0.01, decay: 0.6, gain: 0.3}
+        - {type: osc, wave: triangle, freq: 330, freq_end: 660, delay: 0.12, attack: 0.01, decay: 0.6, gain: 0.2}
+    # resgate: arpejo de Ré maior (Ré–Fá♯–Lá), alívio sobre o Ré menor da música (audio.music.key)
+    rescue:
+      kind: event
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: sine, freq: 294, attack: 0.005, decay: 0.25, gain: 0.2}
+        - {type: osc, wave: sine, freq: 370, delay: 0.12, attack: 0.005, decay: 0.25, gain: 0.2}
+        - {type: osc, wave: sine, freq: 440, delay: 0.24, attack: 0.005, decay: 0.4, gain: 0.2}
+    # prisão: grade de metal batendo (sem grito)
+    cage:
+      kind: event
+      bus: sfx
+      spatial: true
+      recipe:
+        - {type: osc, wave: square, freq: 110, freq_end: 70, filter: lowpass, filter_freq: 600, q: 1, attack: 0, decay: 0.5, gain: 0.3}
+        - {type: noise, filter: bandpass, filter_freq: 1800, q: 4, attack: 0, decay: 0.25, gain: 0.2, repeat: 2, gap: 0.1}
+  # Diretor (audio/director.ts): contínuos e transições por quadro. Batimento usa o que já existe:
+  # prototype_extras.heartbeat (raio 20 m, intervalo base + (d / raio) × range_interval; P-03, o mesmo do HUD).
+  director:
+    # LACUNA (GDD-v0.3 §11 pede ducking de −8 dB "em eventos críticos", sem duração). Proposta: 1,5 s a partir do
+    # golpe recebido ou da prisão (audio.music.duck_attack/duck_release fazem as rampas).
+    duck_time: 1.5
+    # LACUNA (o GDD não define cadência): metros por passo; a cadência sai da velocidade (passos/s = v / stride).
+    # Proposta: caçador 2,0 m (altura 2,5 m: 1,55 passo/s a 3,1 m/s de patrulha, 2,15 a 4,3 em perseguição, 5,5 no
+    # dash); jogador 1,6 m andando (2,5 passos/s a 4,0 m/s) e 1,9 m correndo (2,8 passos/s a 5,4 m/s).
+    hunter_stride: 2.0
+    # D-37 (docs/plano-construcao.md §7): além deste raio (m, do personagem visto) os sons posicionais do caçador
+    # (step_hunter e telegraph_*) não tocam, para não virarem bússola (GDD-v0.3 §11: "sem enviar a posição do
+    # caçador"). 30 m: logo além da camada de tensão (audio.music.tension_radius 25, GDD-v0.3 §11) e cobre todo
+    # alcance de telegraph (hunter.dash.max 11, hunter.projectile.max 16, hunter.melee.range 1,8).
+    hunter_audible_radius: 30
+    walk_stride: 1.6
+    run_stride: 1.9
+    # LACUNA: deslocamento (m) num só quadro acima do qual é salto (gaiola, resgate a prototype_extras.rescued_offset
+    # 2,5 m) e não passo. Proposta: 5 m (> dash 11 m/s × client.max_frame_dt 0,25 s = 2,75 m).
+    teleport_dist: 5
+    # LACUNA (GDD-v0.2 §11 "respiração ligada à stamina", sem limiar): liga abaixo desta fração de survivor.stamina.max;
+    # período (s) de um ciclo [no limiar, com stamina 0]. Proposta: 0,35; 1,6 s → 0,9 s.
+    breath: {stamina_below: 0.35, period: [1.6, 0.9]}
+    # LACUNA: zumbido só de gerador com progresso (0 < n, não concluído) a até `radius` m do jogador, redisparado a
+    # cada `period` s (a receita dura 1 s, os pulsos se sobrepõem). Proposta: 20 m (= heartbeat.radius), 0,8 s.
+    hum: {radius: 20, period: 0.8}
+  # ---------- A-6: legendas de som (audio/captions.ts) ----------
+  # GDD-v0.3 §12.4 ("legendas de sons") e §11 (L218: "ícone direcional para passos de corrida, falha de gerador,
+  # grito do caçador e resgate"): o diretor publica uma legenda quando o efeito correspondente de fato tocou (com som
+  # cortado pelo raio da D-37 ou recusado pelo limite de vozes não há legenda). A direção é o setor de
+  # `ui.threat_sectors` (GDD-v0.3 §12.1) relativo à câmera; a prioridade de cada legenda é a de voz do efeito
+  # (`voice_priority[sfx[efeito].kind]`), sem tabela nova. O áudio entrega só dados (chave, categoria, setor); ícone,
+  # cor e posição são da sessão Visual (docs/handoff/sessoes.md §2).
+  captions:
+    # D-39 (docs/plano-construcao.md §7): ligadas por padrão. Quem não ouve perderia o telegraph do caçador antes de
+    # achar a opção; o custo visual é baixo (até max_on_screen rótulos curtos). Referências:
+    # https://gameaccessibilityguidelines.com/ensure-subtitles-captions-are-or-can-be-turned-on-before-any-sound-is-played/
+    # https://gameaccessibilityguidelines.com/provide-captions-or-visuals-for-significant-background-sounds/
+    # https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-sounds-alone/
+    enabled_default: true
+    # D-40 (docs/plano-construcao.md §7): segundos na tela desde a última emissão, escolhidos no menu entre os
+    # valores da lista (setCaptionDuration só aceita estes); padrão = durations[default_duration_index] = 3 s.
+    durations: [3, 5, 8]
+    default_duration_index: 0
+    # LACUNA (o GDD não define): legendas simultâneas na tela; com a lista cheia, a nova derruba a de menor
+    # prioridade (a mais antiga entre as empatadas) se a sua prioridade for maior ou igual, senão é descartada
+    # (a mesma regra das vozes, A-4). Proposta: 3, o bastante para caçador + objetivo + evento sem cobrir o HUD.
+    max_on_screen: 3
+    # LACUNA (o GDD não define): a mesma chave emitida de novo, ainda na tela, funde com a legenda ativa (renova o
+    # tempo, atualiza a direção, soma a contagem) em vez de abrir outra se vier do mesmo setor ou até `merge_window`
+    # s depois da última emissão (de outro setor e mais tarde = outra fonte, outra legenda). Proposta: 1 s,
+    # acima do intervalo entre passos do caçador (hunter_stride 2 m a 3,1 m/s = 0,65 s), que viram uma só legenda.
+    merge_window: 1
+    # efeito do catálogo `audio.sfx` → chave i18n `caption.*` e categoria. A categoria é o que a Visual usa para o
+    # ícone direcional (GDD-v0.3 §11, L218) junto do setor, para a legenda não depender só de texto nem de cor
+    # (WCAG 2.2, 1.3.3 e 1.4.1): hunter_steps (passos do caçador), hunter_attack (telegraph: "grito" do caçador vira
+    # rosnado/preparo no terror leve 12+, GDD-v0.2 §1), generator (falha e conclusão), survivor (prisão e resgate).
+    # Sem legenda, de propósito:
+    #  - batimento (heartbeat): já é coberto pela seta de ameaça do HUD (GDD-v0.3 §12.1), que aparece com o caçador
+    #    a < ui.threat_radius e dá o setor; legendar repetiria a mesma informação a cada batida;
+    #  - respiração, zumbido do gerador, passos do próprio jogador, bipes de UI: retorno do que o próprio jogador faz,
+    #    sem informação nova para quem não ouve.
+    # LACUNA (passos de corrida, GDD-v0.3 §11 L218): o A-5 só toca os passos do caçador (posicionais) e os do próprio
+    # jogador (sem posição); os de outros sobreviventes não tocam, logo não há legenda deles. Depende de o diretor
+    # tocar esses passos.
+    # LACUNA (falha de gerador): `puzzle_fail` chega como GameEvent "sound" só para a falha do jogador local, sem
+    # posição (packages/sim/src/game.ts:178 e :183), então a legenda sai sem direção; a falha dos bots vira só ruído
+    # de 18 m para o caçador (`noise`, GDD-v0.3 C-08), sem som. Pedido futuro à Frente R (sessoes.md §2): `sound` com
+    # posição para a falha dos outros. Só anotado.
+    effects:
+      step_hunter: {key: caption.hunter_steps, category: hunter_steps}
+      telegraph_melee: {key: caption.hunter_growl, category: hunter_attack}
+      telegraph_dash: {key: caption.hunter_dash, category: hunter_attack}
+      telegraph_projectile: {key: caption.hunter_projectile, category: hunter_attack}
+      telegraph_trap: {key: caption.hunter_trap, category: hunter_attack}
+      puzzle_fail: {key: caption.puzzle_fail, category: generator}
+      generator_done: {key: caption.generator_done, category: generator}
+      cage: {key: caption.cage, category: survivor}
+      rescue: {key: caption.rescue, category: survivor}
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Teste de fumaça ponta a ponta: sobe o servidor compilado, abre o jogo no Chromium, inicia uma partida,
 // anda 3 s para a frente (W) e 1,5 s de simulação para o lado (A), confere o deslocamento, o estado, erros de console
-// e /healthz. Grava uma captura.
+// e /healthz. Grava uma captura. Também confere o portão dos ganchos de depuração (D-33): sem `?debug=1` nenhum
+// `window.__thehell*` existe; com ele, os quatro ganchos das ferramentas existem.
 // Uso: node tools/smoke.mjs [saida.png] [url]   (sem url, sobe packages/server/dist/server.mjs na porta 18080)
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -26,6 +27,10 @@ const TOLERANCIA = 0.75;
 const EPS = 1e-6;
 /** tempo simulado mínimo da fase de passo lateral (s); limite em tempo real para máquinas carregadas */
 const LATERAL_SIM = 1.5, LATERAL_REAL_MS = 8000;
+/** ganchos globais que as ferramentas usam (packages/client/src/debug-hooks.ts); __thehellView só existe com ?retro=1 */
+const DEBUG_HOOKS = ["__thehell", "__thehellRender", "__thehellCharactersReady", "__thehellAudio"];
+/** a mesma URL com `?debug=1` (D-33) */
+const withDebug = (u) => { const x = new URL(u); x.searchParams.set("debug", "1"); return x.href; };
 
 /** distância livre andando de (x, z) na direção do eixo (dx, dz) ∈ {±1, 0} até encostar (raio incluso) numa parede */
 function freeRun(x, z, dx, dz) {
@@ -55,7 +60,14 @@ try {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+  const hooks = () => page.evaluate(() => Object.keys(window).filter(k => k.startsWith("__thehell")).sort());
   await page.goto(url, { waitUntil: "load" });
+  const off = await hooks();
+  if (off.length) fail("ganchos de depuração expostos sem ?debug=1: " + off.join(", "));
+  await page.goto(withDebug(url), { waitUntil: "load" });
+  const on = await hooks();
+  const missing = DEBUG_HOOKS.filter(k => !on.includes(k));
+  if (missing.length) fail("ganchos de depuração ausentes com ?debug=1: " + missing.join(", "));
   await page.click("#go");
   const read = () => page.evaluate(() => { const g = window.__thehell(); const p = g.survivors[0]; return { t: g.t, x: p.x, z: p.z, gens: g.gens.length, hunter: g.hunter.hp, over: g.over }; });
   /** confere que o jogador andou ao menos walk × Δt × TOLERANCIA (ou até a parede) na direção (dx, dz), sem atravessá-la */
@@ -88,5 +100,5 @@ try {
   await page.screenshot({ path: shot });
   await browser.close();
   if (errors.length) fail("erros no console: " + errors.join(" | "));
-  console.log("smoke ok", JSON.stringify({ version: health.version, ...s2, frente, lado }), "→", shot);
+  console.log("smoke ok", JSON.stringify({ version: health.version, ...s2, frente, lado, ganchos: on }), "→", shot);
 } finally { server?.kill(); }

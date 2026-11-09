@@ -3,6 +3,7 @@ import type { SkinDef } from "@thehell/shared";
 import type { ClassName, GameState, Hunter, Survivor } from "@thehell/sim";
 import type * as THREE from "three";
 import { balance, cfg } from "../../data.ts";
+import { exposeDebugHook } from "../../debug-hooks.ts";
 import { animateCharacter, charactersReady, createCharacter } from "./runtime.ts";
 
 /** modelo de cada classe jogável hoje (as demais fichas — Batedor, Protetor — entram com as classes, fase 4) */
@@ -15,7 +16,8 @@ const woundedHp = balance.survivor.wounded_hp;
 
 /** modelo da classe; `skin` (V3) troca só cores secundárias e põe o acessório pequeno */
 export const createSurvivorModel = (s: Survivor, skin?: SkinDef) => createCharacter(SURVIVOR_MODEL[s.cls], skin);
-export const createHunterModel = () => createCharacter(HUNTER_MODEL);
+/** caçador com o contorno de D-18 (Art Bible §5.3: legível fora do cone da lanterna sem clarear a cena) */
+export const createHunterModel = () => createCharacter(HUNTER_MODEL, undefined, { outline: true });
 
 /** clipe do sobrevivente `s`; o jogador (id 0) interage pelo quebra-cabeça aberto */
 export function animateSurvivor(root: THREE.Object3D, s: Survivor, G: GameState) {
@@ -37,5 +39,5 @@ export function animateHunter(root: THREE.Object3D, H: Hunter, G: GameState) {
   }, { t: G.t, walk: balance.hunter.patrol_speed, run: cfg.chaseSpeed });
 }
 
-/** gancho para as capturas de referência (tools/visual/compare.mjs): resolve quando os modelos criados estão na cena */
-(globalThis as unknown as { __thehellCharactersReady: () => Promise<boolean> }).__thehellCharactersReady = charactersReady;
+/** gancho para as capturas de referência (tools/visual/compare.mjs): resolve quando os modelos criados estão na cena; só com ?debug=1 (D-33) */
+exposeDebugHook("__thehellCharactersReady", charactersReady);

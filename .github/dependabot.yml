@@ -3,6 +3,7 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
+    cooldown: { default-days: 14 } # regra 6, plano-fases-1-2 §3: dependências com ≥ 2 semanas
     open-pull-requests-limit: 5
     groups:
       dev-tools:
@@ -10,3 +11,4 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    cooldown: { default-days: 14 } # regra 6, plano-fases-1-2 §3: dependências com ≥ 2 semanas
