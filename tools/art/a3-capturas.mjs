@@ -57,7 +57,8 @@ async function open(query) {
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?seed=${SEED}&${query}`, { waitUntil: "load" });
+  // ganchos de depuração só com ?debug=1 (D-33)
+  await page.goto(`${url}/?debug=1&seed=${SEED}&${query}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
