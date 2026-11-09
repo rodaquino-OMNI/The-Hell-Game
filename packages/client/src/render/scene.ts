@@ -1,6 +1,6 @@
 // Render: renderer, cena, câmera, mapa estático e figuras (visual da fase 0 sobre o material PS1 do V1).
 // Valores de render vêm de data/balance.yaml `render` (GDD-v0.3 §10); fov da câmera de `prototype_extras.camera.fov`
-// (P-02, paridade da fase 0; `ui.fov` é a faixa do futuro slider do V8).
+// (P-02, paridade da fase 0) até o jogador escolher outro no menu de opções (V8, `ui.fov`, render/motion.ts).
 import * as THREE from "three";
 import { insideWall, type GameState } from "@thehell/sim";
 import { balance, cfg, map, px } from "../data.ts";
@@ -8,6 +8,7 @@ import { skinDef, tok, tokCss, WORLD } from "../look.ts";
 import { createHunterModel, createSurvivorModel, SURVIVOR_MODEL } from "./characters/actors.ts";
 import { charactersReady } from "./characters/runtime.ts";
 import { aimLantern, bakeVertexLight, createAmbience, createLantern, cullShadowCasters, neutralBake, type Ambience } from "./environment.ts";
+import { cameraFov } from "./motion.ts";
 import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
 import { clientRandom, urlPreset, urlRetro, urlRetroClass, type RetroClass } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
@@ -205,6 +206,9 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
     cam.position.set(P.x + Math.sin(yaw) * d + sx, c.height, P.z + Math.cos(yaw) * d + sz);
   } else cam.position.set(P.x, rc.camera.eye_height, P.z);
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
+  // fov do menu de opções (V8, GDD-v0.3 §12.2); sem escolha, o do protótipo (render/motion.ts)
+  const fov = cameraFov();
+  if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
   PL.position.set(P.x, rc.lights.player_height, P.z);
   aimLantern(ctx.lantern, cam, P.x, P.z);
   // camada B: shadow map a render.anim_fps no relógio da simulação, só com os projetores dentro do cone

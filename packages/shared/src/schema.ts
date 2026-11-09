@@ -10,6 +10,13 @@ const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
 
+/** ações remapeáveis do teclado (GDD v0.3 §12.2: "remapeamento de todas as ações"); padrão em `ui.controls.keyboard` */
+export const CONTROL_ACTIONS = [
+  "forward", "back", "left", "right", "run", "interact", "ability", "attack", "camera", "look_left", "look_right",
+  "puzzle_confirm", "ping_1", "ping_2", "ping_3", "ping_4",
+] as const;
+export type ControlAction = (typeof CONTROL_ACTIONS)[number];
+
 /** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
 const UiSchema = z.object({
   threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
@@ -17,7 +24,33 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
-}).strict();
+  /** V8 (F2-08): menu de opções (GDD v0.3 §12.4) */
+  options: z.object({
+    intensity_step: num.positive().max(1), fov_step: num.positive(),
+    font_scales: z.object({ normal: num.positive(), large: num.positive(), xlarge: num.positive() }).strict(),
+    font_default: z.enum(["normal", "large", "xlarge"]),
+    reduced_bob: num.min(0).max(1),
+  }).strict(),
+  /** V8: controles (GDD v0.3 §12.2): remapeamento, sensibilidade, inversão do Y, alternar em vez de segurar, gamepad */
+  controls: z.object({
+    mouse_rad_per_px: num.positive(), pitch_limit: num.positive(), key_turn_speed: num.positive(),
+    sensitivity: z.object({ min: num.positive(), max: num.positive(), default: num.positive(), step: num.positive() }).strict()
+      .refine(s => s.min <= s.default && s.default <= s.max, "sensitivity: min ≤ default ≤ max"),
+    invert_y: z.boolean(),
+    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
+    toggle_run: z.boolean(), toggle_interact: z.boolean(),
+    gamepad: z.object({
+      deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1),
+      axes: z.object({ move_x: int.min(0), move_y: int.min(0), look_x: int.min(0), look_y: int.min(0) }).strict(),
+      buttons: z.object({
+        interact: int.min(0), puzzle_exit: int.min(0), ability: int.min(0), attack: int.min(0), run: int.min(0), camera: int.min(0),
+        ping_1: int.min(0), ping_2: int.min(0), ping_3: int.min(0), ping_4: int.min(0),
+      }).strict(),
+      menu: z.object({ confirm: int.min(0), back: int.min(0), up: int.min(0), down: int.min(0), left: int.min(0), right: int.min(0) }).strict(),
+      menu_repeat: z.object({ delay: num.positive(), interval: num.positive() }).strict(),
+    }).strict(),
+  }).strict(),
+}).strict().refine(u => u.fov.min <= u.fov.default && u.fov.default <= u.fov.max, "ui.fov: min ≤ default ≤ max");
 
 /** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
 const gain01 = num.min(0).max(1);
@@ -146,7 +179,7 @@ const render = z.object({
   states: z.object({
     beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
     lamp: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), height: pos }).strict(),
-    pending_hz: num.positive(), pending_duty: z.number().gt(0).lt(1), progress_hz: num.positive(), progress_pulse: pos,
+    pending_hz: num.positive(), pending_duty: z.number().gt(0).lt(1), pending_reduced_level: z.number().gt(0).lt(1), progress_hz: num.positive(), progress_pulse: pos,
     bonus: z.object({
       spiral_hz: pos, spiral_turns: num.positive(), spiral_steps: z.number().int().min(2), spiral_radius: num.positive(),
       spiral_block: num.positive(), diamond: num.positive(),

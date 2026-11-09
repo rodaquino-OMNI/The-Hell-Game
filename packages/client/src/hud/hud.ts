@@ -6,6 +6,7 @@ import { beep } from "../audio/beeps.ts";
 import { $, balance, px } from "../data.ts";
 import { num, t, type Key } from "../i18n/index.ts";
 import { className, directionText, pingName } from "../text.ts";
+import { pingIndexOf } from "../input.ts";
 import { THREAT_ARROW } from "./icons.ts";
 import { newPingState, pingRemaining, prunePings, tryPing, type PingState } from "./ping.ts";
 import { isSpectating, nextSpectatorTarget, resetSpectator, spectatorTarget } from "./spectator.ts";
@@ -45,11 +46,18 @@ export function setupHud(game: () => GameState | undefined) {
   addEventListener("keydown", e => {
     const G = game();
     if (!G || G.over || e.repeat) return;
-    const m = /^Digit([1-9])$/.exec(e.code);
-    if (m && Number(m[1]) <= ui.ping_types.length) { ping(G, ui.ping_types[Number(m[1]) - 1]); return; }
+    // teclas dos pings remapeáveis (V8, `ui.controls.keyboard.ping_1..4`; padrão 1–4)
+    if (pingByIndex(G, pingIndexOf(e.code))) return;
     if (e.code === "Space" && isSpectating(G)) { e.preventDefault(); nextSpectatorTarget(G); }
   });
   $("spn").onclick = () => { const G = game(); if (G) nextSpectatorTarget(G); };
+}
+
+/** ping `i` (0 a ui.ping_types − 1) do teclado ou do gamepad; false se o índice não é de ping */
+export function pingByIndex(G: GameState, i: number): boolean {
+  if (i < 0 || i >= ui.ping_types.length) return false;
+  ping(G, ui.ping_types[i]);
+  return true;
 }
 
 /** ping do jogador local na posição de quem ele controla ou assiste (a mira por raio fica para a fase 3) */
