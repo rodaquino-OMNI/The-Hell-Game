@@ -99,22 +99,42 @@ void main() {
 }
 `;
 
-/** quad final: escala inteira (nearest) e scanlines leves */
+/**
+ * quad final: escala inteira (nearest) e scanlines leves. Linha de tela escura: com escala k ≥ 2, a de índice múltiplo
+ * de k; com escala 1, as ímpares. `uScanRow` = (1/P, o) com período P (k, ou 2 com escala 1) e deslocamento o (0, ou 1
+ * com escala 1): como gl_FragCoord.y = linha + 0,5, fract((y + o)/P) vale 0,5/P nas linhas escuras e ≥ 1,5/P nas
+ * outras. É o mesmo padrão do mod( floor( y ), k ) anterior, sem divisão nem floor por pixel de tela (D-44 a)
+ */
 const BLIT_FRAGMENT = /* glsl */ `
 uniform sampler2D tPost;
-uniform float uScale;
+uniform vec2 uScanRow;
 uniform float uScanlines, uScanlineAmount;
 varying vec2 vUv;
 void main() {
   vec4 c = texture2D( tPost, vUv );
   if ( uScanlines > 0.0 ) {
-    float ys = floor( gl_FragCoord.y );
-    float dark = uScale >= 2.0 ? ( mod( ys, uScale ) < 0.5 ? 1.0 : 0.0 ) : mod( ys, 2.0 );
+    float dark = fract( ( gl_FragCoord.y + uScanRow.y ) * uScanRow.x ) < uScanRow.x ? 1.0 : 0.0;
     c.rgb *= 1.0 - uScanlines * uScanlineAmount * dark;
   }
   gl_FragColor = vec4( c.rgb, 1.0 );
 }
 `;
+
+/**
+ * `uScanRow` das scanlines (BLIT_FRAGMENT) para a escala inteira k: (1/P, deslocamento), P = k com k ≥ 2 (linha
+ * escura = índice múltiplo de k) ou 2 com escala 1 (linhas ímpares, deslocamento 1). Testado contra a fórmula anterior
+ * mod( floor( y ), k ) em packages/client/test/render-otimiza-camadas.test.ts
+ */
+export function scanRow(k: number): [number, number] {
+  return k >= 2 ? [1 / k, 0] : [1 / 2, 1];
+}
+
+/** a escolha da linha escura do BLIT_FRAGMENT, em float32 como no shader: (y + o)·(1/P) com y = linha + 0,5 */
+export function scanlineDark(row: number, k: number): boolean {
+  const [inv, off] = scanRow(k).map(Math.fround);
+  const t = Math.fround(Math.fround(Math.fround(row + 0.5) + off) * inv);
+  return t - Math.floor(t) < inv;
+}
 
 export interface Presenter {
   /** alvo de render na resolução interna */
@@ -140,14 +160,15 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
   const postTarget = new THREE.WebGLRenderTarget(1, 1, { ...nearest, depthBuffer: false });
   const bloomTarget = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
   postUniforms.tLut.value ??= coldLutTexture();
-  const scaleUniform = { value: 1 };
+  /** (1/P, deslocamento) das scanlines para a escala atual (BLIT_FRAGMENT) */
+  const scanRowUniform = { value: new THREE.Vector2(0.5, 1) };
   const { uScanlines, uScanlineAmount, ...postOnly } = postUniforms;
   const post = quadMaterial(
     { tDiffuse: { value: target.texture }, tBloom: { value: bloomTarget.texture }, uRes: ps1Uniforms.uRes, uDither: ditherUniform, uBits: { value: balance.render.ps1.color_bits }, ...postOnly },
     POST_FRAGMENT,
   );
   const bloomMat = quadMaterial({ tDiffuse: { value: target.texture }, uRes: ps1Uniforms.uRes }, BLOOM_FRAGMENT, { BLOOM_R: balance.render.layer_a.bloom_radius_px });
-  const blit = quadMaterial({ tPost: { value: postTarget.texture }, uScale: scaleUniform, uScanlines, uScanlineAmount }, BLIT_FRAGMENT);
+  const blit = quadMaterial({ tPost: { value: postTarget.texture }, uScanRow: scanRowUniform, uScanlines, uScanlineAmount }, BLIT_FRAGMENT);
   const geo = new THREE.PlaneGeometry(2, 2);
   const scene = (m: THREE.Material) => {
     const s = new THREE.Scene(), q = new THREE.Mesh(geo, m);
@@ -198,7 +219,7 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
     lastKey = key;
     const k = Math.max(1, Math.floor(Math.min((vw * dpr) / w, (vh * dpr) / h)));
     self.scale = k;
-    scaleUniform.value = k;
+    scanRowUniform.value.set(...scanRow(k));
     R.setSize(w * k, h * k, false);
     const cw = (w * k) / dpr, ch = (h * k) / dpr;
     Object.assign(canvas.style, {
