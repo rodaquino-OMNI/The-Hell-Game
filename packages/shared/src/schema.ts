@@ -268,6 +268,20 @@ const difficulty = z.object({
 }).strict();
 
 /** GDD-v0.3 §8.4 (valores do GDD-v0.2 §8.4): reação, previsão de projétil, conhecimento de loops e memória */
+/** GDD-v0.3 §8.5: personalidade de bot aliado (item R4) */
+const botPersonality = z.object({
+  flee_dist: pos.positive(), bonus: z.enum(["avoid", "prefer"]), rescue_priority: z.enum(["normal", "high"]), look_on_heartbeat: z.boolean(), heal_below: pos.optional(),
+}).strict();
+
+/** GDD-v0.3 §8.5: bots aliados (item R4); números técnicos sem valor no GDD comentados como LACUNA nos dados */
+const aiBots = z.object({
+  personalities: z.record(z.string(), botPersonality).refine(r => Object.keys(r).length > 0, "ao menos uma personalidade"),
+  puzzle_fail_rate: z.number().min(0).max(1),
+  ping_reaction: range.refine(([a, b]) => a >= 0 && b >= a, "faixa [mín, máx] com 0 ≤ mín ≤ máx"),
+  sight_radius: pos.positive(), glance_interval: pos, memory: pos, calm_time: pos, stamina_resume: pos, defend_dist: pos,
+  rescue_safe_dist: pos, danger_radius: pos, bonus_prefer_mult: pos.positive(), flee_probe: pos.positive(), flee_probe_dirs: z.number().int().positive(),
+}).strict();
+
 const aiDifficulty = z.object({
   reaction: pos,
   projectile_lead: z.enum(["none", "linear", "linear_static"]),
@@ -382,19 +396,21 @@ export const BalanceSchema = z.object({
     }).strict(),
   }).strict(),
   match: z.object({ prep_time: range, hunter_spawn_min_dist: pos, hard_time_limit: pos, team_min_escapes: z.number().int().positive() }).strict(),
-  // ai: GDD-v0.3 §8 (R1 + R3). Só `bots` (§8.5, item R4) fica sem validação detalhada.
+  // ai: GDD-v0.3 §8 (R1 + R3; bots aliados do §8.5 pelo R4).
   ai: z.object({
     hunter_brain: z.enum(["basic", "utility"]),
+    bot_brain: z.enum(["prototype", "competent"]),                // §8.5 (R4)
     decision_hz: pos.positive(), perception_hz: pos.positive(), // §8.1
     hearing_investigate_time: pos,                               // §8.1 (audição)
     target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
     target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
+    search_samples: z.number().int().positive(), chase_projection: pos, memory_investigate_time: pos,      // técnicos (§8.1; D-35)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
     anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6
     stuck_fail_after: pos.positive(),                                                                      // §8.6 (T-03)
-    bots: z.record(z.string(), z.unknown()),
+    bots: aiBots,                                                                                          // §8.5 (R4)
   }).strict(),
   // seções ainda não implementadas: validação detalhada quando o agente dono começar
   nav: NavSchema,

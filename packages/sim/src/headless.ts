@@ -63,6 +63,8 @@ export interface HeadlessResult {
   layout: string;
   /**
    * Episódios de perseguição que terminaram em captura (métrica do R4/R5, GDD-v0.3 §8.5), ver `chaseEpisodes`.
+   * Definição da D-35: alvo visto OU lembrado — o cérebro utility segue em `chase` enquanto a memória do alvo vale
+   * (`ai.by_difficulty.*.memory`), então perder a linha de visão por instantes não encerra o episódio.
    * Só existe com `hunter_brain: utility`; com o cérebro `basic` fica vazio.
    */
   chases: number[];
@@ -78,12 +80,16 @@ const CHASE_MODES: readonly string[] = ["chase", "attack", "recoil"];
  * Episódio = trecho contínuo em `chase`/`attack`/`recoil` (§8.2), medido da entrada no trecho até o golpe que
  * derrubou o alvo (a última `attack→recoil` antes da passagem `recoil→cage`; o recuo pós-golpe não entra). Só conta
  * se o trecho terminar em `cage` (alvo preso, ou morto na 2ª captura); trecho que volta a patrulhar ou investigar é
- * descartado. Recuos sem captura (`recoil→chase`) continuam o mesmo episódio.
+ * descartado. Recuos sem captura (`recoil→chase`) continuam o mesmo episódio. Trocar de alvo perseguido (visto ou
+ * lembrado, `switches` vindos do gancho `traceTarget`) encerra o episódio sem captura e começa outro no instante da
+ * troca (revisão simulacao M1: sem isso a D-35 somava perseguições a alvos diferentes).
  */
-export function chaseEpisodes(trace: readonly AiTrace[]): number[] {
+export function chaseEpisodes(trace: readonly AiTrace[], switches: readonly { t: number }[] = []): number[] {
   const out: number[] = [];
-  let start = -1, lastHit = -1;
+  let start = -1, lastHit = -1, k = 0;
   for (const e of trace) {
+    // troca de alvo perseguido antes desta transição: o episódio anterior acaba sem captura e outro começa
+    for (; k < switches.length && switches[k].t <= e.t; k++) if (start >= 0) { start = switches[k].t; lastHit = -1; }
     const from = CHASE_MODES.includes(e.from), to = CHASE_MODES.includes(e.to);
     if (!from && to) { start = e.t; lastHit = -1; }
     if (e.from === "attack" && e.to === "recoil") lastHit = e.t;
@@ -104,7 +110,8 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
   const transitions: Record<string, number> = {};
   const log: AiTrace[] = [];
   const trace = (e: AiTrace) => { const k = `${e.from}>${e.to}`; transitions[k] = (transitions[k] ?? 0) + 1; log.push(e); };
-  const c: SimConfig = { ...cfg, trace };
+  const switches: { t: number }[] = [];
+  const c: SimConfig = { ...cfg, trace, traceTarget: e => { switches.push(e); } };
   const g = createGame(c, CLASSES[seed % CLASSES.length], seed);
   g.survivors[0].bot = true;
   const meter = newStuckMeter(g);
@@ -122,6 +129,6 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
     captures: g.survivors.reduce((n, s) => n + s.captures, 0),
     stuck: meter, transitions, replans: g.hunter.ai?.replans ?? 0,
     layout: `g${g.arena.layout.generators}c${g.arena.layout.cage}e${g.arena.layout.exit}`,
-    chases: chaseEpisodes(log), survivors: g.survivors.map(s => ({ cls: s.cls, st: s.st, captures: s.captures })),
+    chases: chaseEpisodes(log, switches), survivors: g.survivors.map(s => ({ cls: s.cls, st: s.st, captures: s.captures })),
   };
 }

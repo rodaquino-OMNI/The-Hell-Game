@@ -108,7 +108,7 @@ describe("ciclo Patrulha → Perseguir → Atacar → Recuo → Prender → Patr
 });
 
 describe("Perseguir → Investigar/Patrulha e Investigar → Perseguir", () => {
-  it("perde o alvo com memória vencida: vai direto para Patrulha", () => {
+  it("perde o alvo com memória vencida: Perseguir → Investigar (D-35); sem memória nenhuma, Patrulha", () => {
     const { cfg, log } = traced();
     const g = aiGame(cfg);
     const P = g.survivors[0]; P.x = -8; P.z = 24;
@@ -121,7 +121,17 @@ describe("Perseguir → Investigar/Patrulha e Investigar → Perseguir", () => {
     g.hunter.ai!.percept = { ...g.hunter.ai!.percept!, survivors: [] };
     g.hunter.ai!.decideIn = 0;
     step(cfg, g, NO_INPUT);
-    expect(edges(log).slice(-1)).toEqual(["chase>patrol"]);
+    expect(edges(log).slice(-1)).toEqual(["chase>investigate"]);
+    expect(g.hunter.ai!.investigate!.until).toBeCloseTo(g.t + b.ai.hearing_investigate_time, 6);
+    const r = traced(), h = aiGame(r.cfg), Q = h.survivors[0]; Q.x = -8; Q.z = 24;
+    h.hunter.ai!.patrol = { x: -8, z: 29, gen: -1 };
+    play(r.cfg, h, 0.6);
+    Q.x = 25; Q.z = -25;
+    h.hunter.ai!.memory = null;
+    h.hunter.ai!.percept = { ...h.hunter.ai!.percept!, survivors: [] };
+    h.hunter.ai!.decideIn = 0;
+    step(r.cfg, h, NO_INPUT);
+    expect(edges(r.log).slice(-1)).toEqual(["chase>patrol"]);
   });
   it("revê o alvo durante a investigação: Investigar → Perseguir", () => {
     const { cfg, log } = traced();
@@ -131,6 +141,9 @@ describe("Perseguir → Investigar/Patrulha e Investigar → Perseguir", () => {
     play(cfg, g, 0.6);
     P.x = 25; P.z = -25;
     play(cfg, g, 0.3);
+    expect(g.hunter.ai!.mode).toBe("chase"); // D-35: segue perseguindo pela memória
+    g.hunter.ai!.memory!.until = g.t; // memória vence
+    play(cfg, g, 0.2);
     expect(g.hunter.ai!.mode).toBe("investigate");
     const inv = g.hunter.ai!.investigate!;
     P.x = inv.x; P.z = inv.z; // reaparece na última posição conhecida, à frente do caçador
