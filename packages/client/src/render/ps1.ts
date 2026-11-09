@@ -147,8 +147,10 @@ vec3 ps1Irradiance( const in vec3 geometryPosition, const in vec3 n, const in fl
 #if NUM_SPOT_LIGHTS > 0
 // lanterna do jogador (camada B): cone e atenuação do SpotLight do three.js, as mesmas contas de getSpotLightInfo e
 // getDistanceAttenuation (lights_pars_begin), na mesma ordem, com um atalho: com decay = 1 (render.layer_b.lantern)
-// pow( d, 1 ) vira d. No SwiftShader o pow (exp2 e log2) por vértice pesa na camada B, e pow( d, 1 ) = d ali, então
-// a imagem fica idêntica (D-44 a)
+// pow( d, 1 ) vira d, o que tira o pow (exp2 e log2) por vértice, que pesa na camada B no SwiftShader (D-44 a).
+// Imagem idêntica provada só no SwiftShader (lá pow( d, 1 ) = d; capturas bit a bit iguais). Numa GPU real o pow via
+// exp2/log2 pode diferir de d em 1 ulp, então ali o resultado pode mudar nesse nível (invisível após o dither de 5 bits
+// na prática, mas não provado)
 vec3 ps1Spot( const in vec3 geometryPosition, const in vec3 n ) {
   vec3 lVector = spotLights[ 0 ].position - geometryPosition;
   vec3 direction = normalize( lVector );
