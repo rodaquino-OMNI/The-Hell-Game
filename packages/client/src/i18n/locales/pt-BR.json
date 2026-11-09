@@ -216,6 +216,7 @@
   "act.puzzle_confirm": "Confirmar (quebra-cabeça)",
   "act.puzzle_exit": "Sair do quebra-cabeça",
   "act.ping": "Ping: {name}",
+  "act.mute": "Mudo (volume geral)",
   "key.unbound": "sem tecla",
   "key.space": "Espaço",
   "key.shift_left": "Shift esquerdo",
@@ -236,5 +237,7 @@
   "caption.puzzle_fail": "Faíscas: falha no gerador",
   "caption.generator_done": "Zumbido subindo: gerador concluído",
   "caption.cage": "Grade batendo: sobrevivente preso",
-  "caption.rescue": "Acorde de alívio: sobrevivente salvo"
+  "caption.rescue": "Acorde de alívio: sobrevivente salvo",
+  "caption.sound_muted": "Som mudo (M para ligar)",
+  "caption.sound_unmuted": "Som ligado (M para mudo)"
 }

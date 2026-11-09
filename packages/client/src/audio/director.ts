@@ -29,8 +29,10 @@
 import type { Balance } from "@thehell/shared";
 import type { GameEvent, GameState, Vec, Windup } from "@thehell/sim";
 import { balance } from "../data.ts";
-import { getCaptionBus, type CaptionBus } from "./captions.ts";
-import { duckMusic, updateMusic } from "./music.ts";
+import { exposeDebugHook, urlDebug } from "../debug-hooks.ts";
+import { getCaptionBus, getCaptions, type Caption, type CaptionBus } from "./captions.ts";
+import { getEngine } from "./engine.ts";
+import { duckMusic, musicInfo, updateMusic, type MusicInfo } from "./music.ts";
 import { playSfx, type SfxOpts } from "./sfx.ts";
 
 /** o que o diretor recebe de quem toca: a voz pode ser seguida (setPosition) e cortada (cancel) */
@@ -249,14 +251,68 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
 export const directorEnabled = () => balance.audio.director_enabled;
 
 let director: AudioDirector | null = null;
+/** o singleton; com ?debug=1 toca pelo `tracedPlay` (registro do gancho abaixo). Quem chamar primeiro (audioEvents
+ *  sai antes de updateAudio no quadro) cria */
+const getDirector = (): AudioDirector => (director ??= createAudioDirector({ play: urlDebug ? tracedPlay : undefined }));
 /** um quadro do áudio (singleton; no-op com `audio.director_enabled: false`); `at` = personagem visto; `yaw` = yaw
  *  da câmera (setor das legendas). Também avança e expira as legendas (captions.ts) */
 export function updateAudio(state: GameState, playerId: number, dt: number, at?: Vec, yaw?: number) {
   if (!directorEnabled()) return;
-  (director ??= createAudioDirector()).update(state, playerId, dt, at, yaw);
+  frame++; traced = { g: state, at: at ?? state.survivors.find(s => s.id === playerId) ?? null };
+  getDirector().update(state, playerId, dt, at, yaw);
+  traced = null;
 }
 /** eventos do quadro já drenados por main.ts (singleton; no-op com a flag false; não drena a fila) */
 export function audioEvents(events: readonly GameEvent[], playerId?: number) {
   if (!directorEnabled()) return;
-  (director ??= createAudioDirector()).events(events, playerId);
+  getDirector().events(events, playerId);
 }
+
+// ---------- gancho de depuração (só com ?debug=1, D-33; consumidor: tools/audio/e2e-director.mjs) ----------
+
+/** um efeito que tocou de verdade, com o quadro do laço e os relógios no instante do play */
+export interface AudioPlayTrace {
+  name: string;
+  /** nº do quadro de render (chamadas de updateAudio); eventos de audioEvents ficam com o quadro anterior */
+  frame: number;
+  /** relógio da partida (s) do estado desenhado neste quadro; null fora de updateAudio */
+  gameT: number | null;
+  /** preparo do caçador no estado desenhado neste quadro (o mesmo que acende os olhos em render/sync.ts) */
+  windup: { kind: Windup["kind"]; t: number; total: number } | null;
+  /** distância (m) do caçador ao personagem visto */
+  hunterDist: number | null;
+  /** AudioContext.currentTime, outputLatency e baseLatency (s) no play; null se o navegador não expõe */
+  ctxTime: number | null;
+  outputLatency: number | null;
+  baseLatency: number | null;
+  /** performance.now() (ms) no play */
+  perf: number;
+}
+export interface AudioDirectorHook { enabled: boolean; frame: number; plays: AudioPlayTrace[]; captions: Caption[]; music: MusicInfo }
+
+/** teto do registro (ferramenta de teste, não número de jogo): o e2e lê a cada poucos quadros */
+const TRACE_MAX = 512;
+const trace: AudioPlayTrace[] = [];
+let frame = 0;
+let traced: { g: GameState; at: Vec | null } | null = null;
+const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+
+/** playSfx com registro: só é usado com ?debug=1 */
+const tracedPlay: PlayFn = (name, opts) => {
+  const v = playSfx(name, opts);
+  if (v) {
+    const c = getEngine().context, g = traced?.g, w = g?.hunter.windup ?? null, here = traced?.at ?? null;
+    trace.push({
+      name, frame, gameT: g ? g.t : null, windup: w ? { kind: w.kind, t: w.t, total: w.total } : null,
+      hunterDist: g && here ? dist(here, g.hunter) : null,
+      ctxTime: num(c?.currentTime), outputLatency: num(c?.outputLatency), baseLatency: num(c?.baseLatency), perf: performance.now(),
+    });
+    if (trace.length > TRACE_MAX) trace.shift();
+  }
+  return v;
+};
+
+// com a flag desligada o gancho não existe (o diretor não roda e a lista de ganchos fica a mesma de antes)
+if (directorEnabled()) exposeDebugHook("__thehellAudioDirector", (): AudioDirectorHook => ({
+  enabled: directorEnabled(), frame, plays: trace.slice(), captions: getCaptions(), music: musicInfo(),
+}));

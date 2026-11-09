@@ -337,12 +337,19 @@ describe("5. perseguição de 4,3 m/s e tabela de dificuldade (D-03 b, GDD-v0.2 
     const g = chase(1, hard); run(g, b.hunter.telegraph_min + 0.05, {}, hard);
     expect(g.hunter.atk).toBeGreaterThan(t.melee_cd - 0.1);
     expect(g.hunter.atk).toBeLessThanOrEqual(t.melee_cd);
+    // D-36: projétil e armadilha também saem depois do preparo (GDD-v0.2 §4.1)
     const p = chase(12, hard); p.hunter.projectile = 0; tap(p, {}, hard);
+    expect(p.hunter.windup?.kind).toBe("projectile");
+    expect(p.projectiles.length).toBe(0);
+    run(p, b.hunter.telegraph_min + 0.05, {}, hard);
     expect(p.projectiles.length).toBe(1);
     run(p, 1.5, {}, hard);
     expect(P(p).hp).toBe(100 - t.projectile_dmg);
     const tr = chase(20, hard); tr.hunter.trap = 0; tap(tr, {}, hard);
     expect(tr.hunter.trap).toBeCloseTo(t.trap_interval, 1);
+    expect(tr.hunter.windup?.kind).toBe("trap");
+    run(tr, b.hunter.telegraph_min + 0.05, {}, hard);
+    expect(tr.traps.length).toBe(1);
     const rv = chase(20, hard); rv.reveal = 1 / 60; tap(rv, {}, hard);
     expect(rv.reveal).toBeCloseTo(t.reveal, 1);
   });
@@ -503,5 +510,14 @@ describe("determinismo no ruleset v1", () => {
   }, DETERMINISM_TIMEOUT_MS);
   it("semente diferente → partida diferente", () => {
     expect(playHash(42, 60 * 60)).not.toBe(playHash(43, 60 * 60));
+  });
+  it("hash de referência do v1 com caçador basic e bots do protótipo (calculado em main 89c8f8f; pega desvio)", () => {
+    // R4 (revisão qa B-5): `ai.bot_brain: competent` e a D-35 não podem mudar esta partida. Dash, projétil e armadilha
+    // desligados porque a D-36 (telegraph em toda habilidade) muda de propósito o disparo deles no basic.
+    const c = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
+    const g = createGame(c, "Mecânico", 42);
+    g.hunter.dash = 1e9; g.hunter.projectile = 1e9; g.hunter.trap = 1e9;
+    for (let i = 0; i < 60 * 60 && !g.over; i++) step(c, g, scripted(i));
+    expect(createHash("sha256").update(JSON.stringify(g)).digest("hex")).toBe("2f9b008d36779918272a309e6112cfa33fef0d144dec99ade6248de97c4925a6");
   });
 });

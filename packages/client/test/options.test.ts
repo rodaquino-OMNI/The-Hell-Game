@@ -8,7 +8,8 @@ import { actionsOf, bindable, defaultBindings, holdOrToggle, parseBindings, rebi
 import { axis, browserPads, button, createEdges, createRepeater, firstPad, navDirection, padSticks, type PadLike } from "../src/gamepad.ts";
 import { format, parse } from "../src/i18n/icu.ts";
 import { t, setLocale } from "../src/i18n/index.ts";
-import { getControls, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
+import { installMuteKey } from "../src/audio/mute.ts";
+import { getControls, isMuteKey, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
 import { getColorMode, PALETTE, setColorMode, tok } from "../src/look.ts";
 import { bobScale, cameraFov, setFov, setReduceCameraBob } from "../src/render/motion.ts";
 import { beamLevel } from "../src/render/states.ts";
@@ -333,5 +334,24 @@ describe("pendências do R7", () => {
     expect(format(ast, { k: "toString" }, "pt-BR")).toBe("T");
     expect(format(ast, { k: "hasOwnProperty" }, "pt-BR")).toBe("O");
     expect(format(parse("{n, plural, other {#}}"), { n: 2 }, "pt-BR")).toBe("2");
+  });
+});
+
+describe("mudo remapeável (ação mute, D-41)", () => {
+  afterEach(() => setControls({ keys: defaultBindings() }));
+  it("padrão M; depois de remapear, só a nova tecla alterna o mudo", () => {
+    expect(defaultBindings().mute).toEqual(["KeyM"]);
+    let muted = false, calls = 0;
+    const toggle = { muted: () => muted, toggle: () => (muted = !muted) };
+    const target = new EventTarget();
+    installMuteKey(target, () => { calls++; }, toggle, isMuteKey);
+    const key = (code: string) => target.dispatchEvent(Object.assign(new Event("keydown"), { code, repeat: false }));
+    key("KeyM");
+    expect([muted, calls]).toEqual([true, 1]);
+    setControls({ keys: rebind(defaultBindings(), "mute", "KeyN").bindings });
+    key("KeyM");
+    expect(calls).toBe(1);
+    key("KeyN");
+    expect([muted, calls]).toEqual([false, 2]);
   });
 });

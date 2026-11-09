@@ -5,6 +5,7 @@ import { gridFromMap, type GridNav, type NavQuery } from "./nav/grid.ts";
 
 export type Difficulty = Balance["difficulty"];
 export type HunterBrain = Balance["ai"]["hunter_brain"];
+export type BotBrain = Balance["ai"]["bot_brain"];
 export type AiDifficulty = Balance["ai"]["by_difficulty"]["normal"];
 
 /** transição de estado do caçador (GDD-v0.3 §8.2), para o log do simulador */
@@ -33,12 +34,23 @@ export interface SimConfig {
   pointsMult: number;
   /** caçador do v1: "basic" (R1) ou "utility" (IA do R3, GDD-v0.3 §8). No protótipo é sempre "basic". */
   brain: HunterBrain;
+  /** bots aliados do v1: "prototype" (updateBot, paridade) ou "competent" (ai/bots.ts, R4; GDD-v0.3 §8.5). No protótipo é sempre "prototype". */
+  botBrain: BotBrain;
   /** parâmetros da IA na dificuldade (GDD-v0.3 §8.4) */
   aiLevel: AiDifficulty;
-  /** grade A* de reserva do mapa (`nav.fallback_grid`, raio do caçador): projeção de pontos e linha livre. Só com a IA. */
+  /**
+   * grade A* de reserva do mapa (`nav.fallback_grid`, o maior raio entre `hunter.radius` e `survivor.bot_radius`, a
+   * grade é comum ao caçador e aos bots): projeção de pontos e linha livre. Só com a IA do caçador ou com os bots
+   * competentes.
+   */
   grid: GridNav | null;
   /** consulta de caminho da IA: o navmesh injetado (RecastNav) ou a própria grade. Não é serializável e não entra no estado. */
   nav: NavQuery | null;
+  /**
+   * gancho opcional: o caçador trocou de alvo perseguido (visto ou lembrado) sem sair da perseguição. Só observa; o
+   * simulador encerra aí o episódio de perseguição (métrica do §8.5)
+   */
+  traceTarget?: (e: { t: number; target: number }) => void;
   /** gancho opcional chamado a cada transição de estado do caçador (simulador, testes) */
   trace?: (e: AiTrace) => void;
 }
@@ -50,6 +62,8 @@ export interface ConfigOptions {
   difficulty?: Difficulty;
   /** sobrepõe `ai.hunter_brain` (só vale no v1) */
   hunterBrain?: HunterBrain;
+  /** sobrepõe `ai.bot_brain` (só vale no v1) */
+  botBrain?: BotBrain;
   /** navmesh para a IA (ex.: RecastNav de "@thehell/sim/nav/recast"); sem isto, a grade A* de reserva (GDD-v0.3 §8.6) */
   nav?: NavQuery;
   trace?: (e: AiTrace) => void;
@@ -60,11 +74,12 @@ export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions =
   const difficulty = opts.difficulty ?? balance.difficulty;
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";
-  const grid = brain === "utility" ? gridFromMap(map, balance, h.radius) : null;
+  const botBrain: BotBrain = v1 ? opts.botBrain ?? balance.ai.bot_brain : "prototype";
+  const grid = brain === "utility" || botBrain === "competent" ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
   const base = {
     balance, map, v1, difficulty,
     requiredGenerators: map.generators.length,
-    brain, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
+    brain, botBrain, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
   };
   if (!v1) {
     return {

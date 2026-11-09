@@ -24,7 +24,7 @@ const COLOR_LABEL: Record<ColorModeOption, Key> = { normal: "opt.color.normal", 
 const ACTION_LABEL: Record<Exclude<ControlAction, "ping_1" | "ping_2" | "ping_3" | "ping_4">, Key> = {
   forward: "act.forward", back: "act.back", left: "act.left", right: "act.right", run: "act.run", interact: "act.interact",
   ability: "act.ability", attack: "act.attack", camera: "act.camera", look_left: "act.look_left", look_right: "act.look_right",
-  puzzle_confirm: "act.puzzle_confirm",
+  puzzle_confirm: "act.puzzle_confirm", mute: "act.mute",
 };
 const PING_ACTIONS = ["ping_1", "ping_2", "ping_3", "ping_4"] as const;
 /** nomes dos botões no layout "standard" da Gamepad API (https://w3c.github.io/gamepad/#remapping); símbolos, sem idioma */
@@ -225,6 +225,18 @@ function render(focusId?: string) {
     ($("olangs").querySelector("[aria-pressed=true]") as HTMLElement | null)?.focus();
   });
   $(focusId ?? "optt").focus();
+}
+
+/** relê os volumes do motor de áudio nos sliders abertos (o mudo da tecla M muda o volume geral por fora) */
+export function refreshVolumeSliders() {
+  for (const b of ["master", ...BUSES] as VolumeName[]) {
+    const input = document.getElementById("o-vol-" + b) as HTMLInputElement | null;
+    if (!input) continue;
+    const v = getBusVolume(b);
+    input.value = String(v);
+    input.setAttribute("aria-valuetext", pct(v));
+    $("o-vol-" + b + "-v").textContent = pct(v);
+  }
 }
 
 export function openOptions(focusId?: string) {

@@ -216,6 +216,7 @@
   "act.puzzle_confirm": "Confirm (puzzle)",
   "act.puzzle_exit": "Leave the puzzle",
   "act.ping": "Ping: {name}",
+  "act.mute": "Mute (master volume)",
   "key.unbound": "unbound",
   "key.space": "Space",
   "key.shift_left": "Left Shift",
@@ -236,5 +237,7 @@
   "caption.puzzle_fail": "Sparks: generator failure",
   "caption.generator_done": "Rising hum: generator completed",
   "caption.cage": "Bars slam: survivor caged",
-  "caption.rescue": "Relief chord: survivor rescued"
+  "caption.rescue": "Relief chord: survivor rescued",
+  "caption.sound_muted": "Sound muted (M to unmute)",
+  "caption.sound_unmuted": "Sound on (M to mute)"
 }

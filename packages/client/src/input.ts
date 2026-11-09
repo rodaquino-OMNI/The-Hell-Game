@@ -46,6 +46,9 @@ export function pingIndexOf(code: string): number {
   return PING_ACTIONS.findIndex(p => a.includes(p));
 }
 
+/** a tecla é a do mudo (ação `mute`, D-41; audio/mute.ts `installMuteKey`) */
+export const isMuteKey = (code: string) => prefs.keys.mute.includes(code);
+
 /** zera os estados alternados (nova partida) */
 export function resetInput() { hold.run = hold.interact = false; for (const k of Object.keys(keys)) keys[k] = false; }
 
