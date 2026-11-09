@@ -74,7 +74,6 @@ export function box(w: number, h: number, d: number, m: THREE.Material, x: numbe
 }
 /** subdivisões de uma dimensão para o tamanho de célula `render.tessellate` (GDD-v0.3 §10.1 item 2) */
 const seg = (len: number) => Math.max(1, Math.ceil(len / rc.tessellate));
-/** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 /**
  * muros do mapa EFETIVO (`cfg.map`, de makeConfig: no v1 inclui as pilastras de `maps.v1.short_loop_pillars`,
  * GDD-v0.3 D-22/23/25), não o `map` de topo; um material por caixa (`wallMat` recebe a largura em x). Devolve as malhas.
@@ -92,6 +91,7 @@ export function addWalls(S: THREE.Object3D, baked: THREE.Mesh[], wallMat: (ww: n
   return out;
 }
 
+/** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
   THREE.ColorManagement.enabled = false;
