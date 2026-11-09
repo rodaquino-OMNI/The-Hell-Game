@@ -29,6 +29,8 @@ const UiSchema = z.object({
     font_default: z.enum(["normal", "large", "xlarge"]),
     reduced_bob: num.min(0).max(1),
   }).strict(),
+  /** R6 (issue #66): contagem dos pontos na tela de fim (s; 0 = valores na hora) */
+  results: z.object({ count_up_s: pos }).strict(),
   /** V8: controles (GDD v0.3 §12.2): remapeamento, sensibilidade, inversão do Y, alternar em vez de segurar, gamepad */
   controls: z.object({
     mouse_rad_per_px: num.positive(), pitch_limit: num.positive(), key_turn_speed: num.positive(),
