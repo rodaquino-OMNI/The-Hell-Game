@@ -209,6 +209,10 @@ ai:
   # suíte rules-v1 fixa); "utility" = IA do GDD-v0.3 §8 (percepção e decisão a 10 Hz, estados do §8.2, utilidade do
   # §8.3, dificuldade do §8.4, navegação do §8.6). Como `ruleset`, o padrão muda no marco MJ-B.
   hunter_brain: basic
+  # Bots aliados do ruleset v1 (item R4, GDD-v0.3 §8.5). "prototype" = bots do protótipo (updateBot, paridade);
+  # "competent" = ai/bots.ts (personalidades, fuga para loop, stamina e percepção do jogador). No ruleset prototype
+  # vale sempre "prototype". O padrão muda no marco MJ-B, só se o R4 tiver passado na prova.
+  bot_brain: prototype
   decision_hz: 10
   perception_hz: 10
   hearing_investigate_time: 8
@@ -221,6 +225,14 @@ ai:
   search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
   loop_band: 1.6                    # §8.4: alvo "no loop" se estiver a até isto da rota do loop (= maps.corridor_min, largura mínima da rota)
   static_target_speed: 0.5          # §8.4 "alvo parado": velocidade percebida abaixo disto
+  search_samples: 8                 # §8.1 (LACUNA): amostras por sorteio de ponto de vasculha (fica o mais distante já navegável)
+  # D-35 (§8.1 memória, §8.2; valor LACUNA): sem o alvo à vista o caçador segue em Perseguir enquanto a memória vale; ao chegar à
+  # última posição conhecida, projeta a fuga tantos metros na direção da última velocidade percebida
+  chase_projection: 6
+  # D-35 (LACUNA): ao expirar a memória, Investigar em volta do último ponto por tanto tempo (= hearing_investigate_time
+  # hoje; campo próprio porque não é audição). Ruído ouvido durante a perseguição pela memória é ignorado (LACUNA: o
+  # caçador não sabe quem o fez; segui-lo trocaria de alvo sem vê-lo).
+  memory_investigate_time: 8
   by_difficulty:
     easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
     normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}
@@ -230,12 +242,35 @@ ai:
   anti_stuck: {min_progress_ratio: 0.4, window: 0.7}
   stuck_fail_after: 3               # critério T-03: deslocamento < 40% por > 3 s com caminho válido = trava
   bots:
+    # GDD-v0.3 §8.5: Cauteloso foge a 12 m e evita bônus; Ousado foge a 7 m e prioriza bônus; Altruísta foge a 9 m e
+    # prioriza resgate e cura. Sorteio uniforme pelo PRNG da partida. rescue_priority "high" = resgata mesmo com o
+    # caçador por perto (batimento ligado), desde que não o saiba a menos de flee_dist da gaiola; "normal" = só sem
+    # batimento e sem o caçador conhecido a menos de rescue_safe_dist da gaiola. look_on_heartbeat (LACUNA): no
+    # quebra-cabeça a câmera fica no gerador; true = ao ouvir o batimento (prototype_extras.heartbeat) olha em volta
+    # depois do tempo de reação; false (Ousado) = segue consertando até ver o caçador no campo da câmera ou levar dano.
+    # heal_below (LACUNA, opcional): Curandeiro usa o pulso com alguém no raio a esta vida ou menos; sem o campo,
+    # survivor.hp − classes.healer.pulse_heal (aproveita a cura inteira). O Altruísta cura mais cedo (§8.5).
     personalities:
-      cautious:  {flee_dist: 12, bonus: avoid}
-      bold:      {flee_dist: 7,  bonus: prefer}
-      altruist:  {flee_dist: 9,  bonus: avoid, rescue_priority: high}
-    puzzle_fail_rate: 0.15
+      cautious:  {flee_dist: 12, bonus: avoid,  rescue_priority: normal, look_on_heartbeat: true}
+      bold:      {flee_dist: 7,  bonus: prefer, rescue_priority: normal, look_on_heartbeat: false}
+      altruist:  {flee_dist: 9,  bonus: avoid,  rescue_priority: high,   look_on_heartbeat: true, heal_below: 80}
+    puzzle_fail_rate: 0.15          # §8.5: a falha emite o mesmo ruído e a mesma regressão do jogador (GDD-v0.2 §6.2)
+    # §8.5: reação a pings de 0,3 a 0,8 s. LACUNA: o sim não tem pings (vivem no HUD, packages/client/src/hud/ping.ts);
+    # o atraso sorteado nesta faixa vale para os eventos que o sim já emite (aliado preso, gerador revelado, ruído),
+    # para reagir ao caçador que acaba de aparecer (reactAt) e para olhar em volta ao ouvir o batimento (lookAt).
     ping_reaction: [0.3, 0.8]
+    # Números técnicos sem valor no GDD (LACUNA registrada no relato do R4; valores conservadores):
+    sight_radius: 30                # §8.1 "o que um jogador veria": = render.fog.far (névoa total aos 30 m), com linha de visão
+    glance_interval: 1.5            # fora de interação, olha em volta (360°) a cada isto; entre olhadas vale o campo da câmera
+    memory: 5                       # s que o bot confia na última posição vista do caçador
+    calm_time: 4                    # s sem ver o caçador para encerrar a fuga
+    stamina_resume: 30              # depois de esgotar a stamina, anda até recuperar isto (histerese; regra de correr = a do jogador)
+    defend_dist: 4                  # habilidade de defesa (bloqueio do Atacador, parafuso do Mecânico) só com o caçador visível a até isto (= prototype_extras.bot.fighter_block_dist)
+    rescue_safe_dist: 16            # rescue_priority normal (= prototype_extras.bot.rescue_min_hunter_dist)
+    danger_radius: 12               # evita gerador a até isto de um perigo conhecido (gerador revelado, falha ouvida)
+    bonus_prefer_mult: 0.5          # bonus "prefer": distância a gerador bônus conta × isto na escolha
+    flee_probe: 6                   # fuga sem loop por perto: pontos de teste a esta distância
+    flee_probe_dirs: 8              # ... em tantas direções igualmente espaçadas
 
 # ---------- 12. Navegação (GDD-v0.3 §8.6) ----------
 nav:
@@ -840,11 +875,12 @@ net:
 # exceções, partidas sem fim e transições fora do grafo do §8.2 reprovam sempre. Tolerância null = "a medir".
 # Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
 # para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado); chase_median só usa lotes
-# com ≥ min_samples episódios. Medição de 09/11/2026 (`pnpm sim --check --noise=10`, bots do protótipo, hunter_brain
-# utility, grade A*, com a D-21 `generator.completed_reveal_global: true`). Desvio máx por dificuldade / no agregado:
-# hunter_win 0 / 0; duration_mean 9,75 s (easy) / 3,67 s; captures_per_match 0,062 (nightmare) / 0,0235;
-# short_match_rate 0,040 (easy) / 0,0164; chases_per_match 0,071 (nightmare) / 0,0277; chase_median: por dificuldade
-# só 1 lote válido (a medir) / 7,0 s (5 lotes válidos).
+# com ≥ min_samples episódios. Medição refeita no R4 (09/11/2026, `pnpm sim --check --noise=10`, bots do protótipo,
+# hunter_brain utility com a D-35 — Perseguir pela memória — e a D-36 — telegraph em toda habilidade —, grade A*,
+# D-21 ligada; episódio de perseguição cortado na troca de alvo). Desvio máx por dificuldade / no agregado:
+# hunter_win 0 / 0; duration_mean 9,02 s / 2,73 s; captures_per_match 0,0409 / 0,0131; short_match_rate
+# 0,0302 / 0,0094; chases_per_match 0,0329 / 0,0105; chase_median: por dificuldade < 2 lotes válidos (a medir) /
+# 21,6 s (a D-35 alonga os episódios e a amostra por lote é pequena).
 # PORTA SATURADA HOJE (bots do protótipo; a tabela do check marca "saturada"): vitória do caçador 0%, capturas e
 # perseguições perto de 0 e partidas curtas perto de 100% ficam a menos de 1 tolerância do limite físico, então a
 # piora do lado de perto não reprova (a vitória do caçador ainda reprova se passar do outro lado da banda). Hoje só
@@ -856,10 +892,10 @@ sim:
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
   regression:
     hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.02, pooled_max_worsening: 0.005}  # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 42, pooled_max_worsening: 16}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.27, pooled_max_worsening: 0.1}      # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.17, pooled_max_worsening: 0.07}                     # §7.6: < 5%
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 39, pooled_max_worsening: 12}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.18, pooled_max_worsening: 0.06}     # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.13, pooled_max_worsening: 0.04}                     # §7.6: < 5%
     # §8.5 (aceite: mediana ≥ 15 s). Com < 10 episódios a mediana oscila > 12 s entre lotes: não é comparada.
-    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: 30, min_samples: 10}  # null = a medir (R4)
+    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: null, min_samples: 10}  # null = a medir: com bots do protótipo σ = 21,6 s e 3√2σ (92 s) passa da base (81,7 s); medir com bot_brain competent no MJ-B e acrescentar piso absoluto de 15 s (§8.5)
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
-    chases_per_match:   {worse: lower, max_worsening: 0.3, pooled_max_worsening: 0.12}
+    chases_per_match:   {worse: lower, max_worsening: 0.14, pooled_max_worsening: 0.05}
