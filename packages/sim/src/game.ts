@@ -5,13 +5,15 @@
 import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
 import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
+import { releaseFromCage } from "./cage.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee, lineOfSight } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
+import { rescueAllowed, startTutorial, tutorialFrame, updateTutorial } from "./tutorial.ts";
 import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
 import {
-  ARROWS, CLASSES, type Arena, type ClassName, type GameEvent, type GameState, type Generator, type Hunter,
+  ARROWS, CLASSES, type Arena, type ClassName, type GameEvent, type GameOptions, type GameState, type Generator, type Hunter,
   type MsgKey, type NoiseKind, type Outcome, type PlayerInput, type Survivor, type Vec,
 } from "./types.ts";
 
@@ -21,11 +23,18 @@ const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // ---------- criação ----------
 
-export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number): GameState {
+/**
+ * Cria a partida. `opts.mode: "tutorial"` monta o Treino do GDD-v0.3 §12.3 (D-34, seção `tutorial` dos dados):
+ * equipe de `tutorial.team_size`, caçador parado (`tutorial.hunter: idle`), aliado preso sem cronômetro, sem fim por
+ * tempo; o estado do roteiro fica em `g.tutorial`. Sem `opts` (ou `mode: "normal"`) a partida é a de sempre.
+ */
+export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number, opts: GameOptions = {}): GameState {
   const b = cfg.balance, px = b.prototype_extras;
+  const tutorial = opts.mode === "tutorial";
   // v1: a semente escolhe a combinação de geradores, gaiola e saída (GDD-v0.3 §9.3); o protótipo usa o topo do mapa
   const layout = cfg.v1 ? chooseLayout(cfg.map, seed) : { generators: 0, cage: 0, exit: 0 };
-  const order: ClassName[] = [playerClass, ...CLASSES.filter(c => c !== playerClass)];
+  const all: ClassName[] = [playerClass, ...CLASSES.filter(c => c !== playerClass)];
+  const order = tutorial ? all.slice(0, b.tutorial.team_size) : all;
   // v1: obrigatórios e bônus pelo tamanho da equipe (GDD-v0.2 §3.5, `generator.by_team_size`; D-22: 5 para 4–5).
   // O recorte vale em todo o v1, com ou sem `maps.v1.fifth_generator`: a flag só decide se existe a lista de 5
   // (`large_team`); sem ela, uma equipe que pede 5 fica com os obrigatórios que o layout tem.
@@ -60,10 +69,12 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
     ...(cfg.v1 && cfg.balance.maps.v1.short_loop_pillars
       ? { walls: m.walls.map(w => [w[0], w[1], w[2], w[3]] as [number, number, number, number]) } : {}),
   };
-  return {
+  const g: GameState = {
     t: 0, seed: seed | 0, points: 0, hunterPoints: 0, scoreTrack: newScoreTrack(), reveal: px.hunter_initial.reveal, gateTimer: 0, gateStarted: false, gateOpen: false,
     over: false, gens, survivors, hunter, arena, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
   };
+  if (tutorial) startTutorial(cfg, g);
+  return g;
 }
 
 /**
@@ -139,6 +150,17 @@ function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = t
   return heard;
 }
 
+/**
+ * O gerador chegou ao fim (`generator.puzzles_per_generator`)? No modo tutorial nunca (D-34): ele fica a um
+ * quebra-cabeça do fim, para sempre haver gerador válido nas etapas "generator", "puzzle" e no Turbo da "ability".
+ */
+function reachedEnd(cfg: SimConfig, g: GameState, gen: Generator): boolean {
+  const ppg = cfg.balance.generator.puzzles_per_generator;
+  if (gen.n < ppg) return false;
+  if (g.tutorial) { gen.n = ppg - 1; return false; }
+  return true;
+}
+
 /** conclui um gerador; no v1 a luz revela a posição (`generator.completed_reveal`) e faz ruído de 25 m (§3.4, §6.2) */
 function finishGenerator(cfg: SimConfig, g: GameState, gen: Generator) {
   gen.done = true;
@@ -175,7 +197,7 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
     const pp = credit(cfg, g, player(g), gen.bonus ? "bonus_puzzle" : "puzzle");
     msg(g, "puzzle_points", { n: pp });
     emit(g, { type: "sound", name: "puzzle_ok" });
-    if (gen.n >= b.generator.puzzles_per_generator) {
+    if (reachedEnd(cfg, g, gen)) {
       finishGenerator(cfg, g, gen);
       const bonus = credit(cfg, g, player(g), gen.bonus ? "bonus_generator" : "generator");
       g.puzzle = null;
@@ -218,7 +240,7 @@ function botPuzzle(cfg: SimConfig, g: GameState, s: Survivor, gen: Generator, ok
   gen.n++;
   gen.fails = 0;
   credit(cfg, g, s, gen.bonus ? "bonus_puzzle" : "puzzle");
-  if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); credit(cfg, g, s, gen.bonus ? "bonus_generator" : "generator"); }
+  if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); credit(cfg, g, s, gen.bonus ? "bonus_generator" : "generator"); }
 }
 
 // ---------- habilidades e ataques (L119–L123) ----------
@@ -241,7 +263,7 @@ export function ability(cfg: SimConfig, g: GameState, s: Survivor) {
     if (!gen) return;
     gen.n++;
     if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o Turbo avança um quebra-cabeça e pontua como tal (§7.1)
-    if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
+    if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
     s.cd = c.mechanic.turbo.cooldown;
     if (!s.bot) msg(g, "turbo");
   } else {
@@ -315,14 +337,10 @@ function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
 function kill(cfg: SimConfig, g: GameState, s: Survivor) { s.st = "dead"; msg(g, "died", { cls: s.cls }); creditHunter(cfg, g, "kill"); }
 
 function free(cfg: SimConfig, g: GameState, c: Survivor, by: Survivor) {
-  const b = cfg.balance;
   // dois sobreviventes podem concluir o mesmo resgate no mesmo passo: só o primeiro solta e pontua
   if (c.st !== "cage") return;
   if (cfg.v1) credit(cfg, g, by, "rescue");
-  c.st = "ok";
-  c.hp = b.cage.rescue_hp;
-  c.immune = b.cage.immunity;
-  c.z = g.arena.cage.z + b.prototype_extras.rescued_offset;
+  releaseFromCage(cfg, g, c);
   msg(g, "rescued", { cls: c.cls });
 }
 
@@ -509,7 +527,7 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
       if (s.work > need) {
         s.work = 0; gen.n++;
         if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o bot pontua o próprio conserto (§7.1, por sobrevivente)
-        if (gen.n >= b.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
+        if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
       }
     }
   } else {
@@ -523,10 +541,12 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
 export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: number = STEP) {
   if (g.over) return;
   const b = cfg.balance, sv = b.survivor, px = b.prototype_extras, P = player(g), H = g.hunter;
+  const tf = g.tutorial ? tutorialFrame(g) : null; // modo tutorial (D-34): foto do início do passo
   g.t += dt;
   for (const s of g.survivors) {
     s.cd -= dt; s.atk -= dt; s.block -= dt; s.slow -= dt; s.revealed -= dt; s.immune -= dt; s.antiTunnel -= dt;
-    if (s.st === "cage") { s.cage -= dt; if (s.cage <= 0) kill(cfg, g, s); }
+    // no tutorial a gaiola não tem cronômetro (o aliado espera a etapa de resgate)
+    if (s.st === "cage" && !tf) { s.cage -= dt; if (s.cage <= 0) kill(cfg, g, s); }
   }
   for (const x of g.gens) { x.spark -= dt; x.revealed -= dt; }
   if (g.puzzle && g.gens[g.puzzle.gen].done) g.puzzle = null;
@@ -565,7 +585,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
       P.a = y;
     }
     const caged = g.survivors.find(a => a.st === "cage" && dist(a, P) < b.cage.rescue_range);
-    if (caged && input.interactHeld && !g.puzzle) {
+    if (caged && input.interactHeld && !g.puzzle && rescueAllowed(g)) {
       P.rescue += dt;
       if (cfg.v1) noise(cfg, g, "rescue", P, false);
       if (P.rescue >= b.cage.rescue_time) { free(cfg, g, caged, P); P.rescue = 0; }
@@ -585,6 +605,12 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
         }
       }
     }
+  }
+
+  // tutorial: aliados e caçador passivos (`tutorial.hunter: idle`, GDD-v0.3 §12.3); sem fim por tempo nem por estado
+  if (tf) {
+    updateTutorial(cfg, g, tf);
+    return;
   }
 
   // cérebro por vaga (`botBrainOf`): na partida padrão todas as vagas usam `cfg.botBrain`
