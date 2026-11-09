@@ -362,10 +362,18 @@ render:
     fog_billboards: {color: world.fog, count: 60, size: [6, 12], height: [0.6, 2.4], opacity: 0.2, drift: 0.6, drift_speed: 0.15, near_fade: 4}
     dust: {count: 320, box: 12, size_px: 1, opacity: 0.6, ambient: 0.25, color: world.gaiola, fall: 0.06, sway: 0.25}   # ambient: visibilidade fora do cone da lanterna
   budgets: {fps: 60, draw_calls: 150, triangles: 60000, initial_download_mb: 15, map_download_mb: 40, time_to_play_s: 5}
+  # V7 (F2-07; GDD-v0.3 §10.6, "cena de pior caso: 6 personagens, mapa inteiro, efeitos"): cena do parâmetro de
+  # depuração ?stress=1 (render/stress.ts), medida por tools/perf/budget.mjs. distance e spacing (m): grupo do caçador
+  # e dos aliados à frente do jogador, dentro do cone da lanterna (render.layer_b.lantern.angle_deg); margin (m): folga
+  # da vista de cima em volta do mapa; sweep: rumos da varredura em 3ª e em 1ª pessoa; network_mbps: rede limitada do
+  # "tempo até jogar" (GDD-v0.3 §10.6: "Playwright com rede limitada a 25 Mbit/s")
+  stress: {distance: 8, spacing: 1.4, margin: 2, sweep: 8, network_mbps: 25}
   # custo das camadas (plano-fases-1-2 §5 V4 e V7; revisão do V4): tempo de render do preset médio com A+B dividido
   # pelo mesmo preset sem camadas, medido de forma síncrona no SwiftShader a 1280×720 (tools/visual/compare.mjs,
   # tempo de CPU do processo de GPU, mediana de 11 pares). Medido em 08/11/2026 com a máquina carregada: 1,25 a 1,38×
-  # (antes das otimizações: 1,87×). Teto com folga para o ruído; a meta da revisão é 1,3×
+  # (antes das otimizações: 1,87×). Teto com folga para o ruído; a meta da revisão é 1,3×. V7 (09/11/2026): mediana de
+  # 21 pares de 32 quadros, na vista das capturas e com o caçador no cone da lanterna; com a máquina carregada (load
+  # ~10 em 4 núcleos): mediana 1,35× (mín 1,11×, p90 1,43×, máx 1,46×) e 1,33× no cone (1,15×, 1,40×, 1,43×)
   layer_cost_factor: 1.4
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
@@ -896,6 +904,7 @@ ui:
       deadzone: 0.25                # fração do curso do analógico ignorada (LACUNA; proposta)
       look_speed: 2.5               # rad/s com o analógico direito no fim do curso (LACUNA; proposta)
       trigger_threshold: 0.5        # gatilho analógico conta como apertado a partir desta fração (LACUNA; proposta)
+      menu_stick: 0.5               # analógico esquerdo vira direção nos menus a partir desta fração (LACUNA; proposta)
       axes: {move_x: 0, move_y: 1, look_x: 2, look_y: 3}
       # em partida; no quebra-cabeça: `interact` confirma (timing), `puzzle_exit` sai e o direcional dá as setas
       buttons: {interact: 0, puzzle_exit: 1, ability: 3, attack: 7, run: 6, camera: 11, ping_1: 12, ping_2: 15, ping_3: 13, ping_4: 14}

@@ -4,7 +4,7 @@
 // data/balance.yaml `ui.controls`.
 import type { Arrow, GameState, PlayerInput } from "@thehell/sim";
 import { balance } from "./data.ts";
-import { actionsOf, defaultBindings, held, holdOrToggle, type Bindings, type ControlAction } from "./bindings.ts";
+import { actionsOf, defaultBindings, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
 import { button, padSticks, type PadLike } from "./gamepad.ts";
 
 const ctl = balance.ui.controls;
@@ -28,14 +28,11 @@ const hold = { run: false, interact: false };
 const pad = { forward: 0, strafe: 0, run: false, interact: false };
 
 const MOVE_ARROW: Partial<Record<ControlAction, Arrow>> = { left: "left", forward: "up", right: "right", back: "down" };
-const ARROW_KEYS: Record<string, Arrow> = { ArrowLeft: "left", ArrowUp: "up", ArrowRight: "right", ArrowDown: "down" };
-// P-10: Esc, Backspace e X saem sempre; as teclas de interagir e de correr (E e Shift no padrão) também
-const EXIT_KEYS = ["Escape", "Backspace", "KeyX"];
 const PING_ACTIONS: readonly ControlAction[] = ["ping_1", "ping_2", "ping_3", "ping_4"];
 
 /** seta do quebra-cabeça de sequência para a tecla: setas sempre, e as teclas de movimento (WASD no padrão) */
 function arrowOf(code: string): Arrow | undefined {
-  if (ARROW_KEYS[code]) return ARROW_KEYS[code];
+  if (PUZZLE_ARROW_KEYS[code]) return PUZZLE_ARROW_KEYS[code];
   for (const a of actionsOf(prefs.keys, code)) if (MOVE_ARROW[a]) return MOVE_ARROW[a];
   return undefined;
 }
@@ -56,25 +53,9 @@ export function resetInput() { hold.run = hold.interact = false; for (const k of
 export function setupInput(game: () => GameState | undefined) {
   onkeydown = e => {
     const G = game();
-    if (!G) return;
-    keys[e.code] = true;
-    if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
-    const acts = actionsOf(prefs.keys, e.code), first = !e.repeat;
-    if (acts.includes("camera") && first) view.thirdPerson = !view.thirdPerson;
-    if (acts.includes("ability") && first) pending.ability = true;
-    if (acts.includes("attack") && first) pending.attack = true;
-    if (G.puzzle && (EXIT_KEYS.includes(e.code) || acts.includes("interact") || acts.includes("run"))) { pending.puzzleExit = true; return; }
-    if (acts.includes("run") && first) hold.run = holdOrToggle(prefs.toggleRun, hold.run, true, true);
-    if (acts.includes("interact") && first) {
-      pending.interact = true;
-      hold.interact = holdOrToggle(prefs.toggleInteract, hold.interact, true, true);
-    }
-    if (G.puzzle) {
-      if (G.puzzle.kind === "timing" && acts.includes("puzzle_confirm")) pending.puzzleSpace = true;
-      else if (G.puzzle.kind === "sequence" && first) { const a = arrowOf(e.code); if (a) pending.puzzleArrow = a; }
-    }
+    if (G && keyDown(G, e.code, e.repeat)) e.preventDefault();
   };
-  onkeyup = e => { keys[e.code] = false; };
+  onkeyup = e => keyUp(e.code);
   onmousemove = e => {
     const G = game();
     if (!G || G.over) return;
@@ -85,6 +66,36 @@ export function setupInput(game: () => GameState | undefined) {
   // a janela perde o foco: nenhuma tecla fica "presa" apertada (o estado alternado continua)
   onblur = () => { for (const k of Object.keys(keys)) keys[k] = false; };
 }
+
+const SCROLL_KEYS = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+/**
+ * uma tecla apertada na partida `G` (exportada para os testes). Dentro do quebra-cabeça a entrada dele vence: na
+ * sequência, uma seta (ou tecla de movimento) é sempre seta, mesmo que outra ação use a tecla; no timing, a tecla de
+ * confirmar confirma; só depois vêm as saídas (Esc, Backspace, X, interagir, correr). Devolve se o navegador deve
+ * ignorar a tecla (preventDefault): Espaço e setas sempre, e qualquer tecla com ação durante a partida.
+ */
+export function keyDown(G: GameState, code: string, repeat: boolean): boolean {
+  keys[code] = true;
+  const acts = actionsOf(prefs.keys, code), first = !repeat;
+  const block = SCROLL_KEYS.includes(code) || (!G.over && acts.length > 0);
+  if (G.puzzle) {
+    if (G.puzzle.kind === "sequence") { const a = arrowOf(code); if (a) { if (first) pending.puzzleArrow = a; return true; } }
+    else if (acts.includes("puzzle_confirm")) { pending.puzzleSpace = true; return true; }
+  }
+  if (acts.includes("camera") && first) view.thirdPerson = !view.thirdPerson;
+  if (acts.includes("ability") && first) pending.ability = true;
+  if (acts.includes("attack") && first) pending.attack = true;
+  if (G.puzzle && (PUZZLE_EXIT_KEYS.includes(code) || acts.includes("interact") || acts.includes("run"))) { pending.puzzleExit = true; return true; }
+  if (acts.includes("run") && first) hold.run = holdOrToggle(prefs.toggleRun, hold.run, true, true);
+  if (acts.includes("interact") && first) {
+    pending.interact = true;
+    hold.interact = holdOrToggle(prefs.toggleInteract, hold.interact, true, true);
+  }
+  return block;
+}
+/** tecla solta (exportada para os testes) */
+export function keyUp(code: string) { keys[code] = false; }
 
 /** gira a câmera (rad; dy positivo = olhar para baixo, invertido com "inverter eixo Y") */
 function look(dx: number, dy: number) {

@@ -14,12 +14,12 @@
 //   - confere a tela de fim do v1 (`end.team`, `end.reason`, `end.individual`) e o modo espectador.
 // Uso: node tools/a11y/axe.mjs [--shots dir] [url]
 //   --shots  grava capturas do HUD e das telas em pt-BR (1280×720, deviceScaleFactor 2) com o prefixo r7-
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -40,11 +40,8 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const SEED = 1234;
 
 let server;
-if (!url) {
-  url = "http://127.0.0.1:18083";
-  server = spawn(process.execPath, ["packages/server/dist/server.mjs"], { cwd: root, env: { ...process.env, PORT: "18083" }, stdio: "inherit" });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 
 const failures = [];
 const fail = (m) => { failures.push(m); console.error("FALHA:", m); };
@@ -312,7 +309,8 @@ try {
 
     // ---------- partida (protótipo): começar pelo teclado, HUD, fim ----------
     if (await tabTo(page, "go")) await page.keyboard.press("Enter");
-    await waitStarted(page, `${locale}/partida`);
+    // sem partida não há HUD para conferir: a falha já foi registrada (com o t atingido); segue para o próximo idioma
+    if (!(await waitStarted(page, `${locale}/partida`))) { await ctx.close(); continue; }
     const top = await page.textContent("#top");
     const gens = await game(page, () => window.__thehell().gens.filter(g => !g.bonus).length);
     const objectives = T["hud.objectives"].split("{")[0].trim();
@@ -365,7 +363,7 @@ try {
     // ---------- v1: espectador e fim com end.team / end.reason / end.individual ----------
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await waitStarted(page, `${locale}/partida-v1`);
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, () => { const g = window.__thehell(); g.survivors[0].st = "dead"; g.survivors[0].hp = 0; });
     await page.waitForSelector("#spec", { state: "visible", timeout: STALL_MS });
     const spt = await page.textContent("#spt");
@@ -390,7 +388,7 @@ try {
     // v1, limite de tempo com o jogador vivo: "não escapou" (não "morreu", erro do END_TEXT antigo)
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await waitStarted(page, `${locale}/partida-v1`);
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
     await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const notEscaped = T["end.v1.title"].match(/other \{([^}]*)\}/)[1];

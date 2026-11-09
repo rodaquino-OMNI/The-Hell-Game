@@ -71,7 +71,8 @@ export function navDirection(p: PadLike, c: PadCfg): NavDir | null {
   if (button(p, m.left, th)) return "left";
   if (button(p, m.right, th)) return "right";
   const x = axis(p, c.axes.move_x, c.deadzone), y = axis(p, c.axes.move_y, c.deadzone);
-  if (Math.abs(x) < th && Math.abs(y) < th) return null;
+  // o analógico só vira direção de menu além de `menu_stick` (fração do curso depois da zona morta)
+  if (Math.abs(x) < c.menu_stick && Math.abs(y) < c.menu_stick) return null;
   return Math.abs(y) >= Math.abs(x) ? (y < 0 ? "up" : "down") : (x < 0 ? "left" : "right");
 }
 

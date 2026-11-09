@@ -36,7 +36,7 @@ const UiSchema = z.object({
     keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
     toggle_run: z.boolean(), toggle_interact: z.boolean(),
     gamepad: z.object({
-      deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1),
+      deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1), menu_stick: num.gt(0).max(1),
       axes: z.object({ move_x: int.min(0), move_y: int.min(0), look_x: int.min(0), look_y: int.min(0) }).strict(),
       buttons: z.object({
         interact: int.min(0), puzzle_exit: int.min(0), ability: int.min(0), attack: int.min(0), run: int.min(0), camera: int.min(0),
@@ -275,6 +275,7 @@ const render = z.object({
   /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */
   hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive() }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
+  stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
   states: z.object({

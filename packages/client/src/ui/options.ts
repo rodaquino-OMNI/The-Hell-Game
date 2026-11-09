@@ -152,7 +152,9 @@ function onCaptureKey(e: KeyboardEvent) {
   commit({ ...opts, keys: r.bindings });
   endCapture(a);
   const moved = r.displaced.length ? " " + t("opt.key_moved", { key: keyName(e.code), actions: r.displaced.map(actionName).join(", ") }) : "";
-  announce(t("opt.key_set", { action: actionName(a), key: keyName(e.code) }) + moved);
+  // a tecla tem papel fixo no quebra-cabeça (saída ou seta da sequência): o jogador fica sabendo
+  const puzzle = r.puzzle === "exit" ? " " + t("opt.key_puzzle_exit", { key: keyName(e.code) }) : r.puzzle === "arrow" ? " " + t("opt.key_puzzle_arrow", { key: keyName(e.code) }) : "";
+  announce(t("opt.key_set", { action: actionName(a), key: keyName(e.code) }) + moved + puzzle);
 }
 
 function rerenderKeys(focus: ControlAction | null) {
