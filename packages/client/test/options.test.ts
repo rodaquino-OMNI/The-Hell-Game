@@ -9,7 +9,7 @@ import { axis, browserPads, button, createEdges, createRepeater, firstPad, navDi
 import { format, parse } from "../src/i18n/icu.ts";
 import { t, setLocale } from "../src/i18n/index.ts";
 import { installMuteKey } from "../src/audio/mute.ts";
-import { getControls, isMuteKey, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
+import { getControls, isMuteKey, muteMessage, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
 import { getColorMode, PALETTE, setColorMode, tok } from "../src/look.ts";
 import { bobScale, cameraFov, setFov, setReduceCameraBob } from "../src/render/motion.ts";
 import { beamLevel } from "../src/render/states.ts";
@@ -353,5 +353,16 @@ describe("mudo remapeável (ação mute, D-41)", () => {
     expect(calls).toBe(1);
     key("KeyN");
     expect([muted, calls]).toEqual([false, 2]);
+  });
+  it("o aviso do mudo mostra a tecla atual da ação (padrão M; remapeada, a nova)", () => {
+    setLocale("pt-BR");
+    expect(muteMessage(true)).toBe("Som mudo (M para ligar)");
+    setControls({ keys: rebind(defaultBindings(), "mute", "KeyN").bindings });
+    expect(muteMessage(true)).toBe("Som mudo (N para ligar)");
+    expect(muteMessage(false)).toBe("Som ligado (N para mudo)");
+    setLocale("en");
+    setControls({ keys: rebind(defaultBindings(), "mute", "Digit0").bindings });
+    expect(muteMessage(true)).toBe("Sound muted (0 to unmute)");
+    setLocale("pt-BR");
   });
 });

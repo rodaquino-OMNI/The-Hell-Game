@@ -235,6 +235,85 @@ async function gamepadFlow(page, n) {
   else report.push(`${n}/gamepad: abriu, mudou 2 opções e fechou só pelo controle`);
 }
 
+/** faixa de legendas (V8b; GDD-v0.3 §12.4): o caçador à direita gera "passos" com seta no setor 2 e ×2 na fusão; a
+ *  legenda mais longa dos catálogos cabe na tela sem estourar nos 3 tamanhos de fonte (ui.options.font_scales).
+ *  Emissão e leitura do DOM no mesmo evaluate (o barramento avisa de forma síncrona): com a máquina carregada, o
+ *  relógio da partida pode vencer a legenda entre duas chamadas do Playwright */
+async function captionsCheck(page, locale, T) {
+  const n = `${locale}/legendas`, ac = balance.audio.captions;
+  const longest = Object.entries(T).filter(([k]) => k.startsWith("caption.") && !k.startsWith("caption.sound_")).map(([, v]) => v).sort((a, b) => b.length - a.length)[0];
+  // tempo na tela no máximo da lista durante a conferência (volta ao padrão no fim)
+  await game(page, (s) => window.__thehellCaptions.duration(s), Math.max(...ac.durations));
+  const r = await page.evaluate(([scales, txt]) => {
+    const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
+    const ok = [c.emit("step_hunter", { x: p.x + 6, z: p.z }), c.emit("step_hunter", { x: p.x + 6, z: p.z }), c.emit("rescue")].every(Boolean);
+    const cap = document.getElementById("cap");
+    const items = [...cap.querySelectorAll("li")].map(li => ({ text: li.textContent, rot: li.querySelector(".ca")?.getAttribute("style") ?? "", danger: li.classList.contains("hz") }));
+    const wrap = {};
+    for (const [size, sc] of Object.entries(scales)) {
+      document.documentElement.style.setProperty("--ui-scale", String(sc));
+      const ct = cap.querySelector("li .ct");
+      if (ct) ct.firstChild.textContent = txt;
+      const b = cap.getBoundingClientRect();
+      const over = [...cap.querySelectorAll("li")].some(li => { const q = li.getBoundingClientRect(); return li.scrollWidth > li.clientWidth + 1 || q.left < 0 || q.right > innerWidth; });
+      wrap[size] = { over: over || b.left < 0 || b.right > innerWidth || b.top < 0, width: Math.round(b.width) };
+    }
+    return { ok, live: cap.getAttribute("aria-live"), items, wrap };
+  }, [balance.ui.options.font_scales, longest]);
+  if (!r.ok) { fail(`${n}: o barramento recusou a legenda (legendas desligadas?)`); return; }
+  if (r.live !== "off") fail(`${n}: aria-live "${r.live}" durante a partida (esperado off)`);
+  const steps = r.items.find(i => i.text.includes(T["caption.hunter_steps"]));
+  const right = (2 * 360) / balance.ui.threat_sectors;
+  if (!steps || !steps.rot.includes(`rotate(${right}deg)`) || !steps.text.includes("×2") || !steps.danger) fail(`${n}: passos do caçador sem seta à direita, ×2 ou borda de perigo: ${JSON.stringify(r.items)}`);
+  if (!r.items.some(i => i.text.includes(T["caption.rescue"]) && !i.rot)) fail(`${n}: resgate sem a legenda sem direção: ${JSON.stringify(r.items)}`);
+  for (const [size, w] of Object.entries(r.wrap)) if (w.over) fail(`${n}: legenda de ${longest.length} caracteres estoura com a fonte ${size}: ${JSON.stringify(w)}`);
+  // sem sobreposição: faixa × painel de espectador × dica (longa, quebrando linha) × barra de estado × pings (com e
+  // sem pings ativos), nos 3 tamanhos de fonte, a 1280×720 e a 800×600 (painel, dica e feed só durante a medida)
+  const hintText = Object.entries(T).filter(([k]) => k.startsWith("hud.hint.")).map(([, v]) => v).sort((x, y) => y.length - x.length)[0].repeat(3);
+  const vp0 = page.viewportSize();
+  let pairs = 0;
+  for (const vp of [vp0, { width: 800, height: 600 }]) {
+    await page.setViewportSize(vp);
+    const o = await page.evaluate(async ([scales, hint, pingText]) => {
+      const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
+      const spec = document.getElementById("spec"), hintEl = document.getElementById("hint"), pf = document.getElementById("pf");
+      const saved = { spec: spec.hidden, hint: hintEl.hidden, text: hintEl.textContent, pf: pf.innerHTML };
+      const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const box = id => { const e = document.getElementById(id); if (!e || e.hidden || !e.checkVisibility()) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+      const out = [];
+      // com e sem dica e espectador; com e sem pings ativos no painel (o feed é preenchido só durante a medida)
+      for (const withExtras of [true, false]) for (const withPings of [false, true]) for (const [size, sc] of Object.entries(scales)) {
+        spec.hidden = !withExtras; hintEl.hidden = !withExtras; hintEl.textContent = withExtras ? hint : saved.text;
+        pf.innerHTML = withPings ? Array.from({ length: 4 }, () => `<li>${pingText}</li>`).join("") : "";
+        document.documentElement.style.setProperty("--ui-scale", String(sc));
+        await frames();
+        c.emit("step_hunter", { x: p.x + 6, z: p.z }); c.emit("telegraph_trap", { x: p.x - 4, z: p.z }); c.emit("rescue");
+        await frames();
+        const cap = box("cap");
+        for (const id of ["spec", "hint", "sb", "pings"]) {
+          const b = box(id);
+          if (!cap || !b) continue;
+          const hit = cap.left < b.right && b.left < cap.right && cap.top < b.bottom && b.top < cap.bottom;
+          out.push({ size, id, withExtras, withPings, hit, cap, other: b });
+        }
+        if (cap && (cap.top < 0 || cap.left < 0 || cap.right > innerWidth)) out.push({ size, id: "tela", hit: true, cap });
+      }
+      spec.hidden = saved.spec; hintEl.hidden = saved.hint; hintEl.textContent = saved.text; pf.innerHTML = saved.pf;
+      return out;
+    }, [balance.ui.options.font_scales, hintText, T["ping.feed"].replace(/\{[^}]*\}/g, "Aaaaaaaa")]);
+    pairs += o.length;
+    for (const x of o) if (x.hit) fail(`${n}: legendas sobrepõem #${x.id} a ${vp.width}×${vp.height}, fonte ${x.size}: ${JSON.stringify(x)}`);
+  }
+  await page.setViewportSize(vp0);
+  if (!pairs) fail(`${n}: conferência de sobreposição não mediu nada (faixa ausente?)`);
+  // axe com a fonte maior e as legendas na tela (renovadas na hora)
+  await game(page, () => { const p = window.__thehell().survivors[0]; window.__thehellCaptions.emit("step_hunter", { x: p.x + 6, z: p.z }); window.__thehellCaptions.emit("rescue"); });
+  await axe(page, `${n}-fonte-${balance.ui.options.font_scales.xlarge}`);
+  await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), balance.ui.options.font_scales[balance.ui.options.font_default]);
+  await game(page, (s) => window.__thehellCaptions.duration(s), ac.durations[ac.default_duration_index]);
+  report.push(`${n}: sem sobreposição com espectador/dica/barra/pings (${pairs} pares medidos em 2 telas, 3 fontes, com e sem dica e pings); seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
+}
+
 try {
   const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   for (const locale of balance.ui.locales) {
@@ -272,7 +351,15 @@ try {
     await optionsFlow(page, locale, T, pt);
 
     // ---------- partida (protótipo): começar pelo teclado, HUD, fim ----------
+    // legenda deixada no menu (como a de uma partida anterior) não pode aparecer nem ser anunciada no início da nova:
+    // start() limpa o barramento e põe aria-live "off" antes do primeiro quadro (V8b)
+    await game(page, () => window.__thehellCaptions.emit("rescue"));
     if (await tabTo(page, "go")) await page.keyboard.press("Enter");
+    const atStart = await page.evaluate((txt) => {
+      const cap = document.getElementById("cap");
+      return { live: cap.getAttribute("aria-live"), old: [...cap.querySelectorAll("li")].some(li => li.textContent.includes(txt)) };
+    }, T["caption.rescue"]);
+    if (atStart.live !== "off" || atStart.old) fail(`${locale}: início da partida com aria-live "${atStart.live}" ou legenda antiga na faixa (${atStart.old})`);
     // sem partida não há HUD para conferir: a falha já foi registrada (com o t atingido); segue para o próximo idioma
     if (!(await waitStarted(page, `${locale}/partida`))) { await ctx.close(); continue; }
     const top = await page.textContent("#top");
@@ -310,6 +397,8 @@ try {
     await page.waitForTimeout(150);
     const states = await page.$$eval("#tm li", els => els.map(e => e.className));
     if (!states[1]?.includes("caged") || !states[2]?.includes("wounded")) fail(`${locale}: retratos sem preso/ferido: ${JSON.stringify(states)}`);
+    // legendas de som (V8b): faixa visível com seta, ×N na fusão, aria-live off na partida, axe e quebra de linha
+    await captionsCheck(page, locale, T);
     await axe(page, `${locale}/hud`);
     await shot(page, pt ? "hud" : `hud-${locale}`);
 
@@ -317,6 +406,7 @@ try {
     await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const et = await page.textContent("#et");
     if (et !== T["end.hunter_down.title"]) fail(`${locale}: fim do protótipo com título "${et}"`);
+    if ((await page.getAttribute("#cap", "aria-live")) !== "polite") fail(`${locale}: legendas sem aria-live polite fora da partida`);
     if ((await page.evaluate(() => document.activeElement?.id)) !== "again") fail(`${locale}: foco não foi para "Jogar de novo"`);
     await axe(page, `${locale}/fim-prototipo`);
     if (pt) await shot(page, "fim-prototipo");

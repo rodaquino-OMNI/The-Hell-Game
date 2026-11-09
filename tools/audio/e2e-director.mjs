@@ -316,11 +316,13 @@ try {
   await page.keyboard.press("KeyM");
   const mutedVol = (await audioHook()).buses.master, mutedMsg = await msg();
   if (mutedVol !== 0) await fail(`M não zerou o master: ${mutedVol}`);
-  if (mutedMsg !== catalog["caption.sound_muted"]) await fail(`aviso do mudo ausente no HUD: "${mutedMsg}"`);
+  // o aviso traz a tecla da ação mute ({key}, V8b); com o mapeamento padrão (ui.controls.keyboard.mute), "KeyM" → "M"
+  const muteLabel = bal.ui.controls.keyboard.mute.map(c => c.replace(/^(Key|Digit)/, "")).join(" / ");
+  if (mutedMsg !== catalog["caption.sound_muted"].replace("{key}", muteLabel)) await fail(`aviso do mudo ausente no HUD: "${mutedMsg}"`);
   await page.keyboard.press("KeyM");
   const back = (await audioHook()).buses.master, backMsg = await msg();
   if (back !== before) await fail(`M de novo não restaurou o master: ${back} ≠ ${before}`);
-  if (backMsg !== catalog["caption.sound_unmuted"]) await fail(`aviso de som ligado ausente no HUD: "${backMsg}"`);
+  if (backMsg !== catalog["caption.sound_unmuted"].replace("{key}", muteLabel)) await fail(`aviso de som ligado ausente no HUD: "${backMsg}"`);
   measures.mudo = { antes: before, mudo: mutedVol, depois: back };
 
   await browser.close();

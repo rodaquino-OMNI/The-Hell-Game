@@ -71,6 +71,8 @@
   "ping.title": "Avisos",
   "ping.ready": "Avisos 1–4: listos",
   "ping.cooldown": "Avisos 1–4: {n} s",
+  "hud.captions": "Subtítulos de sonido",
+  "hud.caption_count": "×{n}",
 
   "spec.dead": "HAS MUERTO",
   "spec.escaped": "¡HAS ESCAPADO!",
@@ -176,6 +178,10 @@
   "opt.sec.controls": "Controles",
   "opt.sec.keys": "Teclas",
   "opt.sec.gamepad": "Mando (gamepad)",
+  "opt.sec.captions": "Subtítulos de sonido",
+  "opt.captions": "Mostrar subtítulos de sonido",
+  "opt.caption_duration": "Tiempo en pantalla",
+  "opt.caption_seconds": "{s} s",
   "opt.ps1.snap": "Temblor de vértices",
   "opt.ps1.affine": "Distorsión de textura",
   "opt.ps1.gouraud": "Luz por vértice",
@@ -258,6 +264,6 @@
   "caption.generator_done": "Zumbido ascendente: generador listo",
   "caption.cage": "Rejas golpeando: superviviente atrapado",
   "caption.rescue": "Acorde de alivio: superviviente a salvo",
-  "caption.sound_muted": "Sonido silenciado (M para activar)",
-  "caption.sound_unmuted": "Sonido activado (M para silenciar)"
+  "caption.sound_muted": "Sonido silenciado ({key} para activar)",
+  "caption.sound_unmuted": "Sonido activado ({key} para silenciar)"
 }

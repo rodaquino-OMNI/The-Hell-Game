@@ -3,16 +3,19 @@
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
 import { createGame, drainEvents, makeConfig, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
+import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
 import { installMuteKey } from "./audio/mute.ts";
 import { updateListener, updateSpatial } from "./audio/spatial.ts";
 import { $, balance, cfg, map, ruleset } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
+import { captionsFrame, setupCaptions } from "./hud/captions.ts";
+import { setupBottomLayout } from "./hud/layout.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
-import { getControls, isMuteKey, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
+import { getControls, isMuteKey, muteMessage, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
 import { exposeDebugHook } from "./debug-hooks.ts";
 import { getColorMode } from "./look.ts";
 import { getLayerA, getReduceFlicker } from "./render/layers.ts";
@@ -23,7 +26,6 @@ import { getPs1, setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
-import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
 import { matchConfig, selectedDifficulty } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
@@ -100,6 +102,10 @@ async function start() {
   // áudio e pointer lock no gesto do clique (a espera abaixo pode passar da ativação transitória)
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
+  // legendas (V8b): nada da partida anterior ou do menu passa para a nova, e o aria-live já fica "off" antes do
+  // primeiro quadro (uma legenda emitida nele não é anunciada por cima do início da partida)
+  clearCaptions();
+  captionsFrame(true);
   init();
   // nenhum passo da simulação antes dos personagens (D-45): o botão fica em "carregando…" na espera
   await gate.wait();
@@ -115,10 +121,18 @@ async function start() {
 setupInput(() => (playing ? G : undefined));
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
+setupCaptions();
+setupBottomLayout();
+/** gancho de teste das legendas (tools/a11y/axe.mjs; só com ?debug=1): publica a legenda de um efeito como se ele
+ *  tivesse tocado em `pos` (sem `pos`, sem direção), ouvida pelo jogador com a câmera atual, e escolhe o tempo na tela */
+exposeDebugHook("__thehellCaptions", {
+  emit: (name: string, pos?: { x: number; z: number }) => getCaptionBus().emit({ name, pos: pos ?? null, ear: G?.survivors[0] ?? null, yaw: view.yaw }),
+  duration: (s: number) => getCaptionBus().setDuration(s),
+});
 startPadLoop(() => G);
 // mudo do master (D-41) na tecla da ação `mute` (remapeável, V8; padrão M), com aviso na linha de mensagens do HUD;
 // o slider de volume geral do menu de opções acompanha
-installMuteKey(window, muted => { showMessage(t(muted ? "caption.sound_muted" : "caption.sound_unmuted")); refreshVolumeSliders(); }, undefined, isMuteKey);
+installMuteKey(window, muted => { showMessage(muteMessage(muted)); refreshVolumeSliders(); }, undefined, isMuteKey);
 
 // ---------- quadro ----------
 function loop(now: number) {
@@ -143,6 +157,7 @@ function loop(now: number) {
     else if (e.type === "end") {
       save.co += e.coins; persist();
       document.exitPointerLock?.();
+      captionsFrame(false);
       showEnd(e);
     }
   }
@@ -166,6 +181,8 @@ function draw(dt: number) {
     updateSpatial(at);
     updateAudio(G, G.survivors[0].id, dt, at, view.yaw);
   }
+  // legendas de som (V8b): só esmaecer e aria-live; a lista é refeita quando o barramento avisa
+  captionsFrame(!G.over);
   hud(G, dt, view.yaw);
   if (urlRetro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);

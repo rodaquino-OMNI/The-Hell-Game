@@ -4,7 +4,7 @@
 // legenda, então a legenda nunca diz mais do que o som. A sessão Visual assina a lista e desenha no HUD; cor,
 // tamanho e posição são dela (docs/handoff/sessoes.md §2). O texto vem do i18n (chaves `caption.*`, GDD-v0.3 §12.5).
 // Direção: setor de `ui.threat_sectors` relativo à câmera (GDD-v0.3 §12.1), pela função da seta de ameaça
-// (hud/threat.ts `relativeSector`), sem geometria duplicada; null = som sem posição (do próprio jogador ou da UI).
+// (geom/sector.ts `relativeSector`), sem geometria duplicada; null = som sem posição (do próprio jogador ou da UI).
 // Regras: duração, limite de simultâneas (a nova derruba a de menor prioridade e mais antiga, se a sua for maior ou
 // igual), fusão da mesma chave (mesma direção, ou dentro de `merge_window`) e estado inicial da opção: data/balance.yaml
 // `audio.captions`. Prioridade = `audio.voice_priority` do `kind` do efeito (audio.sfx).
@@ -16,14 +16,14 @@
 // Sem legenda de propósito: o batimento, porque a seta de ameaça do HUD (GDD-v0.3 §12.1) já mostra o setor do
 // caçador a < ui.threat_radius, e legendar cada batida repetiria a informação; respiração, zumbido, passos do próprio
 // jogador e bipes de UI, que são retorno da própria ação (ver o comentário de `audio.captions.effects`).
-// `relativeSector` fica importado de hud/threat.ts (arquivo da Visual); movê-lo para um módulo comum é sugestão à Visual.
+// `relativeSector` vem do módulo neutro geom/sector.ts (o mesmo da seta de ameaça, hud/threat.ts).
 // Opções do menu, no localStorage com try/catch: liga/desliga (`thehell.audio.captions`; padrão ligado, D-39) e
 // duração na tela (`thehell.audio.captions.duration`; só valores de `audio.captions.durations`, padrão 3 s, D-40).
 // Desligada, nada é publicado.
 import type { Balance } from "@thehell/shared";
 import type { Vec } from "@thehell/sim";
 import { balance } from "../data.ts";
-import { relativeSector } from "../hud/threat.ts";
+import { relativeSector } from "../geom/sector.ts";
 import { t } from "../i18n/index.ts";
 
 /**
