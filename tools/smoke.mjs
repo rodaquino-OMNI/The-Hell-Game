@@ -30,9 +30,11 @@ const EPS = 1e-6;
 /**
  * tempo simulado mínimo com a tecla apertada em cada fase (s; parâmetros do teste, não números de jogo): em W, 1,5 s
  * a 4 m/s passa dos 4,05 m livres e prova o contato com a parede; em A, o deslocamento livre prova a velocidade.
- * HOLD_REAL_MS é o limite em tempo real para máquinas carregadas (a simulação corre mais devagar que o relógio).
+ * HOLD_REAL_MS é o limite em tempo real para máquinas carregadas: quadro acima de client.max_frame_dt descarta o
+ * excesso (packages/client/src/loop.ts), então sob carga a simulação corre bem mais devagar que o relógio (medido:
+ * 1 s simulado em 20 s reais com carga ~16). Só prova que a simulação anda; a conferência de movimento é exata.
  */
-const HOLD_SIM = 1.5, HOLD_REAL_MS = 20000;
+const HOLD_SIM = 1.5, HOLD_REAL_MS = 60000;
 /** ganchos globais que as ferramentas usam (packages/client/src/debug-hooks.ts); __thehellView só existe com ?retro=1 */
 const DEBUG_HOOKS = ["__thehell", "__thehellRender", "__thehellCharactersReady", "__thehellAudio"];
 /**
@@ -72,6 +74,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, locale: "pt-BR" });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
+  // queda do renderizador (p.ex. morto por falta de memória na máquina): falha com causa explícita, sem repetir
+  page.on("crash", () => fail("o processo da página do Chromium caiu (falta de memória na máquina?)"));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   const hooks = () => page.evaluate(() => Object.keys(window).filter(k => k.startsWith("__thehell")).sort());
   await page.goto(url, { waitUntil: "load" });
