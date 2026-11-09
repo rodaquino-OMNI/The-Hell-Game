@@ -25,6 +25,8 @@
 // ATUALIZAR A LINHA DE BASE é um PR explícito: rode `pnpm sim:check` antes (relatório "antes"), `pnpm sim:baseline`,
 // `pnpm sim:check` de novo (relatório "depois") e anexe as duas tabelas e a justificativa ao PR. Se o comportamento
 // mudou de natureza (ex.: bots competentes do R4), meça o ruído de novo com --noise=10 e revise `sim.regression`.
+// O PR que muda o comportamento da partida (R4, R7-mapas, MJ-B) regrava a base NELE MESMO; senão o sim:check dele
+// fica vermelho. Mapa novo em data/maps também exige base regravada: `metaMismatch` reprova lote diferente da base.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";

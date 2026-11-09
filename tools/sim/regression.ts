@@ -91,7 +91,7 @@ export const POOLED = "/all";
 
 /** tolerância da regra para o grupo */
 export function toleranceFor(group: string, rule: Rule): number | null {
-  return group.endsWith(POOLED) ? rule.pooled_max_worsening ?? rule.max_worsening : rule.max_worsening;
+  return group.endsWith(POOLED) ? (rule.pooled_max_worsening !== undefined ? rule.pooled_max_worsening : rule.max_worsening) : rule.max_worsening;
 }
 
 /** compara uma métrica de um grupo */

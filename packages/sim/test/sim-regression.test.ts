@@ -85,6 +85,8 @@ describe("comparação de uma métrica", () => {
     expect(R.toleranceFor("p/all", band)).toBe(0.02);
     expect(R.toleranceFor("p/hard", band)).toBe(0.05);
     expect(R.toleranceFor("p/all", higher)).toBe(0.1);
+    // pooled_max_worsening: null = "a medir" no agregado; não herda o valor por dificuldade
+    expect(R.toleranceFor("p/all", { ...higher, max_worsening: 0.1, pooled_max_worsening: null })).toBeNull();
     // piora de 0,03: tolerada numa dificuldade, reprovada no agregado
     expect(R.compareMetric("p/hard", "hunter_win", band, g({ hunter_win: 0.5 }), g({ hunter_win: 0.58 })).status).toBe("piora tolerada");
     expect(R.compareMetric("p/all", "hunter_win", band, g({ hunter_win: 0.5 }), g({ hunter_win: 0.58 })).status).toBe("PIORA");
