@@ -61,6 +61,18 @@ describe("contorno do caçador (D-18; Art Bible §5.3)", () => {
     expect(() => parseBalance(bad)).toThrow();
   });
 
+  it("preset_scale (D-54): fator > 0 em cada preset, medium 1; preset faltando ou fator 0 é recusado", () => {
+    expect(Object.keys(r.hunter_outline.preset_scale).sort()).toEqual(Object.keys(r.presets).sort());
+    for (const v of Object.values(r.hunter_outline.preset_scale)) expect(v).toBeGreaterThan(0);
+    expect(r.hunter_outline.preset_scale.medium).toBe(1);
+    const zero = yaml.replace(/(preset_scale: \{low: )[\d.]+/, "$10");
+    expect(zero).not.toBe(yaml);
+    expect(() => parseBalance(zero)).toThrow();
+    const missing = yaml.replace(/(preset_scale: \{low: [\d.]+, )medium: [\d.]+, /, "$1");
+    expect(missing).not.toBe(yaml);
+    expect(() => parseBalance(missing)).toThrow();
+  });
+
   it("intensidade fora de 0..1 e cor que não é token são recusadas", () => {
     expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: )[\d.]+/, "$11.5"))).toThrow();
     expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: [\d.]+, color: )[a-z_.]+/, "$1\"#5a5e66\""))).toThrow();

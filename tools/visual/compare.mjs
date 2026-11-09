@@ -458,7 +458,7 @@ try {
   {
     const lg = balance.render.legibility;
     const probe = async (o) => {
-      const r = await med.evaluate(([LEG, o, a0, outline0]) => {
+      const r = await (o.page ?? med).evaluate(([LEG, o, a0, outline0]) => {
         const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
         h.setPreset(h.info().preset);
         h.setLayerA(o.layerA ?? a0);
@@ -469,7 +469,7 @@ try {
         H.a = Math.atan2(P.x - H.x, P.z - H.z);
         H.windup = o.windup ? { kind: "melee", t: 0, total: 0.4 } : null;
         return h.capture(LEG.view, { hidden: o.hidden ?? [], flat: o.flat ?? [] });
-      }, [o.leg ?? LEG, o, layerADefaults, outlineDefault]);
+      }, [o.leg ?? LEG, { ...o, page: undefined }, layerADefaults, outlineDefault]);
       return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")) };
     };
     const lum = (p, i) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(p[i]) + 0.7152 * f(p[i + 1]) + 0.0722 * f(p[i + 2]); };
@@ -501,6 +501,21 @@ try {
     if (cbRim.cr < lg.body_keep * cbRim0.cr) fail(`legibilidade: a camada A tira contraste do caçador com o contorno (${cbRim.cr.toFixed(2)} < ${lg.body_keep} × ${cbRim0.cr.toFixed(2)}; D-38)`);
     if (cbRim.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador fora do cone com contraste ${cbRim.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
     if (ci.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador dentro do cone com contraste ${ci.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
+    // D-54 (Art Bible §5.3): o mesmo mínimo nos outros presets, 3ª pessoa, fora (LEG) e dentro (LEG_IN) do cone, com
+    // as camadas do preset e o contorno × render.hunter_outline.preset_scale (no low, sem camada B, "dentro" é só o
+    // ângulo da cena). O medium é a conta acima
+    for (const preset of Object.keys(balance.render.presets).filter(p => p !== "medium")) {
+      const page = pages[preset].page, k = balance.render.hunter_outline.preset_scale[preset];
+      const cs = [];
+      for (const [where, leg] of [["fora", LEG], ["dentro", LEG_IN]]) {
+        const pbg = await probe({ page, leg, hidden: ["hunter"] }), pflat = await probe({ page, leg, flat: ["hunter"] });
+        const c = contrast(pflat, pbg, await probe({ page, leg }), pbg);
+        cs.push(`${where} do cone ${fmt(c)}`);
+        if (!c.n) fail(`legibilidade (${preset}): caçador fora da cena de prova ${where} do cone`);
+        if (c.cr < lg.min_contrast) fail(`legibilidade (${preset}): corpo do caçador ${where} do cone com contraste ${c.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-54, render.hunter_outline.preset_scale.${preset} = ${k})`);
+      }
+      console.log(`legibilidade D-54 (${preset}, contorno ${outlineDefault} × preset_scale ${k}): ${cs.join("; ")}`);
+    }
     // olhos e feixe: os pixels do objeto vêm de capturas sem bloom (o halo não entra na média); a luminância, das
     // capturas com a camada A completa
     const noBloom = { ...layerADefaults, bloom: 0 };
@@ -539,7 +554,7 @@ try {
       };
       const rbg = await shot({ hidden: ["hunter"] }), rflat = await shot({ flat: ["hunter"] });
       const cr = contrast(rflat, rbg, await shot({}), rbg), cr0 = contrast(rflat, rbg, await shot({ outline: 0 }), rbg);
-      console.log(`legibilidade Retro 1ª pessoa (${preset}, contorno ${outlineDefault} × retro_scale ${ho.retro_scale}): fora do cone ${fmt(cr)}, sem contorno ${cr0.cr.toFixed(2)}:1`);
+      console.log(`legibilidade Retro 1ª pessoa (${preset}, contorno ${outlineDefault} × preset_scale ${ho.preset_scale[preset]} × retro_scale ${ho.retro_scale}): fora do cone ${fmt(cr)}, sem contorno ${cr0.cr.toFixed(2)}:1`);
       if (!cr.n) fail(`legibilidade Retro (${preset}): caçador fora da cena de prova`);
       if (cr.cr < lg.min_contrast) fail(`legibilidade Retro (${preset}): corpo do caçador fora do cone em 1ª pessoa com contraste ${cr.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (issue #48, render.hunter_outline.retro_scale)`);
       if (g.errors.length) fail(`erros no console (Retro ${preset}): ${g.errors.join(" | ")}`);

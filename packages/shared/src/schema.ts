@@ -321,9 +321,14 @@ const render = z.object({
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   /**
    * D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token;
-   * retro_scale (issue #48, 3b) = fator de 0 a 1 sobre a intensidade só no modo Retro em 1ª pessoa
+   * retro_scale (issue #48, 3b) = fator de 0 a 1 sobre a intensidade só no modo Retro em 1ª pessoa;
+   * preset_scale (D-54; Art Bible §5.3) = fator por preset sobre a intensidade escolhida (> 1 alarga a borda; a cor
+   * continua limitada a token × amount no shader)
    */
-  hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive(), retro_scale: unit }).strict(),
+  hunter_outline: z.object({
+    intensity: unit, color: token, amount: pos, power: num.positive(), retro_scale: unit,
+    preset_scale: z.object({ low: num.positive(), medium: num.positive(), high: num.positive() }).strict(),
+  }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({
