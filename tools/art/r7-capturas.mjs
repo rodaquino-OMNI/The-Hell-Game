@@ -15,6 +15,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { SEED, gotoPaused } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -22,8 +23,8 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const out = process.argv[2];
 if (!out) { console.error("uso: node tools/art/r7-capturas.mjs <pasta de saída> [url]"); process.exit(2); }
 mkdirSync(out, { recursive: true });
-/** semente cuja partida v1 com as flags sorteia a saída lateral (layout exit 1; conferido abaixo) */
-const SEED = 1234;
+// SEED vem de tools/lib/capture-page.mjs: com o v1 e as flags ela sorteia a saída lateral (layout exit 1; conferido
+// abaixo). As regras ficam aqui (v1 + map_flags), não em RULES do helper (protótipo).
 const QUERY = `debug=1&ruleset=v1&map_flags=short_loop_pillars,side_exit&seed=${SEED}&preset=medium`;
 const W = Math.PI / 2;
 /** cenas: posição do jogador (x, z) e vista (yaw: 0 = norte, π/2 = oeste, π = sul) */
@@ -49,9 +50,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: "pt-BR" });
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?${QUERY}`, { waitUntil: "load" });
-  await page.clock.pauseAt(1000);
+  // relógio instalado e pausado antes do goto, fase fixada depois (tools/lib/capture-page.mjs)
+  await gotoPaused(page, `${url}/?${QUERY}`);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
   const arena = await page.evaluate(() => window.__thehell().arena);

@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { RULES, SEED } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -23,7 +24,6 @@ const shotsDir = shotsIdx >= 0 ? args[shotsIdx + 1] : undefined;
 let url = args.find((a, i) => a.startsWith("http") && i !== shotsIdx + 1);
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
 const T = JSON.parse(readFileSync(join(root, "packages/client/src/i18n/locales/pt-BR.json"), "utf8"));
-const SEED = 1234;
 /** dificuldade escolhida no teste: a 3ª da tabela (Difícil), diferente do padrão dos dados */
 const PICK = Object.keys(balance.difficulty_table)[2];
 /** tempo de jogo (s de simulação) antes de encerrar a partida pelo gancho */
@@ -135,7 +135,7 @@ try {
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim.png") });
 
   // ---------- protótipo: sem score, sem resumo ----------
-  await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype&lang=pt-BR`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}&lang=pt-BR`, { waitUntil: "load" });
   const protoNote = await page.textContent("#difm");
   check(protoNote === T["difficulty.prototype_note"], `protótipo: nota deveria ser só o aviso, veio "${protoNote}"`);
   check((await page.textContent("#goal")).includes(`(${balance.generator.gate_time} s)`), "protótipo: objetivo sem generator.gate_time");
