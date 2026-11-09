@@ -4,13 +4,16 @@
 //     botão fica em carregando (aria-busy, aria-disabled, foco mantido, aviso no #gost) e a simulação não anda
 //     (G.t = 0) enquanto o caçador não tem o modelo; quando o .glb chega a partida começa sozinha e, em todo quadro
 //     com G.t > 0, o caçador já é o modelo do .glb. No primeiro quadro do primeiro preparo (hunter.windup) os olhos
-//     estão acesos; se o diretor de áudio tocou o telegraph_<kind>, foi no mesmo quadro (mesmo G.t) do visual.
+//     estão acesos; com o diretor de áudio ligado e o caçador dentro de audio.director.hunter_audible_radius (D-37)
+//     do personagem visto, o telegraph_<kind> TEM de tocar no mesmo quadro (mesmo G.t) do visual; além do raio a
+//     ausência é aceita e registrada.
 //  2. espectro.glb com falha (route.abort): a partida começa com o modelo de reserva, cujos olhos também acendem no
 //     primeiro quadro do primeiro preparo.
 // Leitura por quadro: requestAnimationFrame registrado antes do laço do jogo lê o estado deixado pelo quadro anterior
 // (simulação e sincronização das malhas do mesmo quadro). Ganchos só com ?debug=1 (D-33). Regras v1 (`?ruleset=v1`):
 // só nelas o caçador tem preparo (hunter.windup, packages/sim/src/game.ts updateHunterV1), como em tools/audio/e2e-director.mjs.
 // Uso: node tools/e2e/espera-personagens.mjs [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre)
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { setTimeout as sleep } from "node:timers/promises";
 import { startServer } from "../lib/server.mjs";
@@ -32,6 +35,10 @@ const PRESET = "low", VIEWPORT = { width: 640, height: 360 };
 const SEED = 40;
 const HUNTER_GLB = /\/models\/espectro\.glb(\?|$)/;
 
+/** raio audível do caçador (D-37), medido do personagem visto: dentro dele o telegraph sonoro é obrigatório */
+const balance = JSON.parse(readFileSync(new URL("../../packages/shared/generated/balance.json", import.meta.url), "utf8"));
+const AUDIBLE = balance.audio.director.hunter_audible_radius;
+
 const failures = [];
 const fail = (m) => { failures.push(m); console.error("FALHA:", m); };
 let url = process.argv[2], server;
@@ -46,7 +53,9 @@ function installRecorder() {
     try { st = window.__thehellRender.states(); } catch { /* partida não iniciada */ }
     if (G && st) {
       const w = G.hunter.windup;
-      window.__e2eFrames.push({ t: G.t, form: st.hunter, windup: w ? w.kind : null, eyes: st.telegraph, perf: performance.now() });
+      // distância do caçador ao personagem visto (o jogador, vivo no início: main.ts draw, cameraTarget nulo)
+      const P = G.survivors[0], dist = Math.hypot(P.x - G.hunter.x, P.z - G.hunter.z);
+      window.__e2eFrames.push({ t: G.t, form: st.hunter, windup: w ? w.kind : null, eyes: st.telegraph, dist, perf: performance.now() });
     }
     const f = window.__e2eFrames, first = f.findIndex(x => x.windup);
     if (first < 0 || f.length - first < 60) requestAnimationFrame(tick);
@@ -88,15 +97,20 @@ async function checkWindup(page, name, form) {
   const off = frames.slice(i).filter(x => x.windup && !x.eyes);
   if (off.length) fail(`${name}: ${off.length} quadro(s) com preparo e olhos apagados`);
   const plays = await page.evaluate(() => window.__thehellAudioDirector?.().plays ?? null);
-  const tele = plays?.find(p => p.name.startsWith("telegraph_"));
-  if (!plays) console.log(`${name}: diretor de áudio desligado; só o visual conferido`);
-  else if (!tele) console.log(`${name}: telegraph sonoro não tocou no primeiro preparo (caçador além de audio.director.hunter_audible_radius, D-37)`);
-  else {
-    const same = frames.find(x => Math.abs(x.t - tele.gameT) < 1e-9);
-    console.log(`${name}: ${tele.name} tocado em G.t = ${tele.gameT.toFixed(3)} s`);
-    if (!same) fail(`${name}: sem quadro gravado em G.t = ${tele.gameT} (som do telegraph)`);
-    else if (!same.eyes || same.form !== form) fail(`${name}: no quadro do som (${tele.name}) os olhos estavam ${same.eyes ? "acesos" : "apagados"} e o caçador '${same.form}'`);
+  if (!plays) { console.log(`${name}: diretor de áudio desligado; só o visual conferido`); return; }
+  // som do telegraph do primeiro preparo: mesmo G.t do primeiro quadro com o preparo e o kind dele
+  const tele = plays.find(p => p.name === `telegraph_${f.windup}` && Math.abs(p.gameT - f.t) < 1e-9);
+  if (f.dist > AUDIBLE) {
+    // D-37: além do raio o telegraph não toca; ausência aceita só aqui
+    console.log(`${name}: caçador a ${f.dist.toFixed(1)} m > ${AUDIBLE} m (audio.director.hunter_audible_radius, D-37): telegraph sonoro ${tele ? "tocou" : "não tocou (esperado)"}`);
+    return;
   }
+  if (!tele) {
+    const other = plays.filter(p => p.name.startsWith("telegraph_")).map(p => `${p.name}@${p.gameT.toFixed(3)}`).join(", ") || "nenhum";
+    fail(`${name}: caçador a ${f.dist.toFixed(1)} m ≤ ${AUDIBLE} m e sem telegraph_${f.windup} em G.t = ${f.t.toFixed(3)} s (telegraphs tocados: ${other})`);
+    return;
+  }
+  console.log(`${name}: ${tele.name} tocado em G.t = ${tele.gameT.toFixed(3)} s, no quadro do visual (caçador a ${f.dist.toFixed(1)} m ≤ ${AUDIBLE} m)`);
 }
 
 try {

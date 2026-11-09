@@ -49,6 +49,7 @@ let stress: StressScene | null = null;
 const clock = { acc: 0 };
 let last = 0;
 /** partida em curso (D-45): antes disso, na espera pelos personagens, a entrada não mexe na câmera nem na partida */
+// não volta a false no fim: a partida acabada é tratada por G.over em input.ts, e "jogar de novo" recarrega a página
 let playing = false;
 
 applyPalette(document.documentElement);
