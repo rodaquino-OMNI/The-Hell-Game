@@ -408,6 +408,23 @@ audio:
     # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
     # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
     start_lead: 0.1
+  # A-3 (tools/audio/compose.ts): composição procedural dos stems (docs/handoff/plano-audio-v5.md §2 e §4; decisão do
+  # Rodrigo, 09/11/2026: síntese PS1 pura, sem samples). Parâmetros de renderização e masterização, não de jogo.
+  compose:
+    # 8 compassos = 8 × 4 × 60 / 90 = 21,333 s; dá número inteiro de amostras a 48000 (1 024 000) e a 44100 (940 800),
+    # então o loop fecha exato também se o navegador reamostrar para 44,1 kHz. Todos os stems têm esse comprimento
+    # (o A-2 inicia os 5 juntos e troca no limite de compasso, GDD-v0.3 §11).
+    loop_bars: 8
+    # cauda renderizada depois do loop e somada no início (wrap) para release e reverb; tem de ser maior que a
+    # nota mais longa + resposta ao impulso do reverb (compose.ts confere e falha se não couber)
+    tail_bars: 2
+    # semente do PRNG próprio da composição (ruído, reverb, variações); mesma semente → mesmo PCM
+    seed: 20261109
+    sample_rate: 48000              # Hz; taxa do OfflineAudioContext e do MP3
+    bitrate_kbps: 128               # plano-audio-v5 §2: música estéreo 128 kbps (MP3, GDD-v0.3 C-13)
+    # LACUNA (GDD não define): folga (dB) abaixo de audio.true_peak_dbtp na masterização do PCM, porque a codificação
+    # MP3 sobe o pico real em alguns décimos de dB. Proposta: 0,5 dB.
+    true_peak_margin_db: 0.5
   max_voices: 32
   occlusion_lowpass_hz: 800
   loudness_lufs: -16

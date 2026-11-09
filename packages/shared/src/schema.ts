@@ -32,6 +32,11 @@ const AudioSchema = z.object({
     bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
     layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
   }).strict(),
+  /** A-3: parâmetros da composição procedural (tools/audio/compose.ts) */
+  compose: z.object({
+    loop_bars: int.positive(), tail_bars: int.positive(), seed: int.nonnegative(),
+    sample_rate: int.positive(), bitrate_kbps: int.positive(), true_peak_margin_db: pos,
+  }).strict(),
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
   loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
