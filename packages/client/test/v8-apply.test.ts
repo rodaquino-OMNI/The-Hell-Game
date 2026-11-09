@@ -57,7 +57,8 @@ describe("feixe pendente com reduzir flicker (syncGenVisual)", () => {
 });
 
 describe("atlas dos personagens no modo daltônico (atlasPaints)", () => {
-  afterEach(() => { setColorMode("normal"); PALETTE.modos_daltonico.tritanopia.tokens = {}; });
+  const tritanopia = PALETTE.modos_daltonico.tritanopia.tokens;
+  afterEach(() => { setColorMode("normal"); PALETTE.modos_daltonico.tritanopia.tokens = tritanopia; });
   const size = balance.render.models.atlas;
   it("modo normal sem skin: nada a repintar; com sobreposição: o bloco do token na cor do modo", () => {
     expect(atlasPaints({ trocas: {} }, size)).toEqual([]);

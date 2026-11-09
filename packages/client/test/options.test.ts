@@ -289,12 +289,20 @@ describe("câmera: fov e balanço", () => {
 });
 
 describe("modo daltônico: troca de tokens", () => {
-  afterEach(() => { setColorMode("normal"); PALETTE.modos_daltonico.protanopia.tokens = {}; });
-  it("as 3 entradas existem e, sem sobreposição aprovada, são iguais à paleta normal", () => {
+  const protanopia = PALETTE.modos_daltonico.protanopia.tokens;
+  afterEach(() => { setColorMode("normal"); PALETTE.modos_daltonico.protanopia.tokens = protanopia; });
+  /** paletas aprovadas na issue #57, opção (a) (GDD v0.3 §12.4; data/art/palette.json `modos_daltonico`) */
+  const APPROVED = { protanopia: {}, deuteranopia: { "class.batedor": 0xffff94 }, tritanopia: { "gen.bonus": 0xc542ff } } as const;
+  it("as 3 entradas existem; só os tokens aprovados na issue #57 mudam, os demais ficam como na paleta normal", () => {
     for (const m of ["protanopia", "deuteranopia", "tritanopia"] as const) {
       setColorMode(m);
       expect(getColorMode()).toBe(m);
-      for (const k of Object.keys(PALETTE.tokens)) { setColorMode("normal"); const n = tok(k); setColorMode(m); expect(tok(k)).toBe(n); }
+      const swaps: Record<string, number> = APPROVED[m];
+      expect(Object.keys(PALETTE.modos_daltonico[m].tokens).sort()).toEqual(Object.keys(swaps).sort());
+      for (const k of Object.keys(PALETTE.tokens)) {
+        setColorMode("normal"); const n = tok(k); setColorMode(m);
+        expect(tok(k)).toBe(swaps[k] ?? n);
+      }
     }
   });
   it("token sobreposto muda de cor só no modo; os demais ficam", () => {
