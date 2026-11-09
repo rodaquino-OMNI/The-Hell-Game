@@ -351,7 +351,15 @@ try {
     await optionsFlow(page, locale, T, pt);
 
     // ---------- partida (protótipo): começar pelo teclado, HUD, fim ----------
+    // legenda deixada no menu (como a de uma partida anterior) não pode aparecer nem ser anunciada no início da nova:
+    // start() limpa o barramento e põe aria-live "off" antes do primeiro quadro (V8b)
+    await game(page, () => window.__thehellCaptions.emit("rescue"));
     if (await tabTo(page, "go")) await page.keyboard.press("Enter");
+    const atStart = await page.evaluate((txt) => {
+      const cap = document.getElementById("cap");
+      return { live: cap.getAttribute("aria-live"), old: [...cap.querySelectorAll("li")].some(li => li.textContent.includes(txt)) };
+    }, T["caption.rescue"]);
+    if (atStart.live !== "off" || atStart.old) fail(`${locale}: início da partida com aria-live "${atStart.live}" ou legenda antiga na faixa (${atStart.old})`);
     // sem partida não há HUD para conferir: a falha já foi registrada (com o t atingido); segue para o próximo idioma
     if (!(await waitStarted(page, `${locale}/partida`))) { await ctx.close(); continue; }
     const top = await page.textContent("#top");

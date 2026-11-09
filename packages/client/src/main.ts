@@ -3,7 +3,7 @@
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
 import { createGame, drainEvents, makeConfig, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
-import { getCaptionBus } from "./audio/captions.ts";
+import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
 import { installMuteKey } from "./audio/mute.ts";
 import { updateListener, updateSpatial } from "./audio/spatial.ts";
@@ -91,6 +91,10 @@ function start() {
   hideMenu();
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
+  // legendas (V8b): nada da partida anterior ou do menu passa para a nova, e o aria-live já fica "off" antes do
+  // primeiro quadro (uma legenda emitida nele não é anunciada por cima do início da partida)
+  clearCaptions();
+  captionsFrame(true);
   init();
   clock.acc = 0;
   last = performance.now();
