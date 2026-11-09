@@ -40,7 +40,7 @@ const TELEGRAPH_CAPTION_KEYS = Object.entries(audio.captions.effects).filter(([n
 const INITIAL_MAX_BYTES = 15e6;
 
 /** esperas máximas (ms; ferramenta, não jogo): folga para máquina carregada */
-const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500, MODELS_WAIT_MS = 15000;
+const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500, MODELS_WAIT_MS = 15000, TARGET_WAIT_MS = 2000;
 /** fração do alcance do golpe (hunter.melee.range) em que o caçador é posto ao lado do jogador */
 const MELEE_FRACTION = 0.5;
 /** fração do raio de tensão (audio.music.tension_radius) para a 1ª aproximação */
@@ -212,14 +212,13 @@ try {
   // entre os sobreviventes livres: pode preferir um bot e sair andando. Para o teste medir o telegraph (e não a
   // escolha de alvo, que é da Frente R), o jogador fica como único alvo: os bots saem da partida (`st = "dead"`,
   // percept.ts e updateHunterAi só olham `st === "ok"`; o fim da partida v1 exige todos terminais, match.ts, e o
-  // jogador segue "ok"). A memória da IA é limpa junto: com o alvo morto, think() não o vê mais, mas `ai.memory`
-  // manteria a perseguição até a última posição dele (D-35, `chaseMemoryGoal`), longe do jogador. Com o cérebro
-  // `basic` (sem `hunter.ai`) só os bots saem.
+  // jogador segue "ok"). Só campos públicos do estado são tocados (st, revealed, x/z/a do caçador): com os bots
+  // mortos e o jogador revelado, percept.ts o entrega mesmo fora do cone e chooseTarget reescreve target/memória da IA
+  // sozinho (revisão do simulacao, Frente R). Os bots saem sem kill(): não há "died" nem creditHunter("kill"), então
+  // pontuação e fim desta partida não são dado do teste.
   const soloPlayer = () => page.evaluate(() => {
-    const g = window.__thehell(), ai = g.hunter.ai;
+    const g = window.__thehell();
     for (const s of g.survivors) if (s.bot) s.st = "dead";
-    if (ai) { ai.target = -1; ai.score = 0; ai.memory = null; ai.loop = null; ai.intercept = null; }
-    g.hunter.target = -1;
   });
   // põe o caçador a k m do jogador, de frente para ele (convenção de yaw da simulação: `a` olha para (−sen a, −cos a),
   // perception.ts `inCone`), e mantém o jogador revelado por `hunter.reveal.duration` (o efeito da revelação
@@ -238,6 +237,16 @@ try {
   const playsBefore = (await hook()).plays.length;
   const frameBefore = (await hook()).frame;
   await soloPlayer();
+  // checagem por resultado contra no-op silencioso (campo renomeado, gancho mudado): antes de esperar o som, a IA tem
+  // de ter escolhido o jogador (`hunter.target`, game.ts nos dois cérebros). Separa falha de preparo de falha de áudio
+  const playerId = await page.evaluate(() => window.__thehell().survivors[0].id);
+  let chosen = false;
+  for (const end = Date.now() + TARGET_WAIT_MS; !chosen && Date.now() < end;) {
+    await aim(hunter.melee.range * MELEE_FRACTION, hunter.reveal.duration);
+    await page.waitForTimeout(50);
+    chosen = await page.evaluate(id => window.__thehell().hunter.target === id, playerId);
+  }
+  if (!chosen) await fail("IA não escolheu o jogador: " + JSON.stringify(await page.evaluate(() => { const H = window.__thehell().hunter; return { target: H.target, mode: H.ai?.mode ?? null, windup: H.windup }; })));
   let tele = null, h2 = null;
   for (const end = Date.now() + TELEGRAPH_WAIT_MS; !tele && Date.now() < end;) {
     // a IA anda e gira entre as leituras: recoloca no alcance e de frente até surgir o preparo
