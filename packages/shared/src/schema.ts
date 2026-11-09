@@ -11,6 +11,21 @@ const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
 
+/** etapas do Treino, na ordem do GDD-v0.3 §12.3 (mover, gerador, quebra-cabeça, resgate, habilidade) */
+export const TUTORIAL_STEPS = ["move", "generator", "puzzle", "rescue", "ability"] as const;
+
+/** GDD-v0.3 §12.3 (Treino com bot passivo); D-34: modo tutorial da simulação exposto em dados */
+const TutorialSchema = z.object({
+  steps: z.array(z.enum(TUTORIAL_STEPS)).min(1).refine(s => new Set(s).size === s.length, "tutorial.steps: etapa repetida"),
+  hunter: z.literal("idle"),
+  team_size: z.number().int().min(2),
+  move: z.object({ on: z.literal("distance"), distance: num.positive() }).strict(),
+  generator: z.object({ on: z.literal("puzzle_open") }).strict(),
+  puzzle: z.object({ on: z.literal("puzzle_ok"), count: z.number().int().positive() }).strict(),
+  rescue: z.object({ on: z.literal("rescued") }).strict(),
+  ability: z.object({ on: z.literal("ability_used") }).strict(),
+}).strict();
+
 /** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
 const UiSchema = z.object({
   threat_radius: pos.positive(), threat_sectors: z.number().int().min(4),
@@ -491,6 +506,7 @@ export const BalanceSchema = z.object({
   render,
   audio: AudioSchema,
   ui: UiSchema,
+  tutorial: TutorialSchema,
   net: z.record(z.string(), z.unknown()),
   sim: SimSchema,
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
