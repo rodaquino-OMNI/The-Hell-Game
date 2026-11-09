@@ -65,6 +65,11 @@ const AudioSchema = z.object({
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
   loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
+  /** A-7: pasta da música (relativa a public/) e licenças aceitas no creditos.csv (tools/audio/loudness.mjs) */
+  loudness_check: z.object({
+    music_dir: z.string().regex(/^audio\/[a-z0-9_/-]+[a-z0-9_-]$/, "music_dir relativo a public/, dentro de audio/"),
+    licenses: z.array(z.string().min(1)).min(1).refine(a => new Set(a).size === a.length, "licenças repetidas"),
+  }).strict(),
   ducking_db: z.number().max(0),
   buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
   volume_ramp_tc: pos.positive(), volume_persist_delay: pos,

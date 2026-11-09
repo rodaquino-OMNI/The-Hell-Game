@@ -26,6 +26,11 @@ jobs:
         run: |
           if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
           ffmpeg -version | head -1
+      - name: "Áudio: loudness da música (−16 LUFS ±1, ≤ −1 dBTP) e créditos (A-7)"
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+          node tools/audio/loudness.mjs
+          node tools/audio/loudness.mjs --credits
       - name: Testes com cobertura (sim ≥ 90%)
         run: pnpm coverage
       - name: Paleta (contraste e daltonismo)

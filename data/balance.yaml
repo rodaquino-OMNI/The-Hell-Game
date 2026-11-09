@@ -493,6 +493,16 @@ audio:
   loudness_lufs: -16
   loudness_tolerance: 1
   true_peak_dbtp: -1
+  # A-7 (tools/audio/loudness.mjs, passo da CI): o que conta como música e quais licenças o creditos.csv aceita.
+  # GDD-v0.3 §11 (linha "Mixagem"): a meta de LUFS vale para "todos os arquivos de música"; arquivos de
+  # packages/client/public/audio fora de music_dir são efeitos. LACUNA (GDD não define meta de LUFS para efeitos):
+  # efeitos só passam pelo pico real (true_peak_dbtp).
+  loudness_check:
+    music_dir: audio/music          # relativo a packages/client/public/, como a coluna `arquivo` do creditos.csv
+    # docs/handoff/plano-fases-1-2.md §3, regra 5: "Assets só CC0 ou de licença aberta compatível". Lista aberta:
+    # acrescentar aqui (com a fonte da licença) antes de usar um arquivo com licença nova. Grafia igual à da coluna
+    # `licenca` do creditos.csv.
+    licenses: ["CC0 1.0", "CC-BY 4.0", "MIT"]
   ducking_db: -8
   # A-1 (engine.ts): volume padrão de cada barramento, ganho LINEAR 0–1 aplicado direto no GainNode (0 = mudo,
   # 1 = sem atenuação). Linear e não dB porque é o valor que o slider mostra e o GainNode recebe, e 0 representa o
