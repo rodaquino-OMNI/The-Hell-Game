@@ -7,7 +7,7 @@ import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts"
 import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
-import { canSee } from "./perception.ts";
+import { canSee, lineOfSight } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
 import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
 import {
@@ -461,13 +461,14 @@ function updateHunterV1(cfg: SimConfig, g: GameState, dt: number) {
       g.projectiles.push({ id: g.nextId++, x: H.x, z: H.z, vx: ((aim.x - H.x) / k) * h.projectile.speed, vz: ((aim.z - H.z) / k) * h.projectile.speed, t: px.projectile_life });
       return;
     }
-    // o golpe sai no fim do preparo e só acerta se o alvo ainda estiver no alcance; recarga gasta mesmo errando
+    // o golpe sai no fim do preparo e só acerta se o alvo ainda estiver no alcance e com linha de visão (D-50);
+    // recarga gasta mesmo errando
     H.atk = cfg.meleeCooldown;
-    if (c && d(c) < h.melee.range) {
+    if (c && d(c) < h.melee.range && lineOfSight(cfg.map, H, c)) {
       hit(cfg, g, c, g.gateStarted ? h.melee.damage_final : h.melee.damage, "melee");
       H.recoil = h.melee.recoil;
     }
-  } else if (c && d(c) < h.melee.range && H.atk <= 0) {
+  } else if (c && d(c) < h.melee.range && H.atk <= 0 && lineOfSight(cfg.map, H, c)) {
     H.windup = { kind: "melee", t: h.telegraph_min, total: h.telegraph_min };
   }
 }
