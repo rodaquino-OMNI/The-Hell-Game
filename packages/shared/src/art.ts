@@ -23,7 +23,18 @@ export const PaletteSchema = z.object({
   version: z.string(),
   tokens: z.record(token, z.object({ rgb5: z.tuple([rgb5, rgb5, rgb5]), uso: z.string().optional(), forma: z.string().optional(), padrao: z.string().optional() }).strict()),
   tests: z.record(z.string(), z.unknown()),
+  /**
+   * modo daltônico (GDD v0.3 §12.4: "3 paletas, troca de tokens"; Art Bible §5.2): cada modo sobrepõe a cor de
+   * alguns tokens (os ausentes ficam como na paleta normal). Cada modo tem que passar no mesmo palette-check.
+   */
+  modos_daltonico: z.object({
+    // as mesmas 3 chaves de COLOR_MODES (color-modes.ts)
+    protanopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
+    deuteranopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
+    tritanopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
+  }).strict(),
 });
+
 export type PaletteData = z.infer<typeof PaletteSchema>;
 
 // ---------- ficha dos personagens ----------
@@ -168,6 +179,9 @@ export function checkArt(palette: PaletteData, sheet: Sheet, skinIds: string[]):
     if (c.tipo === "sobrevivente" && !c.acessorio) errs.push(`${c.id}: sobrevivente sem ponto de acessório de skin`);
   }
   for (const t of sheet.skins.slots) if (!has(t)) errs.push(`skins.slots: '${t}' não é token`);
+  for (const [m, def] of Object.entries(palette.modos_daltonico)) {
+    for (const t of Object.keys(def.tokens)) if (!has(t)) errs.push(`modos_daltonico.${m}: '${t}' não é token`);
+  }
   for (const [id, s] of Object.entries(sheet.skins.lista)) {
     for (const [from, to] of Object.entries(s.trocas)) {
       if (!slots.has(from)) errs.push(`skin ${id}: '${from}' não é cor secundária trocável (skins.slots)`);

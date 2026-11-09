@@ -59,6 +59,28 @@ try {
   check(bs.length === Object.keys(balance.difficulty_table).length, `seletor com ${bs.length} níveis`);
   check(bs.find(b => b[1] === "true")?.[0] === balance.difficulty, `padrão marcado: ${JSON.stringify(bs)}`);
   check(bs.map(b => b[2]).join() === ["easy", "normal", "hard", "nightmare"].map(d => T[`difficulty.${d}`]).join(), `nomes: ${bs.map(b => b[2])}`);
+  // só pelo gamepad (navigator.getGamepads simulado, como em tools/a11y/axe.mjs): direcional até o último nível, A marca
+  const LAST = Object.keys(balance.difficulty_table).at(-1);
+  const m = balance.ui.controls.gamepad.menu;
+  await page.evaluate(() => {
+    const pad = { connected: true, mapping: "standard", id: "simulado", index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+    window.dispatchEvent(new Event("gamepadconnected"));
+    document.activeElement?.blur();
+  });
+  const frames = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  const press = async (i) => {
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: true, value: 1 }; }, i); await frames();
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: false, value: 0 }; }, i); await frames();
+  };
+  const onLevel = (d) => page.evaluate((x) => document.activeElement?.dataset?.d === x, d);
+  for (let k = 0; k < 40 && !(await onLevel(LAST)); k++) await press(m.down);
+  check(await onLevel(LAST), `gamepad: direcional não chegou no botão ${LAST}`);
+  await press(m.confirm);
+  bs = await pressed();
+  check(bs.find(b => b[1] === "true")?.[0] === LAST, `gamepad: A não marcou ${LAST}: ${JSON.stringify(bs)}`);
+
   await page.focus("body");
   let reached = false;
   for (let i = 0; i < 40 && !reached; i++) {

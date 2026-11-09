@@ -1,6 +1,6 @@
 {
   "$comment": "Paleta THE HELL — fonte única dos tokens de cor (Art Bible §2). Valores em 5 bits por canal (0–31) = cor de 15 bits do PS1 (GDD-v0.2 §10.1). O hex é derivado (round(v*255/31)). Verificação: node tools/art/palette-check.mjs",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "$comment_v3": "V3 (F2-03): tokens char.*, hunter.olhos_preparo, hunter.farrapos, world.gerador*, world.portao, world.gaiola, fx.armadilha e light.* são secundárias de personagem, mundo e luzes; nenhuma é cor dominante (as dominantes aprovadas no marco A1 não mudaram). skin.<id>.a = calça, skin.<id>.b = sapatos e acessório (GDD-v0.2 §10.3: 'Skins por troca de paleta e acessórios'; Art Bible §3 e §7).",
   "tokens": {
     "ui.bg":            { "rgb5": [2, 2, 3],    "uso": "fundo de menus" },
@@ -114,5 +114,10 @@
       "skins_classe": { "tokens": ["skin.*"], "contra": ["class.*"], "visoes": ["normal"], "$comment": "só visão normal: para quem tem daltonismo a classe se lê pela forma (Art Bible §1.2)" },
       "industrial_estado": { "tokens": ["world.industrial.faixa", "world.industrial.tubo"], "contra": ["gen.*", "fx.preso", "fx.ameaca", "hunter.olhos", "hunter.olhos_preparo"], "$comment": "D-13/D-15: a faixa âmbar e a luminária do preset industrial não podem ser lidas como feixe de gerador, preso, ameaça ou olhos (Art Bible §4)" }
     }
+  },
+  "modos_daltonico": {
+    "protanopia":   { "$comment": "LACUNA (Art Bible §5.2 pede 3 paletas e não define os valores; decisão de design visual do filho do Rodrigo). Sem sobreposição = igual à paleta normal até a aprovação.", "tokens": {} },
+    "deuteranopia": { "$comment": "LACUNA (ver protanopia).", "tokens": {} },
+    "tritanopia":   { "$comment": "LACUNA (ver protanopia).", "tokens": {} }
   }
 }

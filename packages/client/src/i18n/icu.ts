@@ -53,14 +53,15 @@ export function parse(src: string): Node[] {
   }
 
   function options(kind: "plural" | "select", inPlural: boolean): Record<string, Node[]> {
-    const opts: Record<string, Node[]> = {};
+    // sem protótipo: um seletor de select como "constructor" ou "toString" não colide com Object.prototype
+    const opts: Record<string, Node[]> = Object.create(null);
     ws();
     while (i < src.length && src[i] !== "}") {
       const key = word();
       if (!key) fail("seletor vazio");
       if (kind === "plural" && !/^(=\d+|zero|one|two|few|many|other)$/.test(key)) fail(`seletor de plural inválido "${key}"`);
       if (kind === "select" && !ID.test(key)) fail(`seletor de select inválido "${key}"`);
-      if (key in opts) fail(`seletor repetido "${key}"`);
+      if (Object.hasOwn(opts, key)) fail(`seletor repetido "${key}"`);
       ws();
       if (src[i] !== "{") fail(`esperava { após "${key}"`);
       i++;
@@ -69,7 +70,7 @@ export function parse(src: string): Node[] {
       i++;
       ws();
     }
-    if (!("other" in opts)) fail(`${kind} sem a opção other`);
+    if (!Object.hasOwn(opts, "other")) fail(`${kind} sem a opção other`);
     return opts;
   }
 
@@ -120,8 +121,8 @@ export function format(ast: Node[], params: Params, locale: string, pound?: numb
       out += v === undefined ? `{${n.name}}` : typeof v === "number" ? nf.format(v) : v;
     } else if (n.t === "plural") {
       const v = Number(params[n.name]);
-      const exact = n.options[`=${v}`];
-      const opt = exact ?? n.options[prFor(locale).select(v)] ?? n.options.other;
+      const own = (k: string) => (Object.hasOwn(n.options, k) ? n.options[k] : undefined);
+      const opt = own(`=${v}`) ?? own(prFor(locale).select(v)) ?? n.options.other;
       out += format(opt, params, locale, v);
     } else {
       const v = String(params[n.name]);

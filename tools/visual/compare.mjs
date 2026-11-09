@@ -13,7 +13,8 @@
 //   - renderer.info (draw calls e triângulos) dentro de render.budgets em cada preset com as camadas dele;
 //   - camada A com intensidades em 0 = camadas desligadas (pixel a pixel); cada efeito da camada A muda a imagem;
 //   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
-//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720);
+//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720),
+//     na vista das capturas e com o caçador no cone da lanterna;
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
@@ -23,14 +24,13 @@
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
 //   --shots   grava também v1-ligado.png, v1-desligado.png e v4-patio-<preset>.png em 1280×720 com deviceScaleFactor 2
 //             (revisão humana; marco A3)
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { decodePng, encodePng } from "./png.mjs";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -92,11 +92,8 @@ const SCENES = [
 ];
 
 let server;
-if (!url) {
-  url = "http://127.0.0.1:18082";
-  server = spawn(process.execPath, [join(root, "packages/server/dist/server.mjs")], { env: { ...process.env, PORT: "18082" }, stdio: ["ignore", "ignore", "inherit"] });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 const failures = [];
 const fail = (m) => { failures.push(m); console.error("FALHA:", m); };
 
@@ -297,26 +294,41 @@ try {
   // custo das camadas (render.layer_cost_factor): preset médio, 1280×720 (escala 3), custo síncrono por quadro
   // (hook bench: readPixels de 1 pixel a cada quadro) com A+B e sem camadas, em pares; vale a mediana das razões.
   // Mede o tempo de CPU do processo de GPU do Chromium (o SwiftShader rasteriza na CPU): bem menos sensível à carga
-  // da máquina que o relógio de parede, que fica como reserva fora do Linux
+  // da máquina que o relógio de parede, que fica como reserva fora do Linux.
+  // V7 (revisões do V4 e do cajado: o teto fica perto do pior valor medido): 21 pares de 32 quadros, mínimo, máximo e
+  // p90 no log, e duas vistas: a das capturas e o caçador dentro do cone da lanterna (pior caso: ele entra no passe de
+  // sombra), na vista da prova de legibilidade com o caçador a LEG.distance m bem à frente. Sem repetir na falha
   {
     const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
     const NONE_L = { A: false, B: false, C: false };
     const AB = { A: true, B: true, C: false };
-    const FRAMES = 16, ROUNDS = 11;
+    const FRAMES = 32, ROUNDS = 21;
     const gpu = gpuProcesses();
     const clock = gpu.length ? () => cpuMs(gpu) : () => performance.now();
-    const run = async (layers) => {
-      await cost.page.evaluate(([l, view, a]) => { const h = window.__thehellRender; h.setLayers(l); h.setLayerA(a); h.bench(view, 2); }, [layers, VIEW, layerADefaults]);
+    const run = async (layers, view) => {
+      await cost.page.evaluate(([l, view, a]) => { const h = window.__thehellRender; h.setLayers(l); h.setLayerA(a); h.bench(view, 2); }, [layers, view, layerADefaults]);
       const t0 = clock();
-      await cost.page.evaluate(([view, n]) => window.__thehellRender.bench(view, n), [VIEW, FRAMES]);
+      await cost.page.evaluate(([view, n]) => window.__thehellRender.bench(view, n), [view, FRAMES]);
       return (clock() - t0) / FRAMES;
     };
-    // rodadas pareadas (sem camadas, A+B): a razão de cada par cancela a variação lenta de carga; vale a mediana
-    const none = [], ab = [], ratio = [];
-    for (let r = 0; r < ROUNDS; r++) { none.push(await run(NONE_L)); ab.push(await run(AB)); ratio.push(ab[r] / none[r]); }
-    const med = (v) => [...v].sort((x, y) => x - y)[v.length >> 1], k = balance.render.layer_cost_factor;
-    console.log(`custo (medium, 1280×720, ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}): sem camadas ${med(none).toFixed(1)} ms, A+B ${med(ab).toFixed(1)} ms por quadro (medianas); razão pareada ${med(ratio).toFixed(2)}× (teto ${k}×)`);
-    if (med(ratio) > k) fail(`camadas A+B custam ${med(ratio).toFixed(2)}× o preset sem camadas (teto ${k}×)`);
+    const sorted = (v) => [...v].sort((x, y) => x - y);
+    const med = (v) => sorted(v)[v.length >> 1], p90 = (v) => sorted(v)[Math.ceil(0.9 * v.length) - 1], k = balance.render.layer_cost_factor;
+    const VIEWS = [{ name: "capturas", view: VIEW }, { name: "caçador no cone", view: LEG.view, cone: true }];
+    for (const v of VIEWS) {
+      if (v.cone) {
+        await cost.page.evaluate(([LEG]) => {
+          const G = window.__thehell(), P = G.survivors[0], H = G.hunter, a = LEG.view.yaw;
+          H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
+          H.a = Math.atan2(P.x - H.x, P.z - H.z);
+        }, [LEG]);
+      }
+      // rodadas pareadas (sem camadas, A+B): a razão de cada par cancela a variação lenta de carga; vale a mediana
+      const none = [], ab = [], ratio = [];
+      for (let r = 0; r < ROUNDS; r++) { none.push(await run(NONE_L, v.view)); ab.push(await run(AB, v.view)); ratio.push(ab[r] / none[r]); }
+      const rs = sorted(ratio);
+      console.log(`custo (medium, 1280×720, vista ${v.name}, ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}, ${ROUNDS} pares de ${FRAMES} quadros): sem camadas ${med(none).toFixed(1)} ms, A+B ${med(ab).toFixed(1)} ms por quadro (medianas); razão pareada mediana ${med(ratio).toFixed(2)}× (mín ${rs[0].toFixed(2)}×, p90 ${p90(ratio).toFixed(2)}×, máx ${rs[rs.length - 1].toFixed(2)}×; teto ${k}× na mediana)`);
+      if (med(ratio) > k) fail(`camadas A+B custam ${med(ratio).toFixed(2)}× o preset sem camadas na vista ${v.name} (teto ${k}×)`);
+    }
     await cost.page.close();
   }
 

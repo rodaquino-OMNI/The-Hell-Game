@@ -1,7 +1,7 @@
 // Cores do jogo: só tokens de data/art/palette.json (Art Bible §2; V3, F2-03). `pnpm data` valida a paleta e a copia
 // para packages/shared/generated/palette.json; a ficha das skins vem de data/art/personagens.json (mesmo caminho).
 // Nenhuma cor fixa no código: quem precisa de cor pede um token aqui.
-import type { PaletteData, Sheet, SkinDef } from "@thehell/shared";
+import { COLOR_MODES, type ColorMode, type PaletteData, type Sheet, type SkinDef } from "@thehell/shared";
 import paletteJson from "@thehell/shared/generated/palette.json";
 import sheetJson from "@thehell/shared/generated/personagens.json";
 
@@ -10,11 +10,39 @@ const SKINS = (sheetJson as unknown as Sheet).skins;
 
 const to8 = (v: number) => Math.round((v * 255) / 31);
 
-/** cor do token (0xRRGGBB, 8 bits por canal derivados dos 5 bits: round(v·255/31), como em palette-check) */
-export function tok(name: string): number {
+/** modo de cor: "normal" ou um dos 3 modos daltônicos de `modos_daltonico` (GDD v0.3 §12.4; Art Bible §5.2) */
+export type ColorModeOption = "normal" | ColorMode;
+export const COLOR_MODE_OPTIONS: readonly ColorModeOption[] = ["normal", ...COLOR_MODES];
+let colorMode: ColorModeOption = "normal";
+let overrides: Record<string, readonly [number, number, number]> = {};
+
+/**
+ * troca de tokens do modo daltônico (V8): os tokens sobrepostos pelo modo mudam de cor; os demais ficam como na
+ * paleta normal. Vale para o que for criado depois (HUD: `applyPalette` de novo; 3D: na próxima partida).
+ */
+export function setColorMode(m: ColorModeOption) {
+  colorMode = COLOR_MODE_OPTIONS.includes(m) ? m : "normal";
+  overrides = colorMode === "normal" ? {} : PALETTE.modos_daltonico[colorMode].tokens;
+}
+export const getColorMode = () => colorMode;
+/** tokens que o modo de cor atual sobrepõe (vazio no modo normal ou sem sobreposição aprovada) */
+export const colorOverrides = (): string[] => Object.keys(overrides);
+
+/** cor do token em 5 bits por canal, já com o modo de cor atual */
+export function rgb5(name: string): readonly [number, number, number] {
   const t = PALETTE.tokens[name];
   if (!t) throw new Error(`token de cor inexistente: ${name}`);
-  const [r, g, b] = t.rgb5.map(to8);
+  return overrides[name] ?? t.rgb5;
+}
+
+/** paleta com o modo de cor atual aplicado (para quem pinta o atlas de cores, ex.: retro/viewmodel.ts) */
+export function activePalette(): { tokens: Record<string, { rgb5: readonly number[] }> } {
+  return { tokens: Object.fromEntries(Object.keys(PALETTE.tokens).map(k => [k, { rgb5: rgb5(k) }])) };
+}
+
+/** cor do token (0xRRGGBB, 8 bits por canal derivados dos 5 bits: round(v·255/31), como em palette-check) */
+export function tok(name: string): number {
+  const [r, g, b] = rgb5(name).map(to8);
   return (r << 16) | (g << 8) | b;
 }
 /** cor do token em CSS (#rrggbb) */
