@@ -129,6 +129,8 @@ try {
     if (!(across < EPS)) fail(`o jogador saiu da direção pedida (${fase}): ` + info);
     return along;
   };
+  // partida iniciada e rodando (ao menos um passo, sem fim de jogo) antes de apertar qualquer tecla de movimento
+  await page.waitForFunction(() => { const g = window.__thehell(); return !!g && g.t > 0 && !g.over; }, null, { timeout: HOLD_REAL_MS });
   const s0 = await read();
   yawZero("início", s0);
   // yaw 0 (main.ts: init) olha para −z (perception.ts: yaw a olha para (−sen a, −cos a)); A anda para −x
