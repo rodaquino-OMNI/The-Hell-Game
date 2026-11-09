@@ -976,17 +976,20 @@ net:
 # reprova). O check de 200 partidas NÃO ativa o piso no Normal (3 episódios < min_samples): só o noturno vigia
 # (2.500 partidas por dificuldade; ~64 episódios a cada 1.000 partidas no Normal, mediana 18,5 s).
 # Ao regravar a linha de base com outro comportamento (R7-mapas, R8), medir de novo e revisar estes valores no mesmo PR.
+# R7-mapas (09/11/2026, flags maps.v1 ligadas): --noise=10 sugeriu (3 × √2 × desvio máx) duration_mean 52,0 s,
+# captures 0,54, short_match agregado 0,074, chase_median 39,5 s / agregado 16,7 s, chases_per_match 0,59; os valores
+# abaixo do sugerido subiram para ele (arredondado para cima); os demais ficam (já acima do sugerido).
 sim:
   short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
   check: {matches_per_group: 50, seed: 1, difficulties: [easy, normal, hard, nightmare]}  # 200 partidas no Pátio
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
   regression:
     hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.23, pooled_max_worsening: 0.05}   # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 51, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.46, pooled_max_worsening: 0.20}     # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.19, pooled_max_worsening: 0.07}                     # §7.6: < 5%
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 52, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.55, pooled_max_worsening: 0.20}     # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.19, pooled_max_worsening: 0.08}                     # §7.6: < 5%
     # GDD-v0.3 §8.5 (aceite: mediana ≥ 15 s "contra o caçador Normal"): piso absoluto de 15 s só no Normal; com < 10
     # episódios a mediana oscila > 12 s entre lotes, então nem a tolerância nem o piso comparam o grupo.
-    chase_median:       {worse: lower, floor: 15, floor_groups: [normal], max_worsening: 39, pooled_max_worsening: 10, min_samples: 10}
+    chase_median:       {worse: lower, floor: 15, floor_groups: [normal], max_worsening: 40, pooled_max_worsening: 17, min_samples: 10}
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
-    chases_per_match:   {worse: lower, max_worsening: 0.47, pooled_max_worsening: 0.20}
+    chases_per_match:   {worse: lower, max_worsening: 0.60, pooled_max_worsening: 0.20}
