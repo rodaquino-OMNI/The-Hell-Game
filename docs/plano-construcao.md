@@ -209,6 +209,9 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-14 | a) mockup antes de construir (Rodrigo, 08/11/2026) | mini marco de arte A2b: capturas das ferramentas na mão e da barra de estado + até 4 perguntas ao filho em issue; construção só depois da aprovação |
 | D-15 | c) variante industrial do Pátio (Rodrigo, 08/11/2026) | catálogo de mapas da v1.0 inalterado (D-06); o visual industrial é variante de texturas e iluminação do Pátio, sem layout novo |
 | D-16 | a) meta pela vitória do caçador por partida (Rodrigo, 09/11/2026) | com D-01 b, a banda de 45–55% do GDD-v0.2 §7.6 vale para a vitória do caçador; a fuga por sobrevivente fica livre e é só medida (R8) |
+| D-17 | a) anunciar o MJ-A ao fechar o A2 (Rodrigo, 09/11/2026) | o A2 fecha com o cajado de mago variante (a), sem caduceu (escolha do aprovador, issue #24) |
+| D-18 | b) contorno sutil no caçador (Rodrigo, 09/11/2026) | legibilidade do caçador fora da lanterna (1,43:1 contra 3:1 da Art Bible §5.3) resolvida com contorno/borda de luz discreto, sem clarear a cena; entra na preparação do marco A3 |
+| D-19 | a) produção só no MJ-B (Rodrigo, 09/11/2026) | o MJ-A fica no staging; o deploy de produção acontece quando as regras v1 entrarem (MJ-B), com pedido explícito do Rodrigo |
 
 ## 8. Riscos principais
 
