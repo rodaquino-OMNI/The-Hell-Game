@@ -152,5 +152,7 @@
   "caption.puzzle_fail": "Faíscas: falha no gerador",
   "caption.generator_done": "Zumbido subindo: gerador concluído",
   "caption.cage": "Grade batendo: sobrevivente preso",
-  "caption.rescue": "Acorde de alívio: sobrevivente salvo"
+  "caption.rescue": "Acorde de alívio: sobrevivente salvo",
+  "caption.sound_muted": "Som mudo (M para ligar)",
+  "caption.sound_unmuted": "Som ligado (M para mudo)"
 }

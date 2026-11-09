@@ -363,3 +363,7 @@ export function updateMusic(state: GameState, playerId: number): MusicState {
 export function duckMusic(s: number) {
   director?.music?.duckFor(s);
 }
+
+/** estado da música do singleton (gancho de depuração do diretor, director.ts): estado pedido e se os stems tocam */
+export interface MusicInfo { state: MusicState | null; playing: boolean }
+export const musicInfo = (): MusicInfo => ({ state: director?.music?.state ?? null, playing: director?.music?.playing ?? false });

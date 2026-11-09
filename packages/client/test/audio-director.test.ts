@@ -48,8 +48,9 @@ function run(r: ReturnType<typeof rig>, g: GameState, secs: number, each?: (g: G
 const named = (c: Call[], n: string) => c.filter(x => x.name === n);
 
 describe("audio/director: flag e eventos (A-5)", () => {
-  it("audio.director_enabled false (padrão, D-32): updateAudio e audioEvents não fazem nada", () => {
-    expect(directorEnabled()).toBe(false);
+  it("audio.director_enabled false (D-32; ligado em main pela D-41): o diretor não faz nada", () => {
+    // o singleton segue a flag em dados; sem AudioContext (Node) não lança, ligado ou não
+    expect(directorEnabled()).toBe(bal.audio.director_enabled);
     const g = state();
     g.hunter.windup = { kind: "dash", t: 0.4, total: 0.4 };
     expect(() => { updateAudio(g, 0, STEP); audioEvents([{ type: "sound", name: "hit" }]); }).not.toThrow();

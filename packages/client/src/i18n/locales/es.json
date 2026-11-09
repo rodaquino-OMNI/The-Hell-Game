@@ -152,5 +152,7 @@
   "caption.puzzle_fail": "Chispas: falla en el generador",
   "caption.generator_done": "Zumbido ascendente: generador listo",
   "caption.cage": "Rejas golpeando: superviviente atrapado",
-  "caption.rescue": "Acorde de alivio: superviviente a salvo"
+  "caption.rescue": "Acorde de alivio: superviviente a salvo",
+  "caption.sound_muted": "Sonido silenciado (M para activar)",
+  "caption.sound_unmuted": "Sonido activado (M para silenciar)"
 }
