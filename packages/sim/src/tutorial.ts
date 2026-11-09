@@ -82,7 +82,10 @@ function stepDone(cfg: SimConfig, g: GameState, f: TutorialFrame): boolean {
 /** fim do passo da simulação no modo tutorial: conclui a etapa, avança e encerra depois da última */
 export function updateTutorial(cfg: SimConfig, g: GameState, f: TutorialFrame) {
   const t = g.tutorial;
-  if (!t || t.step === null || !stepDone(cfg, g, f)) return;
+  if (!t || t.step === null) return;
+  // alvo revisto a cada passo: mantém o atual enquanto válido, senão o gerador não concluído mais próximo
+  if (t.target?.kind !== "cage") t.target = targetFor(g, t.step, t.target);
+  if (!stepDone(cfg, g, f)) return;
   const steps = cfg.balance.tutorial.steps;
   g.events.push({ type: "tutorial_step", step: t.step, index: t.index, done: true });
   t.index++;

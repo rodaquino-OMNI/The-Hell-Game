@@ -172,6 +172,57 @@ describe("modo tutorial (D-34, GDD-v0.3 §12.3)", () => {
     expect(A.st).toBe("ok");
   });
 
+  /** teleporta o jogador ao gerador `i` e resolve um quebra-cabeça nele (sem contar como andar) */
+  function solveOne(c: SimConfig, g: GameState, i: number) {
+    const P = g.survivors[0];
+    P.x = g.gens[i].x + 1; P.z = g.gens[i].z;
+    step(c, g, { ...NO_INPUT, interact: true });
+    for (let k = 0; k < 600 && g.puzzle; k++) {
+      const z = g.puzzle;
+      const ok = g.events.length;
+      step(c, g, z.kind === "timing" ? { ...NO_INPUT, puzzleSpace: Math.abs(z.t - z.zoneCenter) < z.zoneWidth / 4 } : { ...NO_INPUT, puzzleArrow: k % 2 ? z.seq[z.i] : undefined });
+      if (g.events.slice(ok).some(e => e.type === "sound" && e.name === "puzzle_ok")) break;
+    }
+    step(c, g, { ...NO_INPUT, puzzleExit: true });
+  }
+  /** termina o tutorial com o jogador simulado */
+  function finish(c: SimConfig, g: GameState) {
+    for (let i = 0; i < 60 * 120 && !g.over; i++) step(c, g, playerInput(c, g, i));
+  }
+  const required = (g: GameState) => g.gens.flatMap((x, i) => (x.bonus ? [] : [i]));
+  const last = balance.generator.puzzles_per_generator - 1;
+
+  it("(a) Turbo no gerador-alvo antes de abrir o quebra-cabeça não trava a etapa generator", () => {
+    const g = createGame(prod, "Mecânico", 3, { mode: "tutorial" });
+    for (let i = 0; i < 60 * 5 && g.tutorial!.step === "move"; i++) step(prod, g, playerInput(prod, g, i));
+    const t = g.tutorial!;
+    expect(t.step).toBe("generator");
+    const T = t.target!;
+    g.gens[T.id].n = last; // a um quebra-cabeça do fim
+    const P = g.survivors[0]; P.x = T.x + 1; P.z = T.z;
+    step(prod, g, { ...NO_INPUT, ability: true }); // Turbo
+    expect(P.cd).toBeGreaterThan(0);
+    expect(g.gens[T.id].done).toBe(false); // gerador reservado: o Turbo não o conclui no tutorial
+    expect(g.tutorial!.target).toMatchObject({ kind: "generator", id: T.id });
+    finish(prod, g);
+    expect(g.over).toBe(true);
+    expect(g.tutorial!.index).toBe(tb.steps.length);
+  });
+
+  it("(b) concluir todos os obrigatórios antes da etapa generator não trava generator nem ability", () => {
+    const g = createGame(prod, "Mecânico", 3, { mode: "tutorial" });
+    for (const i of required(g)) { g.gens[i].n = last; solveOne(prod, g, i); }
+    expect(g.tutorial!.step).toBe("move");
+    expect(required(g).every(i => !g.gens[i].done && g.gens[i].n === last)).toBe(true);
+    const done: string[] = [];
+    for (let i = 0; i < 60 * 120 && !g.over; i++) {
+      step(prod, g, playerInput(prod, g, i));
+      for (const e of g.events.splice(0)) if (e.type === "tutorial_step") done.push(e.step);
+    }
+    expect(done).toEqual(tb.steps);
+    expect(g.over).toBe(true);
+  });
+
   it("sem fim por tempo: a gaiola não mata e o limite duro não encerra", () => {
     const g = createGame(prod, "Atacador", 9, { mode: "tutorial" });
     const n = Math.ceil(Math.max(prod.cageTime, balance.match.hard_time_limit) * 60) + 60;

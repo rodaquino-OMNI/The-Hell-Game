@@ -1022,7 +1022,9 @@ tutorial:
   team_size: 2
   # LACUNA (GDD não define): 5 m andados (deslocamento real, depois da colisão) concluem "mover".
   move: {on: distance, distance: 5}
-  # abrir o quebra-cabeça do gerador-alvo (alcance `prototype_extras.interact_range.generator`)
+  # abrir o quebra-cabeça do gerador-alvo (alcance `prototype_extras.interact_range.generator`). O alvo é o gerador
+  # obrigatório não concluído mais próximo, revisto a cada passo. No tutorial nenhum gerador se conclui (para a um
+  # quebra-cabeça do fim, nem por Turbo): sempre há alvo válido para generator, puzzle e o Turbo da ability
   generator: {on: puzzle_open}
   # LACUNA (GDD não define): 1 acerto no gerador-alvo conclui "quebra-cabeça" (o gerador inteiro pede
   # `generator.puzzles_per_generator` = 5, longo demais para 60 s)

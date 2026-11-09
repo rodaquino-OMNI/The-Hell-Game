@@ -149,6 +149,17 @@ function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = t
   return heard;
 }
 
+/**
+ * O gerador chegou ao fim (`generator.puzzles_per_generator`)? No modo tutorial nunca (D-34): ele fica a um
+ * quebra-cabeça do fim, para sempre haver gerador válido nas etapas "generator", "puzzle" e no Turbo da "ability".
+ */
+function reachedEnd(cfg: SimConfig, g: GameState, gen: Generator): boolean {
+  const ppg = cfg.balance.generator.puzzles_per_generator;
+  if (gen.n < ppg) return false;
+  if (g.tutorial) { gen.n = ppg - 1; return false; }
+  return true;
+}
+
 /** conclui um gerador; no v1 a luz revela a posição (`generator.completed_reveal`) e faz ruído de 25 m (§3.4, §6.2) */
 function finishGenerator(cfg: SimConfig, g: GameState, gen: Generator) {
   gen.done = true;
@@ -185,7 +196,7 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
     const pp = credit(cfg, g, player(g), gen.bonus ? "bonus_puzzle" : "puzzle");
     msg(g, "puzzle_points", { n: pp });
     emit(g, { type: "sound", name: "puzzle_ok" });
-    if (gen.n >= b.generator.puzzles_per_generator) {
+    if (reachedEnd(cfg, g, gen)) {
       finishGenerator(cfg, g, gen);
       const bonus = credit(cfg, g, player(g), gen.bonus ? "bonus_generator" : "generator");
       g.puzzle = null;
@@ -228,7 +239,7 @@ function botPuzzle(cfg: SimConfig, g: GameState, s: Survivor, gen: Generator, ok
   gen.n++;
   gen.fails = 0;
   credit(cfg, g, s, gen.bonus ? "bonus_puzzle" : "puzzle");
-  if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); credit(cfg, g, s, gen.bonus ? "bonus_generator" : "generator"); }
+  if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); credit(cfg, g, s, gen.bonus ? "bonus_generator" : "generator"); }
 }
 
 // ---------- habilidades e ataques (L119–L123) ----------
@@ -251,7 +262,7 @@ export function ability(cfg: SimConfig, g: GameState, s: Survivor) {
     if (!gen) return;
     gen.n++;
     if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o Turbo avança um quebra-cabeça e pontua como tal (§7.1)
-    if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
+    if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
     s.cd = c.mechanic.turbo.cooldown;
     if (!s.bot) msg(g, "turbo");
   } else {
@@ -519,7 +530,7 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
       if (s.work > need) {
         s.work = 0; gen.n++;
         if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o bot pontua o próprio conserto (§7.1, por sobrevivente)
-        if (gen.n >= b.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
+        if (reachedEnd(cfg, g, gen)) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
       }
     }
   } else {
