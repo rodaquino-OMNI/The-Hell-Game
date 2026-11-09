@@ -166,9 +166,11 @@ try {
 
   // os personagens entram na cena quando o .glb termina de carregar (render/characters/runtime.ts `createCharacter`,
   // pedido no clique); antes disso o caçador não tem modelo nem olhos e states().telegraph é false com windup
-  // presente. Com rede lenta (espectro.glb, ~470 kB, junto com os stems) o .glb chegava depois do 1º preparo e o
-  // teste acusava falso "som sem visual": o teste de mesmo quadro só vale com o caçador desenhável. Mesmo gancho
-  // das capturas de arte (tools/visual/compare.mjs)
+  // presente. Com rede lenta (espectro.glb, ~470 kB, junto com os stems) o .glb pode chegar depois do 1º preparo:
+  // aí o JOGO toca o telegraph sem olhos na tela. Isso é um defeito real, não do teste. Ele foi reportado à sessão
+  // Visual e decidido na D-45: start() espera charactersReady(), com teto e modelo de reserva, e a Visual tem um e2e
+  // próprio com o .glb atrasado. Este teste mede o caso normal (caçador desenhável) e não cobre essa janela.
+  // Mesmo gancho das capturas de arte (tools/visual/compare.mjs)
   const ready = await page.evaluate(ms => (typeof window.__thehellCharactersReady === "function"
     ? Promise.race([window.__thehellCharactersReady(), new Promise(ok => setTimeout(() => ok("timeout"), ms))])
     : "sem gancho"), MODELS_WAIT_MS);
