@@ -19,6 +19,27 @@ const UiSchema = z.object({
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
 }).strict();
 
+/** simulador e porta de regressão (GDD v0.3 C-15, D-05 a, D-16 a; GDD v0.2 §7.6; item R5) */
+/** tolerância null = "a medir" (ruído ainda não medível; a métrica não é comparada) */
+const simTol = { max_worsening: pos.nullable(), pooled_max_worsening: pos.nullable().optional(), min_samples: z.number().int().positive().optional() };
+const simMetric = z.discriminatedUnion("worse", [
+  z.object({ worse: z.enum(["higher", "lower"]), ...simTol }).strict(),
+  z.object({ worse: z.literal("band"), band: range.refine(r => r[1] >= r[0], "banda: máx deve ser ≥ mín"), ...simTol }).strict(),
+]);
+const SimSchema = z.object({
+  short_match_seconds: pos.positive(),
+  check: z.object({
+    matches_per_group: z.number().int().positive(), seed: z.number().int(),
+    difficulties: z.array(z.enum(["easy", "normal", "hard", "nightmare"])).min(1),
+  }).strict(),
+  nightly: z.object({ matches_per_group: z.number().int().positive() }).strict(),
+  /** métricas de tools/sim/metrics.ts (METRICS); as ausentes aqui só são medidas */
+  regression: z.object({
+    hunter_win: simMetric, survivor_escape: simMetric, duration_mean: simMetric, duration_median: simMetric,
+    captures_per_match: simMetric, short_match_rate: simMetric, chase_median: simMetric, chases_per_match: simMetric,
+  }).partial().strict(),
+}).strict();
+
 /** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
 const gain01 = num.min(0).max(1);
 /** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
@@ -312,6 +333,7 @@ export const BalanceSchema = z.object({
   audio: AudioSchema,
   ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
+  sim: SimSchema,
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
   client: z.object({ max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive() }).strict(),
 }).strict();
