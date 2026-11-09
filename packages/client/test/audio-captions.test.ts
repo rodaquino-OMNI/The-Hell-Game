@@ -8,7 +8,7 @@ import { loadBalanceFile } from "@thehell/shared/node";
 import { createGame, makeConfig, STEP, type GameState } from "@thehell/sim";
 import {
   CAPTION_KEYS, CAPTIONS_DURATION_KEY, CAPTIONS_STORAGE_KEY, captionDuration, captionFor, setCaptionDuration, createCaptionBus, distanceGain, getCaptions, subscribeCaptions,
-  tickCaptions, setCaptionsEnabled, captionsEnabled, useCaptionBus, type Caption, type CaptionStorage,
+  tickCaptions, clearCaptions, setCaptionsEnabled, captionsEnabled, useCaptionBus, type Caption, type CaptionStorage,
 } from "../src/audio/captions.ts";
 import { createAudioDirector, DIRECTOR_SFX } from "../src/audio/director.ts";
 import { CATALOGS, t } from "../src/i18n/index.ts";
@@ -90,6 +90,40 @@ describe("audio/captions: emissão pelo diretor", () => {
     expect(c.text).toBe("[caption.cage]");
     expect(c.category).toBe("survivor");
     expect(c.intensity).toBeCloseTo(distanceGain(10, bal.audio.panner));
+  });
+
+  it("partida nova (relógio volta) limpa as legendas da partida anterior", () => {
+    const r = rig(), g = state();
+    step(r, g);
+    g.survivors[1].st = "cage"; g.survivors[1].x = 0; g.survivors[1].z = -10;
+    step(r, g);
+    expect(keys(r.b.list())).toEqual(["caption.cage"]);
+    const h = state(); // relógio em 0, menor que o da partida anterior
+    r.dir.update(h, 0, STEP, undefined, 0);
+    expect(r.b.list()).toEqual([]);
+  });
+
+  it("quadro sem passo do sim (mesmo g.t, comum a 120/144 Hz) não limpa as legendas", () => {
+    const r = rig(), g = state();
+    step(r, g);
+    g.survivors[1].st = "cage"; g.survivors[1].x = 0; g.survivors[1].z = -10;
+    step(r, g);
+    r.dir.update(g, 0, 0, undefined, 0); // mesmo g.t
+    r.dir.update(g, 0, 0, undefined, 0);
+    expect(keys(r.b.list())).toEqual(["caption.cage"]);
+  });
+
+  it("limpar avisa os assinantes uma vez com a lista vazia (a faixa do HUD só redesenha por subscribe)", () => {
+    const r = rig(), g = state();
+    step(r, g);
+    g.survivors[1].st = "cage"; g.survivors[1].x = 0; g.survivors[1].z = -10;
+    step(r, g);
+    const got: Caption[][] = [];
+    const off = r.b.subscribe(l => got.push(l));
+    got.length = 0;
+    r.dir.update(state(), 0, STEP, undefined, 0); // partida nova
+    expect(got).toEqual([[]]);
+    off();
   });
 
   it("som recusado (play devolve null: sem vaga de voz ou sem contexto) não gera legenda", () => {
@@ -284,6 +318,23 @@ describe("audio/captions: barramento", () => {
     tickCaptions(DUR);
     expect(getCaptions()).toEqual([]);
     expect(got.map(l => l.length)).toEqual([1, 0]);
+    off();
+    useCaptionBus(null);
+  });
+
+  it("clearCaptions(): limpa a lista do singleton e avisa uma vez; com a lista vazia não avisa", () => {
+    useCaptionBus(createCaptionBus({ cfg, storage: mem() }));
+    setCaptionsEnabled(true);
+    const got: Caption[][] = [];
+    const off = subscribeCaptions(l => got.push(l));
+    useCaptionBusEmit();
+    expect(getCaptions().length).toBe(1);
+    got.length = 0;
+    clearCaptions();
+    expect(getCaptions()).toEqual([]);
+    expect(got).toEqual([[]]);
+    clearCaptions();
+    expect(got).toEqual([[]]);
     off();
     useCaptionBus(null);
   });
