@@ -21,6 +21,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { RULES, SEED } from "../lib/capture-page.mjs";
 import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
@@ -39,7 +40,6 @@ const palette = JSON.parse(readFileSync(join(root, "data/art/palette.json"), "ut
 const catalogs = Object.fromEntries(balance.ui.locales.map(l => [l, JSON.parse(readFileSync(join(root, `packages/client/src/i18n/locales/${l}.json`), "utf8"))]));
 const uiBg = palette.tokens["ui.bg"].rgb5.map(v => Math.round((v * 255) / 31));
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const SEED = 1234;
 
 let server;
 // porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
@@ -346,7 +346,7 @@ const THIN_BAR = 1 / 12;
  */
 async function retroFlow(page, locale, T) {
   const n = `${locale}/retro`, ob = balance.ui.options;
-  await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}`, { waitUntil: "load" });
   await page.evaluate(() => localStorage.setItem("thehell.options", JSON.stringify({ retroFps: true })));
   await page.reload({ waitUntil: "load" });
   await page.click("#go");
@@ -427,7 +427,7 @@ try {
     // ---------- menu inicial ----------
     // menu, loja e a partida abaixo são as do protótipo: desde o marco MJ-B o padrão dos dados é v1, então o
     // protótipo é fixado pela via do cliente (`?ruleset=`, packages/client/src/data.ts); o v1 tem seção própria
-    await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}`, { waitUntil: "load" });
     const lang = await page.evaluate(() => document.documentElement.lang);
     if (lang !== locale) fail(`${locale}: idioma detectado ${lang}`);
     const start = await page.textContent("#go");
