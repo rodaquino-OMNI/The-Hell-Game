@@ -1,10 +1,12 @@
 // Menu inicial (idioma, escolha de classe, objetivo, botões) e tela de fim de partida.
 // Acessibilidade (GDD v0.3 §12.4): tudo é botão nativo (teclado), seleção com aria-pressed, foco visível.
 import { CLASSES, type ClassName, type GameEvent } from "@thehell/sim";
-import { $, balance, map } from "../data.ts";
+import { $, balance, cfg, map } from "../data.ts";
 import { locale, t } from "../i18n/index.ts";
 import { classDescription, className, endStats, endText, goalText } from "../text.ts";
+import { difficultyText, matchConfig, setupDifficulty } from "./difficulty.ts";
 import { applyStaticText, setupLanguagePicker } from "./locale.ts";
+import { showResults } from "./results.ts";
 import { shop, updateCoins } from "./shop.ts";
 
 let selected: ClassName = "Curandeiro";
@@ -17,7 +19,8 @@ export function refreshMenuText() {
   const classBox = $("cls");
   [...classBox.children].forEach((b, i) => { b.textContent = className(CLASSES[i]); });
   $("desc").textContent = classDescription(balance, selected);
-  $("goal").textContent = goalText(balance, map.generators.length, map.bonus.length);
+  $("goal").textContent = goalText(balance, map.generators.length, map.bonus.length, matchConfig(cfg).gateTime);
+  difficultyText();
   updateCoins();
   // seletor de idioma do menu inicial com o idioma atual marcado
   for (const x of $("langs").querySelectorAll("button")) x.setAttribute("aria-pressed", String(x.lang === locale()));
@@ -36,6 +39,7 @@ export function setupMenu(onStart: () => void) {
     };
     classBox.appendChild(b);
   }
+  setupDifficulty($("go").parentElement!, cfg, refreshMenuText);
   refreshMenuText();
   (classBox.children[0] as HTMLButtonElement).click();
   setupLanguagePicker($("langs"), refreshMenuText);
@@ -66,6 +70,7 @@ export function showEnd(e: Extract<GameEvent, { type: "end" }>) {
   $("et").textContent = title;
   $("es").textContent = sub;
   $("est").textContent = endStats(e);
+  showResults(e);
   $("hud").hidden = true;
   $("end").style.display = "flex";
   $("again").focus();

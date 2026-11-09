@@ -25,6 +25,7 @@ import { buildStress, renderStress, type StressScene } from "./render/stress.ts"
 import { syncActors, syncDynamic } from "./render/sync.ts";
 import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
+import { matchConfig, selectedDifficulty } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
 import { applyOptions } from "./ui/apply.ts";
 import { hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
@@ -37,7 +38,10 @@ import { prefetchMatchCharacters } from "./render/characters/actors.ts";
 import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
-/** configuração da partida atual: a de data.ts, ou com o quebra-cabeça acessível (V8, `puzzles.accessible`) */
+/**
+ * configuração da partida atual: a de data.ts com a dificuldade do menu (R6, ui/difficulty.ts), e com o quebra-cabeça
+ * acessível quando a opção está ligada (V8, `puzzles.accessible`)
+ */
 let gameCfg: SimConfig = cfg;
 let ctx: RenderCtx;
 /** cena de pior caso (`?stress=1`, V7): estado sintético desenhado no lugar da partida, que fica parada */
@@ -61,7 +65,9 @@ setupOptions(saved, refreshMenuText);
 
 function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
-  gameCfg = currentOptions().puzzleAccessible ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset }) : cfg;
+  gameCfg = currentOptions().puzzleAccessible
+    ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty() })
+    : matchConfig(cfg);
   G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
   resetInput();
   buildActors(ctx, G, save.eq);
