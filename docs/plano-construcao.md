@@ -220,6 +220,8 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-25 | b) segunda saída na parede lateral (Rodrigo, 09/11/2026) | pendente: R7-mapas: `exit_x` no mapa e em `crossedExit` |
 | D-32 | produção antes do previsto, no MJ-B técnico completo (decisão do Rodrigo, 09/11/2026; substitui a D-19) | só a supervisão publica (workflow `Deploy produção`); gatilho: `ruleset: v1`, `hunter_brain: utility` e `bot_brain: competent` (se o R4 passou na prova) em `main`, `pnpm sim:check` ativo e verde na CI, 1.000 partidas por dificuldade sem trava, smoke verde contra o staging |
 | D-34 | modo tutorial na simulação exposto em dados (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | caçador passivo e etapas do GDD v0.3 §12.3 em `data/balance.yaml` seção `tutorial`; item da Frente R depois do MJ-B; UI e roteiro com a sessão Visual (V6) |
+| D-30 | a) ligar os 7 eventos de pontos do sobrevivente do GDD v0.2 §7.1 (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `points.events.{rescue, heal, block_bolt, stun, chase_escape, trap_disarm, escape}.enabled: true` com os valores do §7.1 (R6); acompanhamento: depois do R4, medir moedas por partida em Normal no R8; se a skin mais barata sair em menos de 2 partidas, propor ajuste de preço à supervisão |
+| D-31 | a) pontos do caçador desligados até o caçador humano da fase 3 (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `points.events.hunter_*` com os valores do §7.1 e `enabled: false` (D-09) |
 
 ## 8. Riscos principais
 

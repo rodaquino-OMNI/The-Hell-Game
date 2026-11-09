@@ -113,7 +113,7 @@ points:
     heal:            {value: 30,  category: altruism,   enabled: true, min_effective: 20}  # §7.1 [Proposta] D-30: por aliado, vida efetivamente curada ≥ 20
     block_bolt:      {value: 25,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: bloqueio que anula golpe ou parafuso que acerta
     stun:            {value: 40,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: golpe do Atacador que atordoa
-    chase_escape:    {value: 30,  category: boldness,   enabled: true, min_time: 15}  # §7.1 [Proposta] D-30: perseguição > 15 s sem ser capturado
+    chase_escape:    {value: 30,  category: boldness,   enabled: true, min_time: 15}  # §7.1 [Proposta] D-30: perseguição > 15 s sem ser capturado. LACUNA: perseguição > 15 s ainda em curso no fim da partida (limite de tempo ou caçador a 0) também credita quem segue livre
     trap_disarm:     {value: 15,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: desativar armadilha
     escape:          {value: 100, category: survival,   enabled: true}   # §7.1 [Proposta] D-30: escapar
   # Pontos do caçador (§7.1, linha sob a tabela; sem marca de status): desligados por D-31 (a) até a fase 3 (D-09).

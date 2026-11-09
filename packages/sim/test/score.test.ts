@@ -407,6 +407,8 @@ describe("ajustes da revisão QA", () => {
   it("T3: âncoras de moedas com um gerador — Difícil vitória 167, Pesadelo derrota 164", () => {
     for (const [d, won, coins] of [["hard", true, 167], ["nightmare", false, 164]] as const) {
       const c = makeConfig(b, map, { ruleset: "v1", difficulty: d });
+      // premissas das âncoras: se o YAML mudar, o teste aponta a causa aqui
+      expect([c.pointsMult, b.economy.base_coins, b.economy.win_coins, b.economy.points_to_coins]).toEqual([d === "hard" ? 1.3 : 1.6, 20, 30, 1]);
       const g = quiet(c); openPuzzle(c, g, 0);
       for (let k = 0; k < b.generator.puzzles_per_generator; k++) solve(c, g);
       if (won) g.hunter.hp = 0; else P(g).st = "dead";
