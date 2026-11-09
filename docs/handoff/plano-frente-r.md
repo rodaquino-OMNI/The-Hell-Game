@@ -46,6 +46,14 @@ Leia também os relatórios dos PRs #13, #14 e #17 (corpo do PR e comentários):
 - **Prova:** teste por evento de pontuação; teste de moedas por dificuldade; e2e da tela de fim.
 - Agentes: `gameplay` (autor), `qa` (revisor), `ui-ux` (telas).
 
+### R7-mapas — decisões D-22, D-23 e D-25 (09/11/2026)
+
+- Só no ruleset v1; o layout 0 com `ruleset: prototype` fica intacto (paridade e capturas de referência da Visual).
+- D-22: 5º gerador para equipes de 4–5 (`generator.by_team_size`). D-23: 2–3 pilares que formem loops curtos de 8–12 m, como caixas em `walls` do layout resolvido; o validador passa a exigir loop curto. D-25: segunda saída na parede lateral (`exit_x` no mapa e em `crossedExit`).
+- Formato final dos campos combinado com a Visual antes do merge (ela passa a desenhar a partir de `g.arena`).
+- **Prova:** `pnpm maps:validate` com as novas regras em todas as combinações; testes de saída lateral e de geradores por tamanho de equipe; `pnpm sim:check` sem travas.
+- Agentes: `ia` (autor), `simulacao` (revisor). Depois do R4.
+
 ### MJ-B — troca para as regras v1
 
 - PR único que muda os padrões: `ruleset: v1`, `ai.hunter_brain: utility`, `ai.bot_brain: competent` (este só se o R4 tiver passado na prova).

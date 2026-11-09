@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6.1.0 # v6.1.1 (03/11/2026) tem menos de 2 semanas
+      - uses: pnpm/action-setup@v6.1.1 # v6.1.1 (03/11/2026) tem menos de 2 semanas
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -28,6 +28,8 @@ jobs:
         run: pnpm check:palette
       - name: Validador de mapa (GDD v0.3 §9.1, todas as combinações de layout)
         run: pnpm maps:validate
+      - name: Porta de regressão do simulador (200 partidas contra data/sim/baseline.json; GDD v0.3 C-15, D-05)
+        run: pnpm sim:check --workers=2
       - name: Traduções pt-BR, en e es (GDD v0.3 §12.5)
         run: pnpm i18n:check
       - run: pnpm build
@@ -38,6 +40,8 @@ jobs:
         run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
+      - name: "Áudio: contexto inicia após o clique (A-1)"
+        run: node tools/audio/e2e.mjs
       - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
         run: pnpm a11y
       - name: Fumaça do protótipo original

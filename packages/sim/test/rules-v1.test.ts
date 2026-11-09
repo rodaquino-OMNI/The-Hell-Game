@@ -314,12 +314,19 @@ describe("5. perseguição de 4,3 m/s e tabela de dificuldade (D-03 b, GDD-v0.2 
     const z = quiet(hard); openPuzzle(hard, z, 0);
     expect(z.puzzle!.zoneWidth).toBeCloseTo(b.puzzles.timing.zone * t.zone_mult, 10);
     solvePuzzle(hard, z);
-    expect(z.points).toBeCloseTo(b.points.puzzle * t.points_mult, 10);
+    expect(z.points).toBe(Math.round(b.points.events.puzzle.value * t.points_mult));
+    expect(z.points).toBe(13);
     const full = quiet(hard); openPuzzle(hard, full, 0);
     for (let k = 0; k < b.generator.puzzles_per_generator; k++) solvePuzzle(hard, full);
     expect(full.gens[0].done).toBe(true);
-    expect(full.points).toBeCloseTo((b.generator.puzzles_per_generator * b.points.puzzle + b.points.generator) * t.points_mult, 10);
-    expect(full.points).toBeCloseTo((5 * 10 + 40) * 1.3, 10);
+    // arredondamento por evento (`points.rounding`, LACUNA GDD-v0.2 §7.1 × §7.3)
+    expect(full.points).toBe(b.generator.puzzles_per_generator * Math.round(b.points.events.puzzle.value * t.points_mult) + Math.round(b.points.events.generator.value * t.points_mult));
+    expect(full.points).toBe(5 * 13 + 52);
+    const bonus = quiet(hard); openPuzzle(hard, bonus, bonus.gens.findIndex(x => x.bonus));
+    solvePuzzle(hard, bonus);
+    expect(bonus.points).toBe(33); // 25 × 1,3 = 32,5
+    for (let k = 1; k < b.generator.puzzles_per_generator; k++) solvePuzzle(hard, bonus);
+    expect(bonus.points).toBe(5 * 33 + 98); // 75 × 1,3 = 97,5 → 98; total 263 (pelo total seriam 260)
     const gate = quiet(hard);
     for (const x of gate.gens) if (!x.bonus) x.done = true;
     tap(gate, {}, hard);
@@ -431,13 +438,14 @@ describe("8. regras de gerador do §6.2", () => {
     expect(g.hunter.alertTime).toBe(b.ai.hearing_investigate_time);
     run(g, b.generator.completed_reveal + 0.05, {}, v1);
     expect(g.gens[0].revealed).toBeLessThanOrEqual(0);
-    const far = quiet(); complete(v1, far);
+    const local = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: false } }, map, { ruleset: "v1" });
+    const far = quiet(local); complete(local, far);
     expect(far.gens[0].revealed).toBeGreaterThan(0);
     expect(far.hunter.alert).toBeNull();
   });
-  it("com generator.completed_reveal_global, a revelação alcança o caçador de qualquer distância", () => {
-    const gl = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: true } }, map, { ruleset: "v1" });
-    const g = quiet(gl); complete(gl, g);
+  it("padrão (D-21, completed_reveal_global: true): a revelação alcança o caçador de qualquer distância", () => {
+    expect(b.generator.completed_reveal_global).toBe(true);
+    const g = quiet(); complete(v1, g);
     expect(g.hunter.alert).toEqual({ x: -22, z: -22 });
     expect(g.hunter.alertTime).toBe(b.generator.completed_reveal);
   });
@@ -480,6 +488,10 @@ describe("determinismo no ruleset v1", () => {
     return { ...NO_INPUT, forward: i % 240 < 180 ? 1 : 0, strafe: i % 400 < 100 ? 1 : 0, run: i % 600 < 120, yaw: (i / 600) * Math.PI,
       interact: i % 300 === 0, interactHeld: i % 700 < 200, ability: i % 500 === 0, attack: i % 350 === 0, puzzleSpace: i % 45 === 0 };
   }
+  // 101 partidas de 60 s (≈ 364 mil passos): ~2 s sozinho, mas passou de 5 s (padrão do vitest) na CI de 2 núcleos
+  // com cobertura e os outros arquivos em paralelo (run 42539890494). O teste é pesado de propósito; o limite é de
+  // execução do teste, não de regra de jogo.
+  const DETERMINISM_TIMEOUT_MS = 30_000;
   function playHash(seed: number, frames: number) {
     const g = createGame(v1, "Mecânico", seed);
     for (let i = 0; i < frames && !g.over; i++) step(v1, g, scripted(i));
@@ -488,7 +500,7 @@ describe("determinismo no ruleset v1", () => {
   it("mesma semente → mesmo hash em 100 execuções", () => {
     const ref = playHash(42, 60 * 60);
     for (let i = 0; i < 100; i++) expect(playHash(42, 60 * 60)).toBe(ref);
-  });
+  }, DETERMINISM_TIMEOUT_MS);
   it("semente diferente → partida diferente", () => {
     expect(playHash(42, 60 * 60)).not.toBe(playHash(43, 60 * 60));
   });

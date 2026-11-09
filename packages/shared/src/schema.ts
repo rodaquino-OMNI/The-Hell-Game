@@ -1,6 +1,7 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (audio, net) passam sem validação
-// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12).
+// a seção ainda não implementada (net) passa sem validação
+// detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
+// audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
 
 const num = z.number().finite();
@@ -16,6 +17,57 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+}).strict();
+
+/** simulador e porta de regressão (GDD v0.3 C-15, D-05 a, D-16 a; GDD v0.2 §7.6; item R5) */
+/** tolerância null = "a medir" (ruído ainda não medível; a métrica não é comparada) */
+const simTol = { max_worsening: pos.nullable(), pooled_max_worsening: pos.nullable().optional(), min_samples: z.number().int().positive().optional() };
+const simMetric = z.discriminatedUnion("worse", [
+  z.object({ worse: z.enum(["higher", "lower"]), ...simTol }).strict(),
+  z.object({ worse: z.literal("band"), band: range.refine(r => r[1] >= r[0], "banda: máx deve ser ≥ mín"), ...simTol }).strict(),
+]);
+const SimSchema = z.object({
+  short_match_seconds: pos.positive(),
+  check: z.object({
+    matches_per_group: z.number().int().positive(), seed: z.number().int(),
+    difficulties: z.array(z.enum(["easy", "normal", "hard", "nightmare"])).min(1),
+  }).strict(),
+  nightly: z.object({ matches_per_group: z.number().int().positive() }).strict(),
+  /** métricas de tools/sim/metrics.ts (METRICS); as ausentes aqui só são medidas */
+  regression: z.object({
+    hunter_win: simMetric, survivor_escape: simMetric, duration_mean: simMetric, duration_median: simMetric,
+    captures_per_match: simMetric, short_match_rate: simMetric, chase_median: simMetric, chases_per_match: simMetric,
+  }).partial().strict(),
+}).strict();
+
+/** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
+const gain01 = num.min(0).max(1);
+/** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
+const AudioSchema = z.object({
+  music: z.object({
+    // GDD-v0.2 §11: 3 a 5 stems; cada um é um estado musical do A-2 (GDD-v0.3 §11), sem repetição
+    stems: z.array(z.enum(["ambient", "tension", "chase", "final_pressure", "rescue"])).min(3).max(5)
+      .refine(a => new Set(a).size === a.length, "stems repetidos"),
+    tension_radius: pos.positive(), crossfade_bars: pos,
+    /** A-2: andamento e compasso (decisão do Rodrigo, 09/11/2026) e tom lido pelo A-3 */
+    bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
+    layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
+  }).strict(),
+  max_voices: z.number().int().positive(),
+  occlusion_lowpass_hz: pos.positive(),
+  loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
+  ducking_db: z.number().max(0),
+  buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
+  volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
+  /** A-4: prioridade por tipo de voz (maior = mais importante) */
+  voice_priority: z.record(z.string().regex(/^[a-z_]+$/), int.nonnegative())
+    .refine(r => Object.keys(r).length > 0, "voice_priority vazio"),
+  /** A-4: PannerNode por voz (GDD v0.3 §11: HRTF) */
+  panner: z.object({
+    panning_model: z.literal("HRTF"), distance_model: z.enum(["linear", "inverse", "exponential"]),
+    ref_distance: pos.positive(), max_distance: pos.positive(), rolloff_factor: pos,
+  }).strict().refine(p => p.max_distance > p.ref_distance, "panner.max_distance deve passar de ref_distance"),
+  occlusion_ramp_tc: pos.positive(), source_height: pos,
 }).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
@@ -155,6 +207,11 @@ const aiDifficulty = z.object({
   memory: pos,
 }).strict();
 
+/** categorias do resumo de fim de partida (GDD-v0.2 §7.1): Objetivos, Altruísmo, Sobrevivência, Audácia */
+const SCORE_CATEGORIES = ["objectives", "altruism", "survival", "boldness"] as const;
+const pointEvent = z.object({ value: pos, category: z.enum(SCORE_CATEGORIES), enabled: z.boolean() }).strict();
+const hunterPointEvent = z.object({ value: pos, enabled: z.boolean() }).strict();
+
 export const BalanceSchema = z.object({
   version: z.string(),
   difficulty: z.enum(["easy", "normal", "hard", "nightmare"]),
@@ -196,8 +253,26 @@ export const BalanceSchema = z.object({
   }).strict(),
   // raios de ruído em metros (GDD-v0.2 §3.4; ruleset v1)
   noise: z.object({ walk: pos, run: pos, puzzle_fail: pos, rescue: pos, heal: pos, generator_done: pos }).strict(),
-  points: z.object({ puzzle: pos, generator: pos, bonus_puzzle: pos, bonus_generator: pos }).strict(),
-  economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos }).strict(),
+  // pontos por evento (GDD-v0.2 §7.1): valor, categoria do resumo e chave liga/desliga ([Proposta] desligadas)
+  points: z.object({
+    // LACUNA §7.1 × §7.3: arredondamento de valor × points_mult (o GDD não define)
+    rounding: z.enum(["round", "floor"]),
+    events: z.object({
+      puzzle: pointEvent, generator: pointEvent, bonus_puzzle: pointEvent, bonus_generator: pointEvent,
+      rescue: pointEvent,
+      heal: pointEvent.extend({ min_effective: pos }).strict(), // "curar aliado (efetivo ≥ 20)"
+      block_bolt: pointEvent, stun: pointEvent,
+      chase_escape: pointEvent.extend({ min_time: pos }).strict(), // "fugir de perseguição por mais de 15 s"
+      trap_disarm: pointEvent, escape: pointEvent,
+    }).strict(),
+    // pontos do caçador (§7.1, sem categoria no GDD)
+    hunter_events: z.object({
+      capture: hunterPointEvent, hit: hunterPointEvent, kill: hunterPointEvent,
+      long_chase: hunterPointEvent.extend({ min_time: pos }).strict(), reveal: hunterPointEvent, deny_rescue: hunterPointEvent,
+    }).strict(),
+  }).strict(),
+  // GDD-v0.2 §7.2 e GDD-v0.3 D-04; win_coins_to: quem leva o bônus de vitória (alive = decisão do Rodrigo 09/11/2026, pergunta 1 da sessão Visual; diverge da leitura literal do GDD v0.3 §3.3 item 1)
+  economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos, win_coins_to: z.enum(["alive", "escaped"]) }).strict(),
   skins: z.record(z.string(), pos),
   classes: z.object({
     healer: z.object({ pulse_heal: pos, pulse_radius: pos, cooldown: pos }).strict(),
@@ -257,9 +332,10 @@ export const BalanceSchema = z.object({
   nav: NavSchema,
   maps: MapsSchema,
   render,
-  audio: z.record(z.string(), z.unknown()),
+  audio: AudioSchema,
   ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
+  sim: SimSchema,
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
   client: z.object({ max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive() }).strict(),
 }).strict();
