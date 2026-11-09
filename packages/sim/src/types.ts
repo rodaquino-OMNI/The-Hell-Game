@@ -374,7 +374,11 @@ export interface TutorialState {
   target: TutorialTarget | null;
   /** progresso da etapa atual: metros andados em "move", acertos em "puzzle"; 0 nas demais */
   progress: number;
-  /** meta de `progress` na etapa atual (`tutorialGoal`): metros em "move", acertos em "puzzle", 1 nas demais; 0 no fim */
+  /**
+   * meta de `progress` na etapa atual (`tutorialGoal`): metros em "move", acertos em "puzzle", 1 nas demais. Com
+   * `step === null` (fim) vale 0 e `progress` também. Nas etapas binárias (generator, rescue, ability) `progress`
+   * fica em 0 e a barra só vai de 0 a 1 na conclusão (a etapa seguinte já começa com `progress` 0).
+   */
   goal: number;
 }
 

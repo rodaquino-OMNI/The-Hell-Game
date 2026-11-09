@@ -1,5 +1,6 @@
 // Modo tutorial (Treino do GDD-v0.3 §12.3; D-34): etapas, alvos e conclusão vêm de `tutorial` em data/balance.yaml.
 // O laço de regras é o de game.ts; aqui só fica o roteiro: quem é o alvo de cada etapa e quando ela termina.
+import { releaseFromCage } from "./cage.ts";
 import type { SimConfig } from "./config.ts";
 import type { GameState, TutorialStepName, TutorialTarget, Vec } from "./types.ts";
 
@@ -101,12 +102,17 @@ export function updateTutorial(cfg: SimConfig, g: GameState, f: TutorialFrame) {
 /**
  * Pula a etapa atual (acessibilidade: pular só a etapa difícil, como o quebra-cabeça com tempo). Emite o mesmo
  * `tutorial_step` com `skipped: true` e avança como na conclusão normal; depois da última, `tutorial_end`. Não faz nada
- * fora do modo tutorial nem depois do fim. Devolve true se pulou. O estado do mundo não muda (o aliado da etapa
- * "rescue" pulada segue preso).
+ * fora do modo tutorial nem depois do fim. Devolve true se pulou. O quebra-cabeça aberto fecha sem acerto, erro nem
+ * crédito; pular "rescue" solta o aliado (efeito do resgate, sem mensagem "rescued" e sem pontos).
  */
 export function skipTutorialStep(cfg: SimConfig, g: GameState): boolean {
   const t = g.tutorial;
   if (!t || t.step === null || g.over) return false;
+  g.puzzle = null; // um quebra-cabeça aberto bloquearia o resgate (game.ts exige !g.puzzle)
+  if (t.step === "rescue" && t.target?.kind === "cage") {
+    const c = g.survivors[t.target.id];
+    if (c.st === "cage") releaseFromCage(cfg, g, c);
+  }
   advance(cfg, g, true);
   return true;
 }
