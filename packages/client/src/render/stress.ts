@@ -12,7 +12,7 @@
 // tools/perf/budget.mjs mede `renderer.info` em todas as vistas e vale o máximo.
 import type * as THREE from "three";
 import { insideWall, type GameState, type Survivor } from "@thehell/sim";
-import { balance, cfg, map } from "../data.ts";
+import { balance, cfg } from "../data.ts";
 import { SURVIVOR_MODEL } from "./characters/actors.ts";
 import { charactersReady, createCharacter } from "./characters/runtime.ts";
 import { RETRO_CLASSES } from "./options.ts";
@@ -86,7 +86,7 @@ export function buildStress(ctx: RenderCtx, G0: GameState): StressScene {
   // um aliado preso (cadeado sobre ele)
   if (others.length) others[others.length - 1].st = "cage";
   const { traps, projectiles } = stressCounts();
-  const [w, d] = map.size;
+  const [w, d] = cfg.map.size;
   let id = G0.nextId;
   const G: GameState = {
     ...G0,
@@ -142,7 +142,7 @@ export function renderStress(ctx: RenderCtx, sc: StressScene, i: number, everyFr
 /** câmera de cima com o mapa inteiro (mais `render.stress.margin`) no frustum; devolve quem desfaz a troca */
 function overview(ctx: RenderCtx) {
   const { cam, S } = ctx;
-  const [w, d] = map.size;
+  const [w, d] = cfg.map.size;
   const tv = Math.tan((cam.fov * Math.PI) / 360), th = tv * cam.aspect;
   const h = Math.max((d / 2 + rs.margin) / tv, (w / 2 + rs.margin) / th);
   const far0 = cam.far, fog = S.fog as THREE.Fog, fog0 = [fog.near, fog.far] as const;
