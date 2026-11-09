@@ -294,6 +294,12 @@ render:
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A
   legibility: {min_contrast: 3, body_keep: 0.9}
+  # D-18 (b, 09/11/2026; docs/plano-construcao.md §7): contorno sutil no caçador para a legibilidade fora do cone da
+  # lanterna (Art Bible §5.3: 3:1, WCAG 2.2 1.4.11) sem clarear a cena (luz ambiente e névoa intactas). Borda de luz
+  # por vértice (fresnel) no Ps1Material do caçador: cor = token × amount, somada antes da névoa; power = expoente do
+  # fresnel (maior = borda mais fina). intensity de 0 a 1 (acessibilidade, V8). Fixo no tempo (sem pulsar: "reduzir
+  # flicker", GDD-v0.3 §12.4). Medido em tools/visual/compare.mjs (corpo fora e dentro do cone ≥ legibility.min_contrast)
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 2.2, power: 2}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
   states:

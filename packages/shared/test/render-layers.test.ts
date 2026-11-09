@@ -38,3 +38,18 @@ describe("camadas visuais (GDD-v0.3 §10.2)", () => {
     expect(() => parseBalance(yaml.replace("lut_tint: world.fog", "lut_tint: \"#192131\""))).toThrow();
   });
 });
+
+describe("contorno do caçador (D-18; Art Bible §5.3)", () => {
+  const r = parseBalance(yaml).render;
+
+  it("cor é token da paleta e a intensidade fica em 0..1", () => {
+    expect(palette.tokens[r.hunter_outline.color], r.hunter_outline.color).toBeDefined();
+    expect(r.hunter_outline.intensity).toBeGreaterThanOrEqual(0);
+    expect(r.hunter_outline.intensity).toBeLessThanOrEqual(1);
+  });
+
+  it("intensidade fora de 0..1 e cor que não é token são recusadas", () => {
+    expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: )[\d.]+/, "$11.5"))).toThrow();
+    expect(() => parseBalance(yaml.replace(/(hunter_outline: \{intensity: [\d.]+, color: )[a-z_.]+/, "$1\"#5a5e66\""))).toThrow();
+  });
+});

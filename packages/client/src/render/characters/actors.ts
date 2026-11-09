@@ -15,7 +15,8 @@ const woundedHp = balance.survivor.wounded_hp;
 
 /** modelo da classe; `skin` (V3) troca só cores secundárias e põe o acessório pequeno */
 export const createSurvivorModel = (s: Survivor, skin?: SkinDef) => createCharacter(SURVIVOR_MODEL[s.cls], skin);
-export const createHunterModel = () => createCharacter(HUNTER_MODEL);
+/** caçador com o contorno de D-18 (Art Bible §5.3: legível fora do cone da lanterna sem clarear a cena) */
+export const createHunterModel = () => createCharacter(HUNTER_MODEL, undefined, { outline: true });
 
 /** clipe do sobrevivente `s`; o jogador (id 0) interage pelo quebra-cabeça aberto */
 export function animateSurvivor(root: THREE.Object3D, s: Survivor, G: GameState) {

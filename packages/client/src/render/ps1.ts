@@ -8,14 +8,18 @@
 // Camada B (GDD-v0.3 §10.2): lanterna (SpotLight) com sombra lida do shadow map e luz assada por vértice (ps1Bake).
 // Camada A: o alfa do alvo leva a máscara de emissivo (0 = emissivo) para o bloom do passe final.
 // Skinning: chunks do three.js no vértice (inertes sem USE_SKINNING), para os personagens do V2.
+// Contorno do caçador (D-18; Art Bible §5.3): borda de luz por vértice (fresnel, PS1_RIM) somada antes da névoa,
+// só no material do caçador; não mexe na luz da cena nem no alfa do bloom. Números em render.hunter_outline.
 import * as THREE from "three";
 import { balance } from "../data.ts";
+import { tok } from "../look.ts";
 
 export type Ps1Effect = "snap" | "affine" | "gouraud" | "dither";
 export type Ps1Intensity = Record<Ps1Effect, number>;
 export const PS1_EFFECTS: readonly Ps1Effect[] = ["snap", "affine", "gouraud", "dither"];
 
 const cfg = balance.render.ps1;
+const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 
 /** uniformes compartilhados por todos os materiais PS1 (mesmo objeto: mudar aqui muda todos) */
 export const ps1Uniforms = {
@@ -31,7 +35,22 @@ export const ps1Uniforms = {
 /** intensidade do dither (lida pelo passe final) */
 export const ditherUniform = { value: cfg.dither };
 
-const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+const ho = balance.render.hunter_outline;
+/**
+ * contorno do caçador (D-18): uniformes compartilhados pelos materiais com `rim` (o mesmo objeto em todos).
+ * uRim = intensidade de 0 a 1 (acessibilidade); uRimColor já leva render.hunter_outline.amount; uRimPower = expoente
+ * do fresnel (maior = borda mais fina)
+ */
+export const rimUniforms = {
+  uRim: { value: ho.intensity },
+  // valor cru do token, como os demais materiais (scene.ts desliga o ColorManagement, mas este módulo carrega antes)
+  uRimColor: { value: new THREE.Color().setHex(tok(ho.color), THREE.LinearSRGBColorSpace).multiplyScalar(ho.amount) },
+  uRimPower: { value: ho.power },
+};
+/** intensidade atual do contorno do caçador (0 a 1) */
+export const getHunterOutline = () => rimUniforms.uRim.value;
+/** setter para o menu de opções (V8): 0 desliga o contorno; fora de 0..1 é limitado */
+export function setHunterOutline(v: number) { rimUniforms.uRim.value = clamp01(v); }
 
 /** intensidades atuais de cada efeito (0 a 1) */
 export function getPs1(): Ps1Intensity {
@@ -86,6 +105,12 @@ varying vec3 vBakeLight;  // luz assada (camada B)
 #if NUM_SPOT_LIGHTS > 0
 varying vec3 vSpot;    // lanterna por vértice, sem sombra (a sombra entra por fragmento)
 #endif
+#endif
+#ifdef PS1_RIM
+uniform float uRim;
+uniform vec3 uRimColor;
+uniform float uRimPower;
+varying float vRim;    // fresnel por vértice (contorno do caçador, D-18)
 #endif
 `;
 
@@ -164,6 +189,10 @@ void main() {
   #if NUM_SPOT_LIGHTS > 0
   vSpot = ps1Spot( mvPosition.xyz, n );
   #endif
+  #ifdef PS1_RIM
+  // borda de luz: 1 onde a normal fica de lado para a câmera, 0 de frente (Gouraud: interpolado entre vértices)
+  vRim = uRim * pow( 1.0 - saturate( dot( n, normalize( vViewPosition ) ) ), uRimPower );
+  #endif
   // coordenadas da sombra da lanterna (chunk do three.js)
   vec4 worldPosition = modelMatrix * vec4( transformed, 1.0 );
   #include <shadowmap_vertex>
@@ -236,6 +265,10 @@ void main() {
   }
   outgoing = mix( perFragment, perVertex, uGouraud ) * BRDF_Lambert( diffuseColor.rgb );
 #endif
+#ifdef PS1_RIM
+  // contorno somado à cor (não depende da luz da cena); a névoa adiante o apaga com a distância como ao resto
+  outgoing += uRimColor * vRim;
+#endif
   // alfa = máscara de emissivo para o bloom da camada A (0 = emissivo); o passe final escreve alfa 1 na tela
   gl_FragColor = vec4( outgoing, 1.0 - uEmissive );
   #include <tonemapping_fragment>
@@ -258,6 +291,8 @@ export interface Ps1MaterialParams {
   emissive?: boolean;
   /** geometria com o atributo `ps1Bake` (luz assada da camada B: rgb = luz, a = oclusão) */
   baked?: boolean;
+  /** contorno do caçador (D-18): borda de luz por vértice com os uniformes de `rimUniforms` (só materiais iluminados) */
+  rim?: boolean;
 }
 
 /** material PS1: substitui MeshLambertMaterial (lit) e MeshBasicMaterial (chapado) em todo o cenário */
@@ -269,6 +304,7 @@ export class Ps1Material extends THREE.ShaderMaterial {
       uniforms: {
         ...THREE.UniformsUtils.merge([THREE.UniformsLib.common, THREE.UniformsLib.fog, lit ? THREE.UniformsLib.lights : {}]),
         ...ps1Uniforms,
+        ...(lit && p.rim ? rimUniforms : {}),
         diffuse: { value: new THREE.Color(p.color ?? 0xffffff) },
         opacity: { value: 1 },
         tMap: { value: p.map ?? null },
@@ -277,7 +313,7 @@ export class Ps1Material extends THREE.ShaderMaterial {
       },
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
-      defines: { ...(lit ? { PS1_LIT: "" } : {}), ...(p.map ? { PS1_MAP: "" } : {}), ...(lit && p.baked ? { PS1_BAKE: "" } : {}) },
+      defines: { ...(lit ? { PS1_LIT: "" } : {}), ...(p.map ? { PS1_MAP: "" } : {}), ...(lit && p.baked ? { PS1_BAKE: "" } : {}), ...(lit && p.rim ? { PS1_RIM: "" } : {}) },
       lights: lit,
       fog: p.fog ?? true,
       wireframe: p.wireframe ?? false,
