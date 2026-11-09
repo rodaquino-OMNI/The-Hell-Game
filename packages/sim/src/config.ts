@@ -69,7 +69,7 @@ export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions =
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";
   const botBrain: BotBrain = v1 ? opts.botBrain ?? balance.ai.bot_brain : "prototype";
-  const grid = brain === "utility" || botBrain === "competent" ? gridFromMap(map, balance, h.radius) : null;
+  const grid = brain === "utility" || botBrain === "competent" ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
   const base = {
     balance, map, v1, difficulty,
     requiredGenerators: map.generators.length,

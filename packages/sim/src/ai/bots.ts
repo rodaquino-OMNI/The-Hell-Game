@@ -44,7 +44,7 @@ export function newBotAi(cfg: SimConfig, rng: { seed: number }, s: Survivor): Bo
   const personality = keys[Math.min(keys.length - 1, Math.floor(nextRandom(rng) * keys.length))];
   return {
     personality, mode: "work", perceiveIn: 0, decideIn: 0, hunter: null, seen: false, heartbeat: false,
-    lastHp: s.hp, hitAt: -Infinity, reactAt: 0, lookAt: 0, glanceAt: 0, busy: false, exhausted: false, running: false, caged: [], pending: [], dangers: [], loop: null, loopSince: -1,
+    lastHp: s.hp, hitAt: null, reactAt: 0, lookAt: 0, glanceAt: 0, busy: false, exhausted: false, running: false, caged: [], pending: [], dangers: [], loop: null, loopSince: -1,
     gen: -1, rescueId: -1, captures: s.captures,
     goal: null, path: [], pathOk: true, forceAstar: false, stuck: { t: 0, x: s.x, z: s.z, ex: 0, ez: 0 }, replans: 0,
   };
@@ -124,6 +124,9 @@ export function perceiveBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi
 export function freshHunter(cfg: SimConfig, ai: BotAi, t: number) {
   return ai.hunter && t - ai.hunter.at <= cfg.balance.ai.bots.glance_interval + EPS ? ai.hunter : null;
 }
+
+/** levou dano há menos de `ai.bots.calm_time` (null = nunca; serializável, sem −Infinity) */
+const hitRecently = (cfg: SimConfig, ai: BotAi, t: number) => ai.hitAt !== null && t - ai.hitAt < cfg.balance.ai.bots.calm_time;
 
 /** caçador conhecido (visto há até `ai.bots.memory`) */
 export function knownHunter(cfg: SimConfig, ai: BotAi, t: number) {
@@ -237,7 +240,7 @@ export function thinkBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, f
   const hk = knownHunter(cfg, ai, t), dh = hk ? dist(s, hk) : Infinity;
   // o caçador que acaba de aparecer só vira ameaça depois do tempo de reação (`ai.bots.ping_reaction`)
   const fresh = freshHunter(cfg, ai, t);
-  const threat = (fresh !== null && t + EPS >= ai.reactAt && dh < P.flee_dist && !fresh.stunned) || t - ai.hitAt < bt.calm_time;
+  const threat = (fresh !== null && t + EPS >= ai.reactAt && dh < P.flee_dist && !fresh.stunned) || hitRecently(cfg, ai, t);
   const calm = !ai.hunter || t - ai.hunter.at >= bt.calm_time;
   if (threat || (ai.mode === "flee" && !calm)) {
     if (g.gateOpen && hk && dist(hk, g.arena.gate) > dh) setBotMode(ai, "escape"); // o portão aberto é a melhor fuga
@@ -273,8 +276,10 @@ export function thinkBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, f
 function useAbility(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, fx: BotEffects, hk: Vec | null, dh: number) {
   const c = cfg.balance.classes, maxHp = cfg.balance.survivor.hp, fleeing = ai.mode === "flee" || ai.mode === "escape";
   if (s.cls === "Curandeiro") {
-    // pulso quando alguém no raio aproveita a cura inteira (vida ≤ máximo − cura); aliado só se visto
-    const need = (o: Survivor) => o.st === "ok" && o.hp <= maxHp - c.healer.pulse_heal && dist(o, s) < c.healer.pulse_radius
+    // pulso quando alguém no raio está abaixo de `heal_below` da personalidade (padrão: vida ≤ máximo − cura, aproveita
+    // a cura inteira; o Altruísta cura mais cedo, §8.5 "prioriza resgate e cura"); aliado só se visto
+    const below = personalityOf(cfg, ai).heal_below ?? maxHp - c.healer.pulse_heal;
+    const need = (o: Survivor) => o.st === "ok" && o.hp <= below && dist(o, s) < c.healer.pulse_radius
       && (o.id === s.id || lineOfSight(cfg.map, s, o));
     if (s.cd <= 0 && g.survivors.some(need)) fx.ability(s);
   } else if (s.cls === "Mecânico") {
@@ -370,9 +375,10 @@ function actBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, dt: number
       break;
     }
   }
-  const run = wantsRun(cfg, s, ai, P.flee_dist, t);
-  const sp = stamina(cfg, s, ai, run, working, dt);
-  if (goal && dist(s, goal) > stopAt) followPath(cfg, s, ai, project(cfg, goal), sp, dt, fx);
+  // como o jogador: só corre (e gasta stamina) quando há passo
+  const moving = goal !== null && dist(s, goal) > stopAt;
+  const sp = stamina(cfg, s, ai, moving && wantsRun(cfg, s, ai, P.flee_dist, t), working, dt);
+  if (moving) followPath(cfg, s, ai, project(cfg, goal!), sp, dt, fx);
   else { idle(ai); ai.path = []; ai.goal = null; }
   antiStuck(cfg, s, ai, dt);
 }
@@ -384,7 +390,7 @@ function actBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, dt: number
 function wantsRun(cfg: SimConfig, s: Survivor, ai: BotAi, fleeDist: number, t: number): boolean {
   if (ai.mode !== "flee" && ai.mode !== "escape") return false;
   const fresh = freshHunter(cfg, ai, t);
-  return (fresh !== null && dist(s, fresh) < fleeDist) || t - ai.hitAt < cfg.balance.ai.bots.calm_time;
+  return (fresh !== null && dist(s, fresh) < fleeDist) || hitRecently(cfg, ai, t);
 }
 
 /** stamina com as regras do jogador (GDD-v0.2 §2.3, `prototype_extras.stamina_min_to_run`); devolve a velocidade */
@@ -402,16 +408,20 @@ function stamina(cfg: SimConfig, s: Survivor, ai: BotAi, wantRun: boolean, puzzl
 /** volta no loop: anda pela rota até o ponto do lado oposto ao caçador (o obstáculo quebra a linha de visão) */
 function loopStep(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, l: MapLoop, hk: Vec | null, dt: number, fx: BotEffects) {
   const P = personalityOf(cfg, ai);
-  const sp = stamina(cfg, s, ai, wantsRun(cfg, s, ai, P.flee_dist, g.t), false, dt);
   const cp = closestParam(l.polygon, s);
-  // parado na rota, a câmera fica na última posição conhecida do caçador (de onde ele deve reaparecer)
-  const watch = () => { if (ai.hunter) s.a = Math.atan2(-(ai.hunter.x - s.x), -(ai.hunter.z - s.z)); idle(ai); resetStuck(ai, s); };
+  // parado na rota, a câmera fica na última posição conhecida do caçador (de onde ele deve reaparecer); parado não
+  // corre, então recupera stamina como o jogador
+  const watch = () => {
+    if (ai.hunter) s.a = Math.atan2(-(ai.hunter.x - s.x), -(ai.hunter.z - s.z));
+    stamina(cfg, s, ai, false, false, dt); idle(ai); resetStuck(ai, s);
+  };
   if (!hk) { watch(); return; }
   const target = closestParam(l.polygon, oppositeOnLoop(l, hk));
   let delta = target.s - cp.s;
   if (delta > cp.L / 2) delta -= cp.L;
   if (delta < -cp.L / 2) delta += cp.L;
   if (Math.abs(delta) <= cfg.balance.ai.loop_band) { watch(); return; }
+  const sp = stamina(cfg, s, ai, wantsRun(cfg, s, ai, P.flee_dist, g.t), false, dt);
   const step = Math.min(sp * dt, Math.abs(delta));
   const next = pointAt(l.polygon, cp.s + Math.sign(delta) * step, cp.L);
   const dx = next.x - s.x, dz = next.z - s.z, k = Math.hypot(dx, dz);
@@ -424,13 +434,13 @@ function loopStep(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, l: MapLo
   antiStuck(cfg, s, ai, dt);
 }
 
-/** fuga sem loop: das 8 direções a `ai.bots.flee_probe`, a que mais se afasta do caçador, preferindo sem linha de visão */
+/** fuga sem loop: das `ai.bots.flee_probe_dirs` direções a `flee_probe`, a que mais se afasta do caçador, preferindo sem linha de visão */
 export function fleeProbe(cfg: SimConfig, s: Vec, hk: Vec | null): Vec {
   if (!hk) return { x: s.x, z: s.z };
-  const r = cfg.balance.ai.bots.flee_probe, grid = cfg.grid!;
+  const r = cfg.balance.ai.bots.flee_probe, n = cfg.balance.ai.bots.flee_probe_dirs, grid = cfg.grid!;
   let best: Vec = { x: s.x, z: s.z }, bk = -Infinity;
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2, q = project(cfg, { x: s.x + Math.cos(a) * r, z: s.z + Math.sin(a) * r });
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, q = project(cfg, { x: s.x + Math.cos(a) * r, z: s.z + Math.sin(a) * r });
     if (!grid.lineOfSight(p2(s), p2(q))) continue;
     const k = dist(q, hk) + (lineOfSight(cfg.map, q, hk) ? 0 : r);
     if (k > bk) { bk = k; best = q; }

@@ -315,6 +315,9 @@ export function updateHunterAi(cfg: SimConfig, g: GameState, dt: number, fx: Hun
     if (ai.mode === "attack") setMode(cfg, g.t, ai, "chase");
   }
 
+  // preparo que já existia antes da decisão deste passo: só ele é descontado agora (o que nasce neste passo fica
+  // visível por inteiro, ≥ `hunter.telegraph_min`, GDD-v0.2 §4.1)
+  const prevWindup = H.windup;
   // leitura e decisão a 10 Hz: a primeira no passo inicial, depois a cada 1/hz (o resto do intervalo é mantido)
   if (ai.perceiveIn <= EPS) { ai.percept = perceive(cfg, g, ai.percept); ai.perceiveIn += 1 / b.ai.perception_hz; }
   if (ai.decideIn <= EPS) { think(cfg, H, ai, ai.percept!, g); ai.decideIn += 1 / b.ai.decision_hz; }
@@ -361,6 +364,7 @@ export function updateHunterAi(cfg: SimConfig, g: GameState, dt: number, fx: Hun
 
   if (H.windup) {
     if (seen && (H.windup.kind === "melee" || H.windup.kind === "projectile")) H.a = Math.atan2(-(seen.x - H.x), -(seen.z - H.z));
+    if (H.windup !== prevWindup) return;
     H.windup.t -= dt;
     if (H.windup.t > EPS) return;
     const kind = H.windup.kind;

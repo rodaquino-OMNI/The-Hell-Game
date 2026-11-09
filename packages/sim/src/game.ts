@@ -243,7 +243,7 @@ export function attack(cfg: SimConfig, g: GameState, s: Survivor) {
   if (s.cls === "Mecânico") {
     const dx = H.x - s.x, dz = H.z - s.z, k = Math.hypot(dx, dz) || 1;
     const facing = (-Math.sin(s.a) * dx - Math.cos(s.a) * dz) / k;
-    if (k < c.mechanic.bolt.range && (s.bot || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
+    if (k < c.mechanic.bolt.range && ((s.bot && cfg.botBrain === "prototype") || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
       s.atk = c.mechanic.bolt.cooldown;
       H.hp -= c.mechanic.bolt.damage;
       H.slow = c.mechanic.bolt.slow_time;
@@ -411,17 +411,13 @@ function updateHunterV1(cfg: SimConfig, g: GameState, dt: number) {
   // memória: ao perder o alvo, investiga a última posição vista (GDD-v0.3 §8.1)
   if (c) { H.alert = { x: c.x, z: c.z }; H.alertTime = b.ai.by_difficulty[cfg.difficulty].memory; }
   if (H.recoil > 0) return; // recuo pós-golpe: parado e sem agir (GDD-v0.2 §4.3)
-  if (H.trap <= 0) { H.trap = cfg.trapInterval; g.traps.push({ id: g.nextId++, x: H.x, z: H.z }); }
-  if (c && H.projectile <= 0 && cd > h.projectile.min && cd < h.projectile.max) {
-    H.projectile = h.projectile.cooldown;
-    const k = cd || 1;
-    g.projectiles.push({ id: g.nextId++, x: H.x, z: H.z, vx: ((c.x - H.x) / k) * h.projectile.speed, vz: ((c.z - H.z) / k) * h.projectile.speed, t: px.projectile_life });
-  }
-  // telegraph do dash: preparo de `hunter.telegraph_min` antes de disparar (GDD-v0.2 §4.1)
-  if (c && !H.windup && H.dashing <= 0 && H.dash <= 0 && cd > h.dash.min && cd < h.dash.max) {
-    H.dash = h.dash.cooldown;
-    H.windup = { kind: "dash", t: h.telegraph_min, total: h.telegraph_min };
-  }
+  // D-36 (GDD-v0.2 §4.1, "toda habilidade"): armadilha, projétil, dash e golpe saem depois de um preparo de
+  // `hunter.telegraph_min`; o preparo que nasce neste passo não é descontado nele (fica visível o tempo inteiro)
+  const prevWindup = H.windup;
+  const prep = (kind: "trap" | "projectile" | "dash") => { H.windup = { kind, t: h.telegraph_min, total: h.telegraph_min }; };
+  if (H.trap <= 0 && !H.windup) { H.trap = cfg.trapInterval; prep("trap"); }
+  if (c && !H.windup && H.projectile <= 0 && cd > h.projectile.min && cd < h.projectile.max) { H.projectile = h.projectile.cooldown; prep("projectile"); }
+  if (c && !H.windup && H.dashing <= 0 && H.dash <= 0 && cd > h.dash.min && cd < h.dash.max) { H.dash = h.dash.cooldown; prep("dash"); }
   let tx: number, tz: number;
   if (c) { tx = c.x; tz = c.z; }
   else if (H.alertTime > 0 && H.alert) { tx = H.alert.x; tz = H.alert.z; }
@@ -434,11 +430,21 @@ function updateHunterV1(cfg: SimConfig, g: GameState, dt: number) {
   if (H.slow > 0) sp *= b.classes.mechanic.bolt.slow;
   move(cfg, g, H, tx - H.x, tz - H.z, sp, dt);
   if (H.windup) {
+    if (H.windup !== prevWindup) return;
     H.windup.t -= dt;
     if (H.windup.t > 0) return;
     const kind = H.windup.kind;
     H.windup = null;
     if (kind === "dash") { H.dashing = h.dash.duration; return; }
+    if (kind === "trap") { g.traps.push({ id: g.nextId++, x: H.x, z: H.z }); return; }
+    if (kind === "projectile") {
+      // mira no fim do preparo: o alvo visto agora ou a última posição lembrada
+      const aim = c ?? (H.alertTime > 0 ? H.alert : null);
+      if (!aim) return;
+      const k = dist(aim, H) || 1;
+      g.projectiles.push({ id: g.nextId++, x: H.x, z: H.z, vx: ((aim.x - H.x) / k) * h.projectile.speed, vz: ((aim.z - H.z) / k) * h.projectile.speed, t: px.projectile_life });
+      return;
+    }
     // o golpe sai no fim do preparo e só acerta se o alvo ainda estiver no alcance; recarga gasta mesmo errando
     H.atk = cfg.meleeCooldown;
     if (c && d(c) < h.melee.range) {
@@ -577,7 +583,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     return !dead;
   });
   g.traps = g.traps.filter(t => {
-    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && s.cls === "Mecânico" && s.bot));
+    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && cfg.botBrain === "prototype" && s.cls === "Mecânico" && s.bot));
     if (s) { s.slow = b.hunter.trap.slow_time; if (!s.bot) msg(g, "trap_caught"); return false; }
     return true;
   });

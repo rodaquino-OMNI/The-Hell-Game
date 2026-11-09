@@ -200,7 +200,7 @@ const difficulty = z.object({
 /** GDD-v0.3 §8.4 (valores do GDD-v0.2 §8.4): reação, previsão de projétil, conhecimento de loops e memória */
 /** GDD-v0.3 §8.5: personalidade de bot aliado (item R4) */
 const botPersonality = z.object({
-  flee_dist: pos.positive(), bonus: z.enum(["avoid", "prefer"]), rescue_priority: z.enum(["normal", "high"]), look_on_heartbeat: z.boolean(),
+  flee_dist: pos.positive(), bonus: z.enum(["avoid", "prefer"]), rescue_priority: z.enum(["normal", "high"]), look_on_heartbeat: z.boolean(), heal_below: pos.optional(),
 }).strict();
 
 /** GDD-v0.3 §8.5: bots aliados (item R4); números técnicos sem valor no GDD comentados como LACUNA nos dados */
@@ -209,7 +209,7 @@ const aiBots = z.object({
   puzzle_fail_rate: z.number().min(0).max(1),
   ping_reaction: range.refine(([a, b]) => a >= 0 && b >= a, "faixa [mín, máx] com 0 ≤ mín ≤ máx"),
   sight_radius: pos.positive(), glance_interval: pos, memory: pos, calm_time: pos, stamina_resume: pos, defend_dist: pos,
-  rescue_safe_dist: pos, danger_radius: pos, bonus_prefer_mult: pos.positive(), flee_probe: pos.positive(),
+  rescue_safe_dist: pos, danger_radius: pos, bonus_prefer_mult: pos.positive(), flee_probe: pos.positive(), flee_probe_dirs: z.number().int().positive(),
 }).strict();
 
 const aiDifficulty = z.object({

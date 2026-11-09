@@ -244,13 +244,16 @@ ai:
     # batimento e sem o caçador conhecido a menos de rescue_safe_dist da gaiola. look_on_heartbeat (LACUNA): no
     # quebra-cabeça a câmera fica no gerador; true = ao ouvir o batimento (prototype_extras.heartbeat) olha em volta
     # depois do tempo de reação; false (Ousado) = segue consertando até ver o caçador no campo da câmera ou levar dano.
+    # heal_below (LACUNA, opcional): Curandeiro usa o pulso com alguém no raio a esta vida ou menos; sem o campo,
+    # survivor.hp − classes.healer.pulse_heal (aproveita a cura inteira). O Altruísta cura mais cedo (§8.5).
     personalities:
       cautious:  {flee_dist: 12, bonus: avoid,  rescue_priority: normal, look_on_heartbeat: true}
       bold:      {flee_dist: 7,  bonus: prefer, rescue_priority: normal, look_on_heartbeat: false}
-      altruist:  {flee_dist: 9,  bonus: avoid,  rescue_priority: high,   look_on_heartbeat: true}
+      altruist:  {flee_dist: 9,  bonus: avoid,  rescue_priority: high,   look_on_heartbeat: true, heal_below: 80}
     puzzle_fail_rate: 0.15          # §8.5: a falha emite o mesmo ruído e a mesma regressão do jogador (GDD-v0.2 §6.2)
     # §8.5: reação a pings de 0,3 a 0,8 s. LACUNA: o sim não tem pings (vivem no HUD, packages/client/src/hud/ping.ts);
-    # o atraso sorteado nesta faixa vale para os eventos que o sim já emite (aliado preso, gerador revelado, ruído).
+    # o atraso sorteado nesta faixa vale para os eventos que o sim já emite (aliado preso, gerador revelado, ruído),
+    # para reagir ao caçador que acaba de aparecer (reactAt) e para olhar em volta ao ouvir o batimento (lookAt).
     ping_reaction: [0.3, 0.8]
     # Números técnicos sem valor no GDD (LACUNA registrada no relato do R4; valores conservadores):
     sight_radius: 30                # §8.1 "o que um jogador veria": = render.fog.far (névoa total aos 30 m), com linha de visão
@@ -262,7 +265,8 @@ ai:
     rescue_safe_dist: 16            # rescue_priority normal (= prototype_extras.bot.rescue_min_hunter_dist)
     danger_radius: 12               # evita gerador a até isto de um perigo conhecido (gerador revelado, falha ouvida)
     bonus_prefer_mult: 0.5          # bonus "prefer": distância a gerador bônus conta × isto na escolha
-    flee_probe: 6                   # fuga sem loop por perto: pontos de teste a esta distância (8 direções)
+    flee_probe: 6                   # fuga sem loop por perto: pontos de teste a esta distância
+    flee_probe_dirs: 8              # ... em tantas direções igualmente espaçadas
 
 # ---------- 12. Navegação (GDD-v0.3 §8.6) ----------
 nav:

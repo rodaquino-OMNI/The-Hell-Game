@@ -93,7 +93,7 @@ export interface BotAi {
   heartbeat: boolean;
   lastHp: number;
   /** instante do último dano recebido */
-  hitAt: number;
+  hitAt: number | null;
   /** stamina esgotada: anda até `ai.bots.stamina_resume` */
   exhausted: boolean;
   /** correu no último passo */

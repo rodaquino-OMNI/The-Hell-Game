@@ -10,7 +10,7 @@ import {
 } from "../src/ai/bots.ts";
 import { loopAt } from "../src/ai/hunter.ts";
 import {
-  chaseEpisodes, createGame, hit, lineOfSight, makeConfig, playHeadless, step, NO_INPUT, type GameState,
+  attack, chaseEpisodes, createGame, hit, lineOfSight, makeConfig, playHeadless, step, NO_INPUT, type GameState,
   type SimConfig, type Survivor, type Vec,
 } from "../src/index.ts";
 import { b, map } from "./ai-helpers.ts";
@@ -65,6 +65,9 @@ function fx(): BotEffects & { calls: string[] } {
 }
 
 describe("despacho e dados (ai.bot_brain)", () => {
+  it("revisão qa B-4: a grade comum ao caçador e aos bots usa o maior raio dos dois", () => {
+    expect(cfg.grid!.radius).toBe(Math.max(b.hunter.radius, b.survivor.bot_radius));
+  });
   it("padrão prototype; o ruleset prototype ignora a sobreposição; v1 aceita competent e monta a grade", () => {
     expect(b.ai.bot_brain).toBe("prototype");
     expect(makeConfig(b, map, { botBrain: "competent" }).botBrain).toBe("prototype");
@@ -110,11 +113,18 @@ describe("personalidade sorteada pelo PRNG da partida", () => {
     for (let k = 0; k < 60; k++) seen.add(newBotAi(cfg, { seed: k }, s).personality);
     expect([...seen].sort()).toEqual(Object.keys(b.ai.bots.personalities).sort());
   });
-  it("na partida: depende da semente e não muda o sorteio do ruleset prototype", () => {
+  it("na partida: depende da semente; com bot_brain prototype o PRNG da partida não é tocado", () => {
     const pers = (seed: number) => { const g = game(cfg, seed); step(cfg, g, NO_INPUT); return g.survivors.map(s => s.ai!.personality).join(); };
     expect(pers(7)).toBe(pers(7));
     const all = new Set(Array.from({ length: 20 }, (_, i) => pers(i + 1)));
     expect(all.size).toBeGreaterThan(3);
+    // mesmo jogo sem bots competentes: o estado do PRNG não depende de ai.bot_brain existir nos dados
+    const proto = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility", botBrain: "prototype" });
+    const dflt = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility" });
+    const a = createGame(proto, "Curandeiro", 7), c2 = createGame(dflt, "Curandeiro", 7);
+    for (let i = 0; i < 600; i++) { step(proto, a, NO_INPUT); step(dflt, c2, NO_INPUT); }
+    expect(a.seed).toBe(c2.seed);
+    expect(a.survivors.some(s => s.ai)).toBe(false);
   });
 });
 
@@ -199,6 +209,10 @@ describe("fuga competente (GDD-v0.3 §8.5)", () => {
     const c = comp(), noLoops = { ...c, map: { ...map, loops: [] } };
     const p = fleeProbe(noLoops, { x: -8, z: 26 }, { x: -8, z: 20 });
     expect(p.z).toBeGreaterThan(26);
+    // ai.bots.flee_probe_dirs: com 4 direções os pontos de teste ficam nos eixos
+    const four = { ...noLoops, balance: { ...b, ai: { ...b.ai, bots: { ...b.ai.bots, flee_probe_dirs: 4 } } } };
+    const q = fleeProbe(four, { x: -8, z: 26 }, { x: -2, z: 20 });
+    expect(Math.min(Math.abs(q.x - -8), Math.abs(q.z - 26))).toBeLessThan(b.nav.fallback_grid);
     expect(fleeProbe(noLoops, { x: -8, z: 26 }, null)).toEqual({ x: -8, z: 26 });
     const g = game(noLoops), s = solo(g, 1, { x: -8, z: 22 });
     pinned(noLoops, g, 2, { x: -8, z: 17 });
@@ -268,9 +282,13 @@ describe("habilidade da classe na fuga (bloqueio, pulso de cura, parafuso)", () 
     expect(fleeing("Mecânico", { x: -8, z: 19 }, { windup: "melee" }).f.calls).toContain("attack:Mecânico");
     expect(fleeing("Mecânico", { x: -8, z: 12 }, { exhausted: true }).f.calls).not.toContain("attack:Mecânico");
   });
-  it("Curandeiro: pulso quando alguém no raio aproveita a cura inteira", () => {
+  it("Curandeiro: pulso quando alguém no raio aproveita a cura inteira; o Altruísta cura mais cedo (heal_below)", () => {
     expect(fleeing("Curandeiro", { x: -8, z: 14 }, { hp: 50 }).f.calls).toContain("ability:Curandeiro");
     expect(fleeing("Curandeiro", { x: -8, z: 14 }, { hp: 60 }).f.calls).not.toContain("ability:Curandeiro");
+    const r = fleeing("Curandeiro", { x: -8, z: 14 }, { hp: 70 });
+    r.s.ai!.personality = "altruist"; r.f.calls.length = 0; thinkBot(cfg, r.g, r.s, r.s.ai!, r.f);
+    expect(b.ai.bots.personalities.altruist.heal_below).toBeGreaterThanOrEqual(70);
+    expect(r.f.calls).toContain("ability:Curandeiro");
   });
   it("na partida: o parafuso acerta e desacelera o caçador; o bloqueio fica ativo; a cura sobe a vida", () => {
     for (const cls of ["Mecânico", "Atacador", "Curandeiro"] as const) {
@@ -356,6 +374,15 @@ describe("stamina com as regras do jogador", () => {
     expect(s.stamina).toBeGreaterThan(b.prototype_extras.stamina_min_to_run);
     s.stamina = b.ai.bots.stamina_resume; pinned(cfg, g, 0.1, h);
     expect(s.ai!.exhausted).toBe(false);
+  });
+  it("revisão qa B-1: parado na rota do loop não gasta stamina, recupera como o jogador", () => {
+    const g = game(), s = solo(g, 1, { x: -8, z: 22 }), h = { x: -14, z: 26 };
+    pinned(cfg, g, 3.5, h); // chega ao lado oposto do loop "sul" e fica de olho no caçador
+    const x = s.x, z = s.z, st = s.stamina;
+    s.ai!.hitAt = g.t; // "acabou de levar dano": quer correr, mas não há passo
+    pinned(cfg, g, 0.5, h);
+    expect(Math.hypot(s.x - x, s.z - z)).toBeLessThan(0.1);
+    expect(s.stamina).toBeGreaterThanOrEqual(Math.min(st, b.survivor.stamina.max));
   });
   it("sem ameaça anda (sem gastar stamina)", () => {
     const g = game(), s = solo(g, 1, { x: -8, z: 26 });
@@ -471,9 +498,42 @@ describe("determinismo e simulador", () => {
   it("volta da gaiola: caminho velho descartado", () => {
     const g = game(), s = solo(g, 1, { x: -8, z: 26 });
     pinned(cfg, g, 0.5, { x: 25, z: 25 });
-    s.ai!.path = [{ x: 0, z: 0 }]; s.captures = 1;
+    const stale = { x: 99, z: 99 };
+    s.ai!.path = [stale]; s.ai!.goal = stale; s.captures = 1;
     const spy = vi.fn();
     updateBotAi(cfg, g, s, 1 / 60, { ...fx(), collide: spy });
     expect(s.ai!.captures).toBe(1);
+    expect(s.ai!.path).not.toContainEqual(stale);
+    expect(s.ai!.goal).not.toEqual(stale);
+    expect(spy).toHaveBeenCalled(); // andou pelo caminho novo
+  });
+  it("o estado com bots competentes sobrevive a JSON no meio da partida (revisão qa M-1: sem −Infinity)", () => {
+    for (const seed of [3, 11, 19]) {
+      const g = game(cfg, seed);
+      for (let i = 0; i < 60 * 1.2; i++) step(cfg, g, NO_INPUT);
+      const copy = JSON.parse(JSON.stringify(g)) as GameState;
+      for (let i = 0; i < 60 * 30; i++) { step(cfg, g, NO_INPUT); step(cfg, copy, NO_INPUT); }
+      expect(JSON.stringify(copy)).toBe(JSON.stringify(g));
+    }
+    expect(newBotAi(cfg, { seed: 1 }, game().survivors[1]).hitAt).toBeNull();
+  });
+  it("revisão qa M-2: P-06/P-07 só valem para os bots do protótipo", () => {
+    const g = game(), s = g.survivors.find(x => x.cls === "Mecânico")!;
+    solo(g, s.id, { x: -8, z: 22 });
+    const H = g.hunter; H.x = -8; H.z = 18; const hp = H.hp;
+    s.a = Math.PI; // olhando para +z, o caçador atrás
+    attack(cfg, g, s);
+    expect(H.hp).toBe(hp); // errou: precisa da mira como o jogador
+    s.a = 0; attack(cfg, g, s);
+    expect(H.hp).toBe(hp - b.classes.mechanic.bolt.damage);
+    g.traps.push({ id: 99, x: s.x, z: s.z });
+    H.x = 25; H.z = -25; H.stun = 1e9;
+    step(cfg, g, NO_INPUT);
+    expect(s.slow).toBeGreaterThan(0); // bot competente cai na armadilha
+    const pc = makeConfig(b, map, { ruleset: "v1", hunterBrain: "utility" }), p = createGame(pc, "Curandeiro", 43);
+    const m = p.survivors.find(x => x.cls === "Mecânico")!;
+    p.traps.push({ id: 99, x: m.x, z: m.z }); p.hunter.stun = 1e9;
+    step(pc, p, NO_INPUT);
+    expect(m.slow).toBeLessThanOrEqual(0); // protótipo: imune (P-06)
   });
 });
