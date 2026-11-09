@@ -1,15 +1,13 @@
 // Cores do HUD e dos menus: só os tokens de data/art/palette.json (Art Bible §2, §8), publicados como variáveis CSS.
 // Token "ui.text_dim" vira "--ui-text-dim"; o hex é o de 15 bits do PS1 (round(v × 255 / 31)).
-import palette from "@thehell/shared/generated/palette.json";
+// O modo daltônico (look.ts `setColorMode`, V8) troca tokens; `applyPalette` de novo publica as cores trocadas.
+import { PALETTE, rgb5 } from "../look.ts";
 
-type Token = { rgb5: [number, number, number] };
-const tokens = (palette as unknown as { tokens: Record<string, Token> }).tokens;
+const tokens = PALETTE.tokens;
 
-/** cor do token em #rrggbb */
+/** cor do token em #rrggbb (com o modo de cor atual) */
 export function tokenHex(name: string): string {
-  const tok = tokens[name];
-  if (!tok) throw new Error(`token de cor inexistente: ${name}`);
-  return "#" + tok.rgb5.map(v => Math.round((v * 255) / 31).toString(16).padStart(2, "0")).join("");
+  return "#" + rgb5(name).map(v => Math.round((v * 255) / 31).toString(16).padStart(2, "0")).join("");
 }
 
 /** nome da variável CSS do token */

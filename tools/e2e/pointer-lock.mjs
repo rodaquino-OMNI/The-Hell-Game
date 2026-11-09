@@ -4,10 +4,9 @@
 // (packages/client/src/pointer-filter.ts; limite em data/balance.yaml `client.mouse_max_delta`). Inicia a partida com
 // um clique real do mouse em "#go" (page.mouse.click no centro do botão), várias vezes (a corrida é intermitente), e confere que o yaw do
 // sobrevivente (`__thehell().survivors[0].a`, que é o yaw da câmera de cada passo) continua 0 depois do início.
-// Uso: node tools/e2e/pointer-lock.mjs [url]   (sem url, sobe packages/server/dist/server.mjs na porta 18081)
-import { spawn } from "node:child_process";
+// Uso: node tools/e2e/pointer-lock.mjs [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre: tools/lib/server.mjs)
 import { createRequire } from "node:module";
-import { setTimeout as sleep } from "node:timers/promises";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -22,11 +21,8 @@ const MIN_T = 0.2;
 const NUDGE = 2, NUDGE_MAX = 0.1;
 
 let url = process.argv[2], server;
-if (!url) {
-  url = "http://127.0.0.1:18081";
-  server = spawn(process.execPath, ["packages/server/dist/server.mjs"], { env: { ...process.env, PORT: "18081" }, stdio: "inherit" });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 const fail = (m) => { console.error("FALHA:", m); server?.kill(); process.exit(1); };
 try {
   const debugUrl = new URL(url); debugUrl.searchParams.set("debug", "1");

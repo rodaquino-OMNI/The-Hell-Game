@@ -3,7 +3,10 @@
 // Cada teste roda sobre as cores exatas dos tokens e sobre as cores que saem do passe final do jogo
 // (dither Bayer 4×4 + quantização para render.ps1.color_bits por canal, packages/client/src/render/present.ts):
 // cada token vira até 16 variantes (uma por limiar da matriz de Bayer) e vale o pior par de variantes.
-// Uso: node tools/art/palette-check.mjs [data/art/palette.json] [--md]
+// Uso: node tools/art/palette-check.mjs [data/art/palette.json] [--md] [--mode protanopia|deuteranopia|tritanopia]
+//   --mode  aplica as sobreposições do modo daltônico (`modos_daltonico`, GDD v0.3 §12.4, Art Bible §5.2) antes dos
+//           testes. Sem --mode, roda a paleta normal e depois cada modo que tem sobreposição (modo sem sobreposição
+//           = igual à normal, já coberto).
 // Sai com código 1 se algum teste falhar (pronto para virar etapa da CI na fase 0).
 //
 // Referências:
@@ -12,13 +15,24 @@
 //  - Simulação de deficiência de cor: Machado, Oliveira & Fernandes (2009), "A Physiologically-based Model for
 //    Simulation of Color Vision Deficiency", IEEE TVCG 15(6) — matrizes de severidade 1,0, aplicadas em RGB linear.
 //  - Diferença de cor: CIEDE2000 (Sharma, Wu & Dalal, 2005, "The CIEDE2000 Color-Difference Formula").
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 const args = process.argv.slice(2);
-const file = args.find(a => !a.startsWith("--")) ?? "data/art/palette.json";
+const file = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--mode") ?? "data/art/palette.json";
 const asMd = args.includes("--md");
 const pal = JSON.parse(readFileSync(file, "utf8"));
+const modeArg = args.includes("--mode") ? args[args.indexOf("--mode") + 1] : null;
+if (modeArg) {
+  const over = pal.modos_daltonico?.[modeArg];
+  if (!over) throw new Error(`modo daltônico inexistente: ${modeArg}`);
+  for (const [k, rgb5] of Object.entries(over.tokens)) {
+    if (!pal.tokens[k]) throw new Error(`modos_daltonico.${modeArg}: token inexistente ${k}`);
+    pal.tokens[k] = { ...pal.tokens[k], rgb5 };
+  }
+}
 // GDD-v0.3 §10.1 item 4: quantização para color_bits por canal (data/balance.yaml render.ps1)
 const renderData = parse(readFileSync(new URL("../../data/balance.yaml", import.meta.url), "utf8"))?.render;
 const bits = renderData?.ps1?.color_bits;
@@ -203,6 +217,16 @@ else if (tokens.length >= atlasCap - ATLAS_MARGIN) warns.push(`atlas: ${tokens.l
 if (warns.length) out.push(`\n**Avisos (pior pixel, informativo):** ${warns.length}\n\n- ` + warns.join("\n- "));
 out.push(`\n**Resultado:** ${fails.length === 0 ? "todos os testes passam." : `${fails.length} falha(s):\n\n- ` + fails.join("\n- ")}`);
 
+if (modeArg) out.unshift(`# Modo daltônico: ${modeArg}\n`);
 if (asMd) console.log(out.join("\n"));
 else { console.log(out.filter(l => !l.startsWith("|") || l.includes("FALHA")).join("\n")); }
-process.exit(fails.length ? 1 : 0);
+// sem --mode: cada modo daltônico com sobreposição roda o mesmo verificador (Art Bible §5.2)
+let modeFails = 0;
+if (!modeArg) {
+  for (const [m, def] of Object.entries(pal.modos_daltonico ?? {})) {
+    if (!Object.keys(def.tokens).length) { console.log(`modo daltônico ${m}: sem sobreposição (igual à paleta normal)`); continue; }
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), file, "--mode", m, ...(asMd ? ["--md"] : [])], { stdio: "inherit" });
+    if (r.status !== 0) modeFails++;
+  }
+}
+process.exit(fails.length || modeFails ? 1 : 0);

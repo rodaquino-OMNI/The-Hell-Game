@@ -7,7 +7,8 @@ import * as THREE from "three";
 import type { Sheet, SheetCharacter, SheetPiece } from "@thehell/shared";
 import sheetJson from "@thehell/shared/generated/personagens.json";
 import { balance } from "../../data.ts";
-import { PALETTE, tok } from "../../look.ts";
+import { activePalette, PALETTE, tok } from "../../look.ts";
+import { bobScale } from "../motion.ts";
 import { atlasLayout, atlasPixels } from "../characters/atlas.ts";
 import { box, ellipsoid, prism, pyramid, type Tri } from "../characters/geometry.ts";
 import { Ps1Material } from "../ps1.ts";
@@ -106,7 +107,7 @@ export function createViewmodel(cls: RetroClass, aspect: number): Viewmodel {
     lit.push(...tris);
   }
   const size = balance.render.models.atlas;
-  const atlas = new THREE.DataTexture(atlasPixels(PALETTE, size), size, size, THREE.RGBAFormat);
+  const atlas = new THREE.DataTexture(atlasPixels(activePalette(), size), size, size, THREE.RGBAFormat);
   atlas.magFilter = atlas.minFilter = THREE.NearestFilter; atlas.generateMipmaps = false; atlas.colorSpace = THREE.NoColorSpace;
   atlas.needsUpdate = true;
   const merge = (list: THREE.BufferGeometry[]) => {
@@ -148,7 +149,8 @@ export function createViewmodel(cls: RetroClass, aspect: number): Viewmodel {
         amp += (target - amp) * rt.bob_return;
       } else if (!(dt >= 0)) amp = 0;
       lx = x; lz = z; lt = t;
-      const k = rt.bob * amp;
+      // V8 "reduzir balanço de câmera" (GDD-v0.3 §12.4): × ui.options.reduced_bob com a opção ligada
+      const k = rt.bob * bobScale() * amp;
       group.position.set(Math.sin(phase) * rt.bob_amplitude[0] * k, -Math.abs(Math.cos(phase)) * rt.bob_amplitude[1] * k, 0);
     },
   };
