@@ -61,8 +61,9 @@ generator:
   fail_spark_time: 3
   completed_reveal: 3
   # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).
-  # LACUNA: false = só o caçador dentro de noise.generator_done reage (leitura conservadora); true = alcança de qualquer distância.
-  completed_reveal_global: false
+  # D-21 (Rodrigo, 09/11/2026): o caçador vê o alerta de conserto de qualquer ponto do mapa (true). false = só o
+  # caçador dentro de noise.generator_done reage (leitura anterior, conservadora).
+  completed_reveal_global: true
   by_team_size:                    # GDD-v0.2 §3.5
     1: {required: 2, bonus: 1}
     2: {required: 3, bonus: 2}

@@ -327,6 +327,12 @@ Todas tomadas em 08/11/2026 pelo Rodrigo e pelo filho. Registro completo no [pla
 | D-08 | Moeda premium e passe (§14.2–14.3) | a) fora da v1.0, atrás de flag |
 | D-09 | Caçadores (C-17) | a) caçador humano na fase 3; os 3 caçadores na v1.0 |
 | D-16 | Metas de balanceamento com D-01 b (§7.6) | a) vale a vitória do caçador por partida em 45–55%; fuga por sobrevivente só medida |
+| D-20 | Moedas de vitória para quem sobreviveu sem escapar (§3.3 item 1) | b) todos os vivos do time vencedor ganham o bônus (Rodrigo, 09/11/2026) |
+| D-21 | Revelação de 3 s do gerador completo (§6.2) | b) para o caçador em qualquer ponto do mapa (Rodrigo, 09/11/2026; corrigiu a resposta inicial a) |
+| D-22 | 5º gerador para equipes de 4–5 (`generator.by_team_size`) | a) acrescentar no ruleset v1 sem mudar o layout 0 |
+| D-23 | Loops curtos de 8–12 m no Pátio (§9.1) | b) 2–3 pilares no ruleset v1 |
+| D-24 | Distância mínima de 25 m entre geradores (§9.1) | a) vale só para os obrigatórios, não para os bônus |
+| D-25 | Segunda saída a ~11 m de dois spawns (§9.1) | b) mover para parede lateral (`exit_x` no mapa e em `crossedExit`) |
 
 ## Fontes
 
