@@ -1,7 +1,7 @@
 // Menu inicial (idioma, escolha de classe, objetivo, botões) e tela de fim de partida.
 // Acessibilidade (GDD v0.3 §12.4): tudo é botão nativo (teclado), seleção com aria-pressed, foco visível.
 import { CLASSES, type ClassName, type GameEvent } from "@thehell/sim";
-import { $, balance, cfg, map } from "../data.ts";
+import { $, balance, cfg } from "../data.ts";
 import { locale, t } from "../i18n/index.ts";
 import { classDescription, className, endStats, endText, goalText } from "../text.ts";
 import { difficultyText, matchConfig, setupDifficulty } from "./difficulty.ts";
@@ -24,7 +24,7 @@ export function refreshMenuText() {
   const classBox = $("cls");
   [...classBox.children].forEach((b, i) => { b.textContent = className(CLASSES[i]); });
   $("desc").textContent = classDescription(balance, selected);
-  $("goal").textContent = goalText(balance, map.generators.length, map.bonus.length, matchConfig(cfg).gateTime);
+  $("goal").textContent = goalText(balance, cfg.map.generators.length, cfg.map.bonus.length, matchConfig(cfg).gateTime);
   difficultyText();
   updateCoins();
   // seletor de idioma do menu inicial com o idioma atual marcado
