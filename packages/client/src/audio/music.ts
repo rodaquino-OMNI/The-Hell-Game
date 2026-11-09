@@ -358,3 +358,8 @@ export function updateMusic(state: GameState, playerId: number): MusicState {
   });
   return director.update(state, playerId);
 }
+
+/** ducking da música do singleton por `s` segundos (A-5: eventos críticos); no-op antes de a música existir */
+export function duckMusic(s: number) {
+  director?.music?.duckFor(s);
+}

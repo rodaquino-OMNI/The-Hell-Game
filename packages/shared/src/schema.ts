@@ -42,6 +42,32 @@ const SimSchema = z.object({
 
 /** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
 const gain01 = num.min(0).max(1);
+/** A-5: camada de síntese de um efeito (oscilador ou ruído branco, filtro opcional, envelope ataque/decaimento) */
+const SfxLayerSchema = z.object({
+  type: z.enum(["osc", "noise"]),
+  wave: z.enum(["sine", "square", "sawtooth", "triangle"]).optional(),
+  freq: pos.positive().optional(), freq_end: pos.positive().optional(),
+  filter: z.enum(["lowpass", "highpass", "bandpass"]).optional(),
+  filter_freq: pos.positive().optional(), filter_end: pos.positive().optional(), q: pos.positive().optional(),
+  attack: pos, decay: pos.positive(), gain: gain01,
+  delay: pos.optional(), repeat: z.number().int().positive().optional(), gap: pos.positive().optional(),
+}).strict()
+  .refine(l => l.type !== "osc" || (l.freq !== undefined && l.wave !== undefined), "osc exige wave e freq")
+  .refine(l => l.type !== "noise" || (l.freq === undefined && l.freq_end === undefined && l.wave === undefined), "noise não tem wave/freq")
+  .refine(l => l.freq_end === undefined || l.freq !== undefined, "freq_end exige freq")
+  .refine(l => (l.filter === undefined) === (l.filter_freq === undefined), "filter e filter_freq andam juntos")
+  .refine(l => (l.filter_end === undefined && l.q === undefined) || l.filter !== undefined, "filter_end/q exigem filter")
+  .refine(l => (l.repeat ?? 1) === 1 || l.gap !== undefined, "repeat > 1 exige gap");
+const modRange = z.tuple([pos, pos]);
+/** A-5: efeito do catálogo `audio.sfx` (kind = chave de voice_priority) */
+const SfxSchema = z.object({
+  kind: z.string().regex(/^[a-z_]+$/),
+  bus: z.enum(["music", "sfx", "voice", "ui"]),
+  spatial: z.boolean(),
+  mod: z.object({ gain: modRange.optional(), pitch: modRange.optional() }).strict().optional(),
+  recipe: z.array(SfxLayerSchema).min(1),
+}).strict();
+
 /** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
 const AudioSchema = z.object({
   music: z.object({
@@ -82,7 +108,21 @@ const AudioSchema = z.object({
     ref_distance: pos.positive(), max_distance: pos.positive(), rolloff_factor: pos,
   }).strict().refine(p => p.max_distance > p.ref_distance, "panner.max_distance deve passar de ref_distance"),
   occlusion_ramp_tc: pos.positive(), source_height: pos,
-}).strict();
+  /** A-5: diretor de áudio atrás de flag (D-32) */
+  director_enabled: z.boolean(),
+  sfx_floor_gain: num.positive().max(1),
+  noise_seconds: pos.positive(), noise_seed: int, sfx_cancel_ramp: pos.positive(),
+  /** A-5: catálogo de efeitos sintetizados (decisão do Rodrigo, 09/11/2026: síntese PS1 pura) */
+  sfx: z.record(z.string().regex(/^[a-z_]+$/), SfxSchema).refine(r => Object.keys(r).length > 0, "sfx vazio"),
+  director: z.object({
+    duck_time: pos.positive(), hunter_stride: pos.positive(), walk_stride: pos.positive(), run_stride: pos.positive(),
+    teleport_dist: pos.positive(), hunter_audible_radius: pos.positive(),
+    breath: z.object({ stamina_below: num.positive().max(1), period: z.tuple([pos.positive(), pos.positive()]) }).strict(),
+    hum: z.object({ radius: pos.positive(), period: pos.positive() }).strict(),
+  }).strict(),
+}).strict()
+  .refine(a => Object.values(a.sfx).every(s => Object.prototype.hasOwnProperty.call(a.voice_priority, s.kind)),
+    "sfx: kind fora de voice_priority");
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
 const NavSchema = z.object({
