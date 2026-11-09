@@ -212,6 +212,10 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-17 | a) anunciar o MJ-A ao fechar o A2 (Rodrigo, 09/11/2026) | o A2 fecha com o cajado de mago variante (a), sem caduceu (escolha do aprovador, issue #24) |
 | D-18 | b) contorno sutil no caçador (Rodrigo, 09/11/2026) | legibilidade do caçador fora da lanterna (1,43:1 contra 3:1 da Art Bible §5.3) resolvida com contorno/borda de luz discreto, sem clarear a cena; entra na preparação do marco A3 |
 | D-19 | a) produção só no MJ-B (Rodrigo, 09/11/2026) | o MJ-A fica no staging; o deploy de produção acontece quando as regras v1 entrarem (MJ-B), com pedido explícito do Rodrigo |
+| D-26 | a) stem "rescue" enquanto houver sobrevivente na gaiola (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | janela de decisão do resgate (GDD-v0.2 §3.2/§4.3); prioridade pressão final > perseguição > resgate > tensão > ambiente (`audio/musicState.ts`); medir em simulação: se o resgate passar de ~40% do tempo de partida, revisar |
+| D-27 | a) jogador escapado ou morto perde tensão e perseguição (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | pressão final e resgate continuam valendo; ele acompanha o time como espectador (`audio/musicState.ts`) |
+| D-28 | a) volume inicial 1,0 em todos os barramentos (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | mixagem masterizada a −16 LUFS (GDD-v0.3 §11); o jogador ajusta nos sliders (`data/balance.yaml` `audio.buses`) |
+| D-29 | gravação do volume com atraso de 0,25 s e rampa de 0,02 s (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `audio.volume_persist_delay` e `audio.volume_ramp_tc` em `data/balance.yaml` |
 
 ## 8. Riscos principais
 

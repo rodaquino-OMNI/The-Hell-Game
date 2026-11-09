@@ -27,9 +27,9 @@ export const isFinalPressure = (g: GameState) => g.gateStarted || g.gateOpen;
  * Sobrevivente `playerId` existe e está em jogo (`st === "ok"`). Perseguição e tensão só valem para ele.
  * - O caçador básico não reatribui `hunter.target` quando ninguém está livre (game.ts L302 no protótipo e L345 no
  *   v1 retornam antes), então o alvo pode ficar velho e apontar para alguém preso ou morto.
- * - LACUNA (GDD-v0.3 §11 não trata o jogador fora de jogo, preso, morto ou escapado). Proposta: sem tensão nem
- *   perseguição para ele; pressão final continua valendo para todos e resgate também (aliado ou ele próprio preso);
- *   decisão do Rodrigo pendente.
+ * - Jogador fora de jogo (preso, morto ou escapado): sem tensão nem perseguição para ele; pressão final continua
+ *   valendo para todos e resgate também (aliado ou ele próprio preso). D-27, docs/plano-construcao.md §7 (o
+ *   GDD-v0.3 §11 não trata o caso).
  */
 export const inPlay = (g: GameState, playerId: number) => g.survivors.some(s => s.id === playerId && s.st === "ok");
 
@@ -47,9 +47,9 @@ export function isChased(g: GameState, playerId: number): boolean {
 
 /**
  * Resgate: algum sobrevivente está preso na gaiola (`st === "cage"`), o que inclui o próprio jogador esperando
- * resgate e cobre o jogador resgatando (só se resgata quem está preso, game.ts L492). LACUNA: o GDD (v0.2 §11, v0.3
- * §11) só lista o stem "resgate", sem dizer quando toca. Proposta: tocar enquanto houver alguém preso, porque é a
- * janela em que o time decide resgatar (GDD-v0.2 §3.2 e §4.3); decisão do Rodrigo pendente.
+ * resgate e cobre o jogador resgatando (só se resgata quem está preso, game.ts L492). O GDD (v0.2 §11, v0.3
+ * §11) só lista o stem "resgate", sem dizer quando toca; D-26 (docs/plano-construcao.md §7): toca enquanto houver
+ * alguém preso, porque é a janela em que o time decide resgatar (GDD-v0.2 §3.2 e §4.3).
  */
 export const anyCaged = (g: GameState) => g.survivors.some(s => s.st === "cage");
 
