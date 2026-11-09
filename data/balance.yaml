@@ -450,6 +450,44 @@ audio:
     # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
     # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
     start_lead: 0.1
+  # A-3 (tools/audio/compose.ts): composição procedural dos stems (docs/handoff/plano-audio-v5.md §2 e §4; decisão do
+  # Rodrigo, 09/11/2026: síntese PS1 pura, sem samples). Parâmetros de renderização e masterização, não de jogo.
+  compose:
+    # 8 compassos = 8 × 4 × 60 / 90 = 21,333 s; dá número inteiro de amostras a 48000 (1 024 000) e a 44100 (940 800),
+    # então o loop fecha exato também se o navegador reamostrar para 44,1 kHz. Todos os stems têm esse comprimento
+    # (o A-2 inicia os 5 juntos e troca no limite de compasso, GDD-v0.3 §11).
+    loop_bars: 8
+    # cauda renderizada depois do loop e somada no início (wrap) para release e reverb; tem de ser maior que a
+    # nota mais longa + resposta ao impulso do reverb (compose.ts confere e falha se não couber)
+    tail_bars: 2
+    # semente do PRNG próprio da composição (ruído, reverb, variações); mesma semente → mesmo PCM
+    seed: 20261109
+    sample_rate: 48000              # Hz; taxa do OfflineAudioContext e do MP3
+    bitrate_kbps: 128               # plano-audio-v5 §2: música estéreo 128 kbps (MP3, GDD-v0.3 C-13)
+    # LACUNA (GDD não define): folga (dB) abaixo de audio.true_peak_dbtp na masterização do PCM, porque a codificação
+    # MP3 sobe o pico real em alguns décimos de dB. Proposta: 0,5 dB.
+    true_peak_margin_db: 0.5
+    # Masterização (compose.ts). LACUNA (GDD não define; são parâmetros de ferramenta, não de jogo). Propostas:
+    limiter_lookahead_s: 0.004      # antecipação do limitador de pico (s): 4 ms, menor que o ataque de qualquer nota
+    limiter_release_s: 0.12         # recuperação do limitador (s): 120 ms, sem "bombear" no andamento de 90 BPM
+    loudness_match_lu: 0.05         # tolerância da busca de ganho (LU): metade da resolução do ebur128 (0,1)
+    master_max_iterations: 16       # tentativas da busca de ganho/limitador antes de falhar
+    tail_floor_db: -60              # o fim da cauda renderizada tem de estar abaixo do pico por esta margem (dB)
+    # MP3 sem lacuna (compose.ts, music.ts). Pré e pós-rolagem: amostras do próprio loop codificadas antes e depois
+    # dele e marcadas como atraso/padding no cabeçalho LAME (2 quadros de 1152; o campo tem 12 bits, ≤ 4095).
+    gapless_preroll: 2304
+    gapless_postroll: 2304
+    # atraso do MP3 antes da 1ª amostra, sem a pré-rolagem: LAME (576) + decodificador (529) = 1105 amostras, medido
+    # com ffprobe (start_time 0,023021 s × 48000) e conferido pelo compose.ts no cabeçalho de cada arquivo. O music.ts
+    # usa (mp3_lead + gapless_preroll) para achar o loop se um navegador ignorar o cabeçalho LAME.
+    mp3_lead: 1105
+    # Junção do loop (test/audio-stems.test.ts e tools/audio/check-loop.mjs): o degrau |x[0] − x[N−1]| e a 2ª
+    # diferença na junção não podem passar de junction_factor × o maior degrau / a maior 2ª diferença em ±junction_window
+    # amostras em volta (sem contar a junção). Calibrado nos 5 stems: natural ≤ 1,30; estalo sintético de 0,02 (qualquer
+    # sentido) ≥ 1,55; 1,4 separa os dois. Janela curta porque, com percussão, a vizinhança longa já tem degraus maiores
+    # que 0,02 e esconderia o estalo.
+    junction_window: 8
+    junction_factor: 1.4
   max_voices: 32
   occlusion_lowpass_hz: 800
   loudness_lufs: -16

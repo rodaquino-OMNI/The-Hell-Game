@@ -6,6 +6,7 @@
 //                 barra de estado inferior e Pátio industrial. Sem o parâmetro nada muda.
 //  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   ferramenta e classe mostradas no mockup (Protetor
 //                 e Batedor ainda não existem na simulação, fase 4: só a vista muda)
+//  ?debug=1       ganchos globais `window.__thehell*` das ferramentas de teste (src/debug-hooks.ts, D-33); sem ele não existem
 // Sem `?seed`, a partida e as texturas continuam aleatórias como na fase 0.
 import { nextRandom } from "@thehell/sim";
 import { balance } from "../data.ts";
