@@ -38,6 +38,15 @@ const AudioSchema = z.object({
   ducking_db: z.number().max(0),
   buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
   volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
+  /** A-4: prioridade por tipo de voz (maior = mais importante) */
+  voice_priority: z.record(z.string().regex(/^[a-z_]+$/), int.nonnegative())
+    .refine(r => Object.keys(r).length > 0, "voice_priority vazio"),
+  /** A-4: PannerNode por voz (GDD v0.3 §11: HRTF) */
+  panner: z.object({
+    panning_model: z.literal("HRTF"), distance_model: z.enum(["linear", "inverse", "exponential"]),
+    ref_distance: pos.positive(), max_distance: pos.positive(), rolloff_factor: pos,
+  }).strict().refine(p => p.max_distance > p.ref_distance, "panner.max_distance deve passar de ref_distance"),
+  occlusion_ramp_tc: pos.positive(), source_height: pos,
 }).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
