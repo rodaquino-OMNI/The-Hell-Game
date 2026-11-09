@@ -5,7 +5,8 @@ import { makeConfig, SCORE_CATEGORIES, type GameEvent } from "@thehell/sim";
 import { map } from "../src/data.ts";
 import { setLocale, t } from "../src/i18n/index.ts";
 import { DIFFICULTY_STORE, difficulties, difficultyNote, loadDifficulty, matchConfig, saveDifficulty, type KeyStore } from "../src/ui/difficulty.ts";
-import { resultsSummary } from "../src/ui/results.ts";
+import { countFraction, countValue, reduceMotion, resultsSummary, startCountUp } from "../src/ui/results.ts";
+import { SCORE_ICON } from "../src/hud/icons.ts";
 import { goalText } from "../src/text.ts";
 
 const bal = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
@@ -111,5 +112,87 @@ describe("dificuldade (difficulty.ts)", () => {
       expect(goalText(bal, 4, 3, gate)).toContain(`(${gate} s)`);
     }
     expect(goalText(bal, 4, 3)).toContain(`(${bal.generator.gate_time} s)`);
+  });
+});
+
+describe("contagem dos pontos na tela de fim (issue #66, resposta 3b)", () => {
+  setLocale("pt-BR");
+  const D = bal.ui.results.count_up_s;
+  /** relógio e requestAnimationFrame falsos: cada quadro avança `dt` ms */
+  const fakeClock = () => {
+    let ms = 0, queued: (() => void) | null = null;
+    return {
+      now: () => ms,
+      raf: (cb: () => void) => { queued = cb; },
+      frame(dt: number) { ms += dt; const cb = queued; queued = null; cb?.(); },
+      get pending() { return queued !== null; },
+    };
+  };
+  const cell = (final: number) => ({ el: { textContent: "" } as unknown as Element, final });
+
+  it("duração vem de ui.results.count_up_s (positiva)", () => {
+    expect(D).toBeGreaterThan(0);
+  });
+
+  it("fração e valor: de 0 ao final exato, limitados", () => {
+    expect(countFraction(0, D)).toBe(0);
+    expect(countFraction(D / 2, D)).toBeCloseTo(0.5);
+    expect(countFraction(D * 3, D)).toBe(1);
+    expect(countFraction(1, 0)).toBe(1);
+    expect(countValue(250, 0)).toBe(0);
+    expect(countValue(250, 0.5)).toBe(125);
+    expect(countValue(250, 1)).toBe(250);
+    expect(countValue(7, 0.999)).toBeLessThanOrEqual(7);
+  });
+
+  it("conta até o final em count_up_s e avisa uma vez", () => {
+    setLocale("pt-BR");
+    const c = fakeClock(), cells = [cell(90), cell(250)];
+    let done = 0;
+    const cu = startCountUp(cells, D, false, () => done++, c.raf, c.now);
+    expect(cu.counting).toBe(true);
+    expect(cells.map(x => x.el.textContent)).toEqual(["0", "0"]);
+    c.frame((D * 1000) / 2);
+    expect(cu.counting).toBe(true);
+    expect(cells[1].el.textContent).toBe("125");
+    c.frame(D * 1000);
+    expect(cu.counting).toBe(false);
+    expect(cells.map(x => x.el.textContent)).toEqual(["90", "250"]);
+    expect(c.pending).toBe(false);
+    cu.finish();
+    expect(done).toBe(1);
+  });
+
+  it("pular (Enter/A) mostra os finais na hora; congelar segura a fração", () => {
+    setLocale("pt-BR");
+    const c = fakeClock(), cells = [cell(1000)];
+    const cu = startCountUp(cells, D, false, undefined, c.raf, c.now);
+    cu.hold(0.4);
+    c.frame(D * 5000);
+    expect(cu.counting).toBe(true);
+    expect(cu.fraction).toBeCloseTo(0.4);
+    expect(cells[0].el.textContent).toBe("400");
+    cu.finish();
+    expect(cu.counting).toBe(false);
+    expect(cells[0].el.textContent).toBe(new Intl.NumberFormat("pt-BR").format(1000));
+  });
+
+  it("reduzir movimento: valores finais sem nenhum quadro de contagem", () => {
+    const c = fakeClock(), cells = [cell(60)];
+    const cu = startCountUp(cells, D, true, undefined, c.raf, c.now);
+    expect(cu.counting).toBe(false);
+    expect(cells[0].el.textContent).toBe("60");
+    expect(c.pending).toBe(false);
+  });
+
+  it("contagem desligada com reduzir balanço de câmera ou prefers-reduced-motion", () => {
+    expect(reduceMotion(false, false)).toBe(false);
+    expect(reduceMotion(true, false)).toBe(true);
+    expect(reduceMotion(false, true)).toBe(true);
+  });
+
+  it("um ícone por categoria, escondido do leitor de tela", () => {
+    expect(Object.keys(SCORE_ICON).sort()).toEqual([...SCORE_CATEGORIES].sort());
+    for (const svg of Object.values(SCORE_ICON)) expect(svg).toContain('aria-hidden="true"');
   });
 });

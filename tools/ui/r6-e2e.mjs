@@ -4,7 +4,10 @@
 // moedas. Abre com `?debug=1&ruleset=v1` e usa o gancho somente-leitura já existente `window.__thehell` (D-33) para
 // encurtar a partida (caçador a 0 de vida depois de alguns segundos de jogo dos bots).
 // Uso: node tools/ui/r6-e2e.mjs [--shots dir] [url]   (pnpm build antes; sem url sobe o servidor compilado na 18086)
-//   --shots  grava r6-dificuldade.png e r6-fim.png (1280×720, deviceScaleFactor 2)
+// Issue #66: Pesadelo com a cor de perigo, ícone por categoria, total grande, contagem de 0 ao valor congelada no
+// meio pelo gancho `window.__thehellResults` (Enter pula sem recarregar; o foco já está em "Jogar de novo") e
+// valores na hora com "reduzir balanço de câmera".
+//   --shots  grava r6-dificuldade.png, r6-fim-contando.png e r6-fim.png (1280×720, deviceScaleFactor 2)
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -24,6 +27,9 @@ const shotsDir = shotsIdx >= 0 ? args[shotsIdx + 1] : undefined;
 let url = args.find((a, i) => a.startsWith("http") && i !== shotsIdx + 1);
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
 const T = JSON.parse(readFileSync(join(root, "packages/client/src/i18n/locales/pt-BR.json"), "utf8"));
+const palette = JSON.parse(readFileSync(join(root, "data/art/palette.json"), "utf8"));
+/** fração em que a contagem é congelada para a captura e a conferência "no meio" */
+const MID = 0.5;
 /** dificuldade escolhida no teste: a 3ª da tabela (Difícil), diferente do padrão dos dados */
 const PICK = Object.keys(balance.difficulty_table)[2];
 /** tempo de jogo (s de simulação) antes de encerrar a partida pelo gancho */
@@ -98,6 +104,12 @@ try {
   check(goal.includes(`(${balance.difficulty_table[PICK].gate} s)`), `objetivo sem o portão de ${PICK} (${balance.difficulty_table[PICK].gate} s): "${goal}"`);
   const outline = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
   check(outline !== "none", "foco sem contorno visível no seletor");
+  // issue #66 resposta 5b: Pesadelo com a cor de perigo (token ui.danger) e o rótulo mantido (a cor não é a única pista)
+  const danger = "rgb(" + palette.tokens["ui.danger"].rgb5.map(v => Math.round((v * 255) / 31)).join(", ") + ")";
+  const nm = await page.$eval('#dif button[data-d="nightmare"]', b => ({ color: getComputedStyle(b).color, text: b.textContent }));
+  check(nm.color === danger && nm.text === T["difficulty.nightmare"], `Pesadelo sem a cor ui.danger (${danger}) ou sem o rótulo: ${JSON.stringify(nm)}`);
+  const others = await page.$$eval('#dif button:not([data-d="nightmare"])', bs => bs.map(b => getComputedStyle(b).color));
+  check(!others.includes(danger), `outro nível com a cor de perigo: ${others}`);
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-dificuldade.png") });
 
   // persistência
@@ -113,26 +125,78 @@ try {
   const expectHp = balance.difficulty_table[PICK].hunter_hp * balance.hunter_hp_scale[String(n)];
   check(hp === expectHp, `vida do caçador ${hp}, esperado ${expectHp} (${PICK})`);
   await page.waitForFunction((s) => window.__thehell().t > s, PLAY_S, { timeout: 60000 });
+  // pontos garantidos em todas as categorias (a contagem no meio fica visível na captura); a contagem da próxima tela
+  // de fim fica congelada no meio (gancho de depuração): a captura não depende da velocidade da máquina
+  await game(() => { const sc = window.__thehell().survivors[0].score; for (const k of Object.keys(sc)) sc[k] += 40 + 20 * Object.keys(sc).indexOf(k); });
+  await game((p) => window.__thehellResults.hold(p), MID);
   await game(() => { window.__thehell().hunter.hp = 0; });
   await page.waitForSelector("#end", { state: "visible", timeout: 5000 });
 
   // ---------- tela de fim ----------
+  const fmt = (v) => new Intl.NumberFormat("pt-BR").format(v);
   const score = await game(() => window.__thehell().survivors[0].score);
-  const rows = await page.$$eval("#rs tbody tr", trs => trs.map(tr => [tr.dataset.cat, tr.querySelector("th").textContent, tr.querySelector("td").textContent]));
+  const readRows = () => page.$$eval("#rs tbody tr", trs => trs.map(tr => ({
+    cat: tr.dataset.cat, label: tr.querySelector("th").textContent, icon: tr.querySelector("th .rsi")?.getAttribute("aria-hidden"),
+    svg: !!tr.querySelector("th .rsi svg"), shown: tr.querySelector("td .rsv").textContent, shownHidden: tr.querySelector("td .rsv").getAttribute("aria-hidden"),
+    sr: tr.querySelector("td .sr").textContent,
+  })));
   const cats = ["objectives", "altruism", "survival", "boldness"];
-  check(rows.map(r => r[0]).join() === cats.join(), `categorias: ${JSON.stringify(rows)}`);
-  for (const [cat, label, value] of rows) {
-    check(label === T[`score.${cat}`], `rótulo ${cat}: "${label}"`);
-    check(value === new Intl.NumberFormat("pt-BR").format(score[cat]), `${cat}: ${value} ≠ ${score[cat]}`);
-  }
   const total = cats.reduce((s, c) => s + score[c], 0);
-  check((await page.textContent("#rstot")) === new Intl.NumberFormat("pt-BR").format(total), "total diferente da soma");
+  // no meio da contagem: o foco já está em "Jogar de novo"; o número visível vai de 0 ao final; o leitor lê o final
+  check((await page.evaluate(() => document.activeElement?.id)) === "again", "contagem: foco não foi direto para Jogar de novo");
+  const st = await game(() => window.__thehellResults.state());
+  check(st?.counting === true && Math.abs(st.fraction - MID) < 1e-9, `contagem não está congelada em ${MID}: ${JSON.stringify(st)}`);
+  let rows = await readRows();
+  for (const r of rows) {
+    const want = fmt(Math.round(score[r.cat] * MID));
+    check(r.shown === want && r.shownHidden === "true", `contagem ${r.cat}: visível "${r.shown}" (aria-hidden ${r.shownHidden}), esperado "${want}"`);
+    check(r.sr === fmt(score[r.cat]), `contagem ${r.cat}: texto do leitor "${r.sr}" ≠ final ${score[r.cat]}`);
+  }
+  check((await page.textContent("#rstot .rsv")) === fmt(Math.round(total * MID)), "contagem: total visível fora da fração");
+  if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-contando.png") });
+  // Enter em "Jogar de novo" durante a contagem só pula para os finais (não recarrega a página)
+  await page.evaluate(() => { window.__r6NoReload = true; });
+  await page.keyboard.press("Enter");
+  check(await page.evaluate(() => window.__r6NoReload === true), "Enter na contagem recarregou a página em vez de pular");
+  check((await game(() => window.__thehellResults.state()))?.counting === false, "Enter não pulou a contagem");
+  check((await page.evaluate(() => document.activeElement?.id)) === "again", "foco saiu de Jogar de novo depois de pular");
+  rows = await readRows();
+  check(rows.map(r => r.cat).join() === cats.join(), `categorias: ${JSON.stringify(rows)}`);
+  for (const r of rows) {
+    check(r.label === T[`score.${r.cat}`], `rótulo ${r.cat}: "${r.label}" (o ícone não pode somar texto ao nome)`);
+    check(r.icon === "true" && r.svg, `ícone de ${r.cat} ausente ou sem aria-hidden`);
+    check(r.shown === fmt(score[r.cat]) && r.sr === fmt(score[r.cat]), `${r.cat}: ${r.shown}/${r.sr} ≠ ${score[r.cat]}`);
+  }
+  check((await page.textContent("#rstot .rsv")) === fmt(total) && (await page.textContent("#rstot .sr")) === fmt(total), "total diferente da soma");
+  // total grande e destacado (resposta 1c): fonte maior que a das categorias e cor de destaque (ui.accent)
+  const accent = "rgb(" + palette.tokens["ui.accent"].rgb5.map(v => Math.round((v * 255) / 31)).join(", ") + ")";
+  const big = await page.evaluate(() => ({ tot: parseFloat(getComputedStyle(document.querySelector("#rstot")).fontSize), cat: parseFloat(getComputedStyle(document.querySelector("#rs tbody td")).fontSize), color: getComputedStyle(document.querySelector("#rstot")).color }));
+  check(big.tot >= 2 * big.cat && big.color === accent, `total não está grande e destacado: ${JSON.stringify(big)}`);
   const coins = await page.textContent("#rsc");
   check(coins.includes(new Intl.NumberFormat("pt-BR").format(balance.economy.win_coins)), `vitória sem o bônus de vitória na linha de moedas: "${coins}"`);
   check((await page.textContent("#rsteam"))?.includes(T["score.team"].match(/survivors \{([^}]*)\}/)[1]), "resultado da equipe ausente");
   check(await page.isVisible("#rsind"), "resultado individual ausente");
+  // moedas numa linha (resposta 4a)
+  const coinLines = await page.$eval("#rsc", p => Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)));
+  check(coinLines === 1, `moedas em ${coinLines} linhas`);
   check((await page.evaluate(() => document.activeElement?.id)) === "again", "foco não foi para Jogar de novo");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim.png") });
+  // depois da contagem, Enter em "Jogar de novo" volta a funcionar (recarrega)
+  await Promise.all([page.waitForEvent("load", { timeout: 10000 }), page.keyboard.press("Enter")]);
+  check(await page.evaluate(() => window.__r6NoReload === undefined), "Enter depois da contagem não acionou Jogar de novo");
+
+  // ---------- reduzir movimento: "reduzir balanço de câmera" ligado → valores finais na hora ----------
+  await page.evaluate(() => localStorage.setItem("thehell.options", JSON.stringify({ reduceCameraBob: true })));
+  await page.reload({ waitUntil: "load" });
+  check((await game(() => window.__thehellOptions().bobScale)) === balance.ui.options.reduced_bob, "opção reduzir balanço de câmera não ligou");
+  await page.click("#go");
+  await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
+  await game(() => { const sc = window.__thehell().survivors[0].score; for (const k of Object.keys(sc)) sc[k] += 50; });
+  await game(() => { window.__thehell().hunter.hp = 0; });
+  await page.waitForSelector("#end", { state: "visible", timeout: 5000 });
+  const rm = await page.evaluate(() => ({ st: window.__thehellResults.state(), shown: [...document.querySelectorAll("#rs .rsv")].map(e => e.textContent), sr: [...document.querySelectorAll("#rs .sr")].map(e => e.textContent), focus: document.activeElement?.id }));
+  check(rm.st?.counting === false && rm.shown.join() === rm.sr.join() && rm.focus === "again", `reduzir movimento: contagem não foi instantânea: ${JSON.stringify(rm)}`);
+  await page.evaluate(() => localStorage.removeItem("thehell.options"));
 
   // ---------- protótipo: sem score, sem resumo ----------
   await page.goto(`${url}/?debug=1&seed=${SEED}&${RULES}&lang=pt-BR`, { waitUntil: "load" });
@@ -151,4 +215,4 @@ try {
 } finally { server?.kill(); }
 
 if (failures.length) { console.error(`r6-e2e: ${failures.length} falha(s)`); process.exit(1); }
-console.log("r6-e2e ok: dificuldade (teclado, persistência, aplicada) e tela de fim com as 4 categorias");
+console.log("r6-e2e ok: dificuldade (teclado, gamepad, persistência, aplicada, Pesadelo com ui.danger) e tela de fim com as 4 categorias (ícones, contagem, pular com Enter, reduzir movimento)");

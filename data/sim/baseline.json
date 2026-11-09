@@ -7,7 +7,7 @@
   "nav": "grid",
   "map_flags": {
    "fifth_generator": true,
-   "short_loop_pillars": false,
+   "short_loop_pillars": true,
    "side_exit": true
   },
   "maps": [
@@ -32,10 +32,10 @@
    "invalid_transitions": [],
    "hunter_win": 0,
    "survivor_escape": 1,
-   "duration_mean": 243.5940000000624,
-   "duration_median": 236.1333333334134,
+   "duration_mean": 242.13700000005684,
+   "duration_median": 245.95000000008787,
    "captures_per_match": 0,
-   "short_match_rate": 0.1,
+   "short_match_rate": 0.18,
    "chase_median": null,
    "chase_count": 0,
    "chases_per_match": 0,
@@ -66,22 +66,22 @@
    "invalid_transitions": [],
    "hunter_win": 0,
    "survivor_escape": 0.98,
-   "duration_mean": 260.0616666667262,
-   "duration_median": 250.90833333342516,
-   "captures_per_match": 0.06,
-   "short_match_rate": 0.04,
-   "chase_median": 36.65000000000927,
-   "chase_count": 2,
-   "chases_per_match": 0.04,
+   "duration_mean": 249.6496666667231,
+   "duration_median": 248.42500000008982,
+   "captures_per_match": 0.08,
+   "short_match_rate": 0.08,
+   "chase_median": 9.300000000007401,
+   "chase_count": 5,
+   "chases_per_match": 0.1,
    "class_use": {
     "Atacador": 0.3333333333333333,
     "Curandeiro": 0.3333333333333333,
     "Mecânico": 0.3333333333333333
    },
    "class_escape": {
-    "Atacador": 0.98,
+    "Atacador": 1,
     "Curandeiro": 1,
-    "Mecânico": 0.96
+    "Mecânico": 0.94
    },
    "first_class": {
     "Atacador": 0.34,
@@ -99,23 +99,23 @@
    "unfinished": 0,
    "invalid_transitions": [],
    "hunter_win": 0,
-   "survivor_escape": 0.8266666666666667,
-   "duration_mean": 287.58400000004485,
-   "duration_median": 291.9666666667298,
-   "captures_per_match": 0.6,
-   "short_match_rate": 0.04,
-   "chase_median": 29.300000000023317,
-   "chase_count": 31,
-   "chases_per_match": 0.62,
+   "survivor_escape": 0.9133333333333333,
+   "duration_mean": 269.471000000054,
+   "duration_median": 260.7750000000915,
+   "captures_per_match": 0.44,
+   "short_match_rate": 0.02,
+   "chase_median": 29.00000000000034,
+   "chase_count": 21,
+   "chases_per_match": 0.42,
    "class_use": {
     "Atacador": 0.3333333333333333,
     "Curandeiro": 0.3333333333333333,
     "Mecânico": 0.3333333333333333
    },
    "class_escape": {
-    "Atacador": 0.76,
-    "Curandeiro": 0.82,
-    "Mecânico": 0.9
+    "Atacador": 0.84,
+    "Curandeiro": 0.96,
+    "Mecânico": 0.94
    },
    "first_class": {
     "Atacador": 0.34,
@@ -123,8 +123,7 @@
     "Mecânico": 0.34
    },
    "end_reasons": {
-    "all_terminal": 48,
-    "hunter_down": 2
+    "all_terminal": 50
    }
   },
   "patio/nightmare": {
@@ -133,23 +132,23 @@
    "stuck": 0,
    "unfinished": 0,
    "invalid_transitions": [],
-   "hunter_win": 0.12,
-   "survivor_escape": 0.66,
-   "duration_mean": 317.6783333333586,
-   "duration_median": 287.03333333340095,
-   "captures_per_match": 1.12,
-   "short_match_rate": 0,
-   "chase_median": 26.19999999997617,
-   "chase_count": 55,
-   "chases_per_match": 1.1,
+   "hunter_win": 0.08,
+   "survivor_escape": 0.76,
+   "duration_mean": 313.6736666667,
+   "duration_median": 305.0416666667179,
+   "captures_per_match": 1.26,
+   "short_match_rate": 0.02,
+   "chase_median": 38.10000000003032,
+   "chase_count": 61,
+   "chases_per_match": 1.22,
    "class_use": {
     "Atacador": 0.3333333333333333,
     "Curandeiro": 0.3333333333333333,
     "Mecânico": 0.3333333333333333
    },
    "class_escape": {
-    "Atacador": 0.54,
-    "Curandeiro": 0.68,
+    "Atacador": 0.64,
+    "Curandeiro": 0.88,
     "Mecânico": 0.76
    },
    "first_class": {
@@ -158,9 +157,9 @@
     "Mecânico": 0.34
    },
    "end_reasons": {
-    "all_terminal": 43,
-    "hunter_down": 3,
-    "time_limit": 4
+    "all_terminal": 48,
+    "hunter_down": 1,
+    "time_limit": 1
    }
   },
   "patio/all": {
@@ -169,24 +168,24 @@
    "stuck": 0,
    "unfinished": 0,
    "invalid_transitions": [],
-   "hunter_win": 0.03,
-   "survivor_escape": 0.8666666666666667,
-   "duration_mean": 277.22950000004784,
-   "duration_median": 262.86666666675626,
+   "hunter_win": 0.02,
+   "survivor_escape": 0.9133333333333333,
+   "duration_mean": 268.73283333338367,
+   "duration_median": 260.2666666667586,
    "captures_per_match": 0.445,
-   "short_match_rate": 0.045,
-   "chase_median": 27.658333333329196,
-   "chase_count": 88,
-   "chases_per_match": 0.44,
+   "short_match_rate": 0.075,
+   "chase_median": 34.79999999996835,
+   "chase_count": 87,
+   "chases_per_match": 0.435,
    "class_use": {
     "Atacador": 0.3333333333333333,
     "Curandeiro": 0.3333333333333333,
     "Mecânico": 0.3333333333333333
    },
    "class_escape": {
-    "Atacador": 0.82,
-    "Curandeiro": 0.875,
-    "Mecânico": 0.905
+    "Atacador": 0.87,
+    "Curandeiro": 0.96,
+    "Mecânico": 0.91
    },
    "first_class": {
     "Atacador": 0.34,
@@ -194,9 +193,9 @@
     "Mecânico": 0.34
    },
    "end_reasons": {
-    "all_terminal": 191,
-    "hunter_down": 5,
-    "time_limit": 4
+    "all_terminal": 198,
+    "hunter_down": 1,
+    "time_limit": 1
    }
   }
  }
