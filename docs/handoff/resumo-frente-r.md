@@ -23,23 +23,35 @@ Staging: https://the-hell-staging.fly.dev (v1 por padrão; smoke 3/3). Produçã
 | CI verde com `sim:check` | ✅ |
 | v1 padrão no staging | ✅ |
 | 1.000 partidas/dificuldade sem travar | ✅ (0 travadas em 12.000) |
-| Mediana de perseguição ≥ 15 s | ⚠️ 27,0 s no agregado; no Normal só 3 perseguições em 50 partidas (10,5 s), abaixo do mínimo de 10 para medir |
+| Mediana de perseguição ≥ 15 s | ⚠️ 27,0 s no agregado; no Normal 25,0 s em 1.000 partidas, mas a métrica só conta perseguições que terminam em captura (`chaseEpisodes`, headless.ts:97) |
 | Cobertura do sim ≥ 90% | ✅ (99,86% das linhas, 475 testes) |
 | Caçador vence 45–55% (D-16) | ❌ Normal 0,0% · Pesadelo 16,6% |
 
 ## 3. O problema que sobra: o caçador quase nunca vence
 
-Com bots competentes, o caçador captura 0,09 sobrevivente por partida no Normal (rodada de 1.000 partidas do R8 passo 1; a linha de base de 50 partidas dá 0,08). A causa é estrutural, não de IA:
-- basta um sobrevivente escapar para o time vencer (D-01 b);
-- o caçador persegue a 4,3 m/s; o sobrevivente corre a 5,4 m/s gastando estamina (100 de reserva, 15/s: cerca de 6,7 s de corrida) e o bot foge a 4,2 m/s sem ela. A estamina recupera rápido (14/s), então o sobrevivente quase sempre tem corrida quando é visto;
-- o caçador quase nunca vê alguém: 0,06 perseguição por partida no Normal;
-- os mapas do R7 não mudaram o quadro (Pesadelo 12,8–16,6%).
+Diagnóstico de 09/11 (1.000 partidas por dificuldade, sementes 1..1000, só medição). **O caçador encontra e acerta, mas o dano não vira captura.**
+
+| Normal | Medido |
+| --- | --- |
+| Partidas com detecção | 100% (1ª detecção em 20,6 s, mediana) |
+| Área vista pelo cone na partida | 85% da arena |
+| Entradas em perseguição | ~6,5 por partida |
+| Golpes que acertam | 13,6 por partida |
+| Capturas | 0,087 por partida |
+| Cura sobre dano | 126 de 187 (67% do dano é reposto) |
+
+- Percepção e busca estão iguais ao GDD §8.2. Aumentar o alcance do cone ou mandar o caçador ao gerador em conserto não muda a captura (0,085–0,090).
+- O dano se espalha entre 3 sobreviventes e a cura do Curandeiro repõe 2/3 dele; só 41% das partidas têm alguém abaixo de 40 de vida.
+- Com uma captura rara, basta um sobrevivente escapar (D-01 b), e o time vence.
+- Os mapas do R7 não mudaram o quadro (Pesadelo 12,8–16,6%).
+- Corrijo o que eu disse antes: "0,06 perseguição por partida" contava só perseguições que terminam em captura. O caçador não está cego.
 
 Ajustar só pelo simulador não resolve, e a regra C-15 também proíbe isso.
 
 ## 4. Decisão sua (escolha uma)
 
-- **A) Estamina mais cara** (recomendado): a estamina já existe; a proposta é recuperar mais devagar ou gastar mais rápido, para o caçador alcançar depois da primeira arrancada. Não muda a condição de vitória.
+- **E) Conversão de dano em captura** (recomendado): rever o dano do golpe (15) ou a cura do Curandeiro (45 a cada 10 s). É onde o diagnóstico aponta.
+- **A) Estamina mais cara**: a estamina já existe (100, gasto 15/s, recuperação 14/s); recuperar mais devagar dá mais golpes ao caçador, mas não resolve a cura.
 - **B) D-03**: rever as velocidades.
 - **C) Esperar** as 5 partidas suas e do seu filho no staging e decidir com dados humanos.
 - **D) Rever D-01 b**: exigir que mais de um sobrevivente escape.
