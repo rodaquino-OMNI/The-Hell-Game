@@ -7,7 +7,7 @@ import {
   openPuzzle, segmentHitsBox, step, NO_INPUT, type GameEvent, type GameState, type PlayerInput, type SimConfig,
   type SurvivorState,
 } from "../src/index.ts";
-import { balance as b, map, run, SPOT, tap } from "./helpers.ts";
+import { balance as b, map, NO_MAP_FLAGS, run, SPOT, tap, withMapFlags } from "./helpers.ts";
 
 // Marco MJ-B: o padrão dos dados passou a ser v1 + caçador `utility` + bots `competent`. Esta suíte testa REGRAS
 // (cone, ruído, fim, vida, tabela, telegraph, geradores) num cenário montado à mão: fixa explicitamente o caçador
@@ -543,10 +543,24 @@ describe("determinismo no ruleset v1", () => {
   it("hash de referência do v1 com caçador basic e bots do protótipo (calculado em main 89c8f8f; pega desvio)", () => {
     // R4 (revisão qa B-5): `ai.bot_brain: competent` e a D-35 não podem mudar esta partida. Dash, projétil e armadilha
     // desligados porque a D-36 (telegraph em toda habilidade) muda de propósito o disparo deles no basic.
-    const c = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
+    // R7-mapas: com as flags de mapa desligadas (maps.v1.*) a partida é byte a byte a de antes (pilares, saída lateral
+    // e 5º gerador só entram atrás delas).
+    const c = makeConfig(withMapFlags(b, NO_MAP_FLAGS), map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
     const g = createGame(c, "Mecânico", 42);
     g.hunter.dash = 1e9; g.hunter.projectile = 1e9; g.hunter.trap = 1e9;
     for (let i = 0; i < 60 * 60 && !g.over; i++) step(c, g, scripted(i));
+    // R7-mapas: a arena ganhou gateFacing (descritor do portão para o cliente, não muda a partida); o hash de referência
+    // é o do estado sem ele
+    expect(g.arena.gateFacing).toEqual({ x: 0, z: Math.sign(g.arena.gate.z - g.arena.exitZ!) || -1 });
+    delete (g.arena as Partial<typeof g.arena>).gateFacing;
     expect(createHash("sha256").update(JSON.stringify(g)).digest("hex")).toBe("2f9b008d36779918272a309e6112cfa33fef0d144dec99ade6248de97c4925a6");
+  });
+  it("hash de referência do v1 com as flags de mapa ligadas (R7-mapas: pilares, saída lateral, 5º gerador; pega desvio)", () => {
+    const c = makeConfig(withMapFlags(b, { fifth_generator: true, short_loop_pillars: true, side_exit: true }), map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
+    const g = createGame(c, "Mecânico", 42);
+    g.hunter.dash = 1e9; g.hunter.projectile = 1e9; g.hunter.trap = 1e9;
+    for (let i = 0; i < 60 * 60 && !g.over; i++) step(c, g, scripted(i));
+    delete (g.arena as Partial<typeof g.arena>).gateFacing; // como acima: o hash é o de antes do gateFacing
+    expect(createHash("sha256").update(JSON.stringify(g)).digest("hex")).toBe("5a5ed1de0a8f0301af037ad081177beee68c139ccc57007ca9b9fea988476f0c");
   });
 });

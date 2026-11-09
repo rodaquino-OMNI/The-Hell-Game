@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import type { Balance } from "@thehell/shared";
 import { loadBalanceFile, loadMapFile } from "@thehell/shared/node";
 import { createGame, makeConfig, NO_INPUT, step, type ClassName, type GameState, type PlayerInput, type SimConfig } from "../src/index.ts";
 
@@ -31,3 +32,18 @@ export function tap(g: GameState, input: Partial<PlayerInput>, c: SimConfig = cf
 /** posiciona o jogador num ponto aberto do mapa (sem paredes por perto) */
 export const SPOT = { x: -8, z: 26 };
 export function openSpot(g: GameState) { const p = g.survivors[0]; p.x = SPOT.x; p.z = SPOT.z; p.a = 0; }
+
+/** balanço com as flags de mapa do v1 (`maps.v1`, item R7-mapas) sobrepostas */
+export function withMapFlags(base: Balance, flags: Partial<Balance["maps"]["v1"]>): Balance {
+  return { ...base, maps: { ...base.maps, v1: { ...base.maps.v1, ...flags } } };
+}
+
+/** todas as flags de mapa do v1 desligadas: o v1 com o mapa de topo (como antes do R7-mapas) */
+export const NO_MAP_FLAGS = { fifth_generator: false, short_loop_pillars: false, side_exit: false } as const;
+
+/** ponto a `d` m além da linha da saída da partida, na frente do portão (norte/sul: exitZ; lateral: exitX) */
+export function outsideExit(g: GameState, d = 1): { x: number; z: number } {
+  const { gate, exitX, exitZ } = g.arena;
+  if (exitX !== undefined) return { x: exitX + (gate.x < exitX ? -d : d), z: gate.z };
+  return { x: gate.x, z: exitZ! + (gate.z < exitZ! ? -d : d) };
+}
