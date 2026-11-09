@@ -1,0 +1,342 @@
+{
+ "version": 1,
+ "seed": 3,
+ "map": "patio",
+ "mode": "normal",
+ "ruleset": "v1",
+ "difficulty": "normal",
+ "hunterBrain": "utility",
+ "botBrain": "competent",
+ "botBrainBySlot": {},
+ "mapFlags": {
+  "fifth_generator": true,
+  "short_loop_pillars": true,
+  "side_exit": true
+ },
+ "layout": "g3c1e0",
+ "puzzleZone": 0.25,
+ "duration": 191.38333333337778,
+ "over": true,
+ "end": {
+  "reason": "all_terminal",
+  "team": "survivors",
+  "individual": "escaped",
+  "outcome": "escaped",
+  "win": true,
+  "coins": 290,
+  "winCoins": true
+ },
+ "score": {
+  "points": 240,
+  "categories": {
+   "objectives": 140,
+   "altruism": 0,
+   "survival": 100,
+   "boldness": 0
+  },
+  "hunterPoints": 0
+ },
+ "human": {
+  "slot": 0,
+  "cls": "Curandeiro",
+  "bot": true,
+  "state": "out",
+  "puzzles": [
+   {
+    "who": 0,
+    "gen": 2,
+    "kind": "bot",
+    "start": 3.2833333333333266,
+    "end": 13.283333333333573,
+    "time": 10.000000000000076,
+    "result": "ok"
+   },
+   {
+    "who": 0,
+    "gen": 2,
+    "kind": "bot",
+    "start": 13.283333333333573,
+    "end": 13.616666666666923,
+    "time": 0.31666666666666665,
+    "result": "abandoned"
+   },
+   {
+    "who": 0,
+    "gen": 2,
+    "kind": "bot",
+    "start": 35.24999999999928,
+    "end": 35.316666666665945,
+    "time": 0.016666666666666666,
+    "result": "abandoned"
+   },
+   {
+    "who": 0,
+    "gen": 0,
+    "kind": "bot",
+    "start": 44.18333333333211,
+    "end": 52.81666666666495,
+    "time": 8.616666666666674,
+    "result": "abandoned"
+   },
+   {
+    "who": 0,
+    "gen": 3,
+    "kind": "bot",
+    "start": 72.44999999999717,
+    "end": 82.4499999999966,
+    "time": 10.000000000000076,
+    "result": "ok"
+   },
+   {
+    "who": 0,
+    "gen": 3,
+    "kind": "bot",
+    "start": 82.4499999999966,
+    "end": 92.44999999999604,
+    "time": 10.000000000000076,
+    "result": "ok"
+   },
+   {
+    "who": 0,
+    "gen": 3,
+    "kind": "bot",
+    "start": 92.44999999999604,
+    "end": 102.44999999999547,
+    "time": 10.000000000000076,
+    "result": "ok"
+   },
+   {
+    "who": 0,
+    "gen": 1,
+    "kind": "bot",
+    "start": 114.2999999999948,
+    "end": 124.29999999999423,
+    "time": 10.000000000000076,
+    "result": "ok"
+   },
+   {
+    "who": 0,
+    "gen": 1,
+    "kind": "bot",
+    "start": 124.29999999999423,
+    "end": 134.29999999999902,
+    "time": 10.000000000000076,
+    "result": "ok"
+   }
+  ],
+  "puzzleMedian": 10.000000000000076,
+  "chases": [
+   {
+    "target": 0,
+    "start": 14.516666666666968,
+    "end": 23.416666666666618,
+    "ended": "switch",
+    "duration": 8.89999999999965
+   },
+   {
+    "target": 0,
+    "start": 132.51666666666426,
+    "end": 146.41666666667533,
+    "ended": "lost",
+    "duration": 13.900000000011062
+   },
+   {
+    "target": 0,
+    "start": 160.51666666668655,
+    "end": 171.5166666666953,
+    "ended": "lost",
+    "duration": 11.000000000008754
+   }
+  ],
+  "hits": 2,
+  "damage": 23,
+  "heals": 1,
+  "healed": 23,
+  "captures": [],
+  "deaths": [],
+  "rescued": [],
+  "rescues": [],
+  "escapedAt": 180.1500000000355
+ },
+ "team": {
+  "generators": [
+   {
+    "gen": 0,
+    "bonus": false,
+    "start": 42.983333333332176,
+    "end": 80.78333333333003,
+    "duration": 37.79999999999786,
+    "human": {
+     "puzzles": 0,
+     "turbo": 0,
+     "fails": 0,
+     "time": 8.616666666666674
+    },
+    "bots": {
+     "puzzles": 2,
+     "turbo": 3,
+     "fails": 1,
+     "time": 23.41666666666588
+    }
+   },
+   {
+    "gen": 1,
+    "bonus": false,
+    "start": 114.2999999999948,
+    "end": 134.29999999999902,
+    "duration": 20.00000000000422,
+    "human": {
+     "puzzles": 2,
+     "turbo": 0,
+     "fails": 0,
+     "time": 19.999999999999616
+    },
+    "bots": {
+     "puzzles": 1,
+     "turbo": 2,
+     "fails": 2,
+     "time": 19.39999999999944
+    }
+   },
+   {
+    "gen": 2,
+    "bonus": false,
+    "start": 2.28333333333333,
+    "end": 35.26666666666595,
+    "duration": 32.98333333333262,
+    "human": {
+     "puzzles": 1,
+     "turbo": 0,
+     "fails": 0,
+     "time": 10.333333333333426
+    },
+    "bots": {
+     "puzzles": 2,
+     "turbo": 2,
+     "fails": 0,
+     "time": 22.26666666666609
+    }
+   },
+   {
+    "gen": 3,
+    "bonus": false,
+    "start": 72.44999999999717,
+    "end": 102.44999999999547,
+    "duration": 29.999999999998295,
+    "human": {
+     "puzzles": 3,
+     "turbo": 0,
+     "fails": 0,
+     "time": 29.999999999999048
+    },
+    "bots": {
+     "puzzles": 1,
+     "turbo": 1,
+     "fails": 0,
+     "time": 9.849999999999874
+    }
+   },
+   {
+    "gen": 4,
+    "bonus": true,
+    "start": 128.38333333332764,
+    "end": null,
+    "duration": null,
+    "human": {
+     "puzzles": 0,
+     "turbo": 0,
+     "fails": 0,
+     "time": 0
+    },
+    "bots": {
+     "puzzles": 4,
+     "turbo": 0,
+     "fails": 1,
+     "time": 50.916666666664526
+    }
+   },
+   {
+    "gen": 5,
+    "bonus": true,
+    "start": 20.400000000000123,
+    "end": null,
+    "duration": null,
+    "human": {
+     "puzzles": 0,
+     "turbo": 0,
+     "fails": 0,
+     "time": 0
+    },
+    "bots": {
+     "puzzles": 2,
+     "turbo": 0,
+     "fails": 0,
+     "time": 20.499999999999588
+    }
+   },
+   {
+    "gen": 6,
+    "bonus": true,
+    "start": 59.39999999999791,
+    "end": null,
+    "duration": null,
+    "human": {
+     "puzzles": 0,
+     "turbo": 0,
+     "fails": 0,
+     "time": 0
+    },
+    "bots": {
+     "puzzles": 2,
+     "turbo": 0,
+     "fails": 1,
+     "time": 30.599999999999014
+    }
+   }
+  ],
+  "puzzles": {
+   "human": 6,
+   "bots": 14,
+   "botMedian": 10.000000000000076
+  },
+  "chases": {
+   "total": 9,
+   "capture": 0,
+   "onHuman": 3,
+   "captureDurations": []
+  },
+  "captures": 0,
+  "deaths": 0,
+  "rescues": 0,
+  "escaped": 3,
+  "survivors": [
+   {
+    "id": 0,
+    "cls": "Curandeiro",
+    "bot": true,
+    "state": "out",
+    "captures": 0,
+    "rescues": 0,
+    "hits": 2
+   },
+   {
+    "id": 1,
+    "cls": "Mecânico",
+    "bot": true,
+    "state": "out",
+    "captures": 0,
+    "rescues": 0,
+    "hits": 2
+   },
+   {
+    "id": 2,
+    "cls": "Atacador",
+    "bot": true,
+    "state": "out",
+    "captures": 0,
+    "rescues": 0,
+    "hits": 1
+   }
+  ]
+ }
+}

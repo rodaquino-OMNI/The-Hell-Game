@@ -3,6 +3,7 @@
 import { CLASSES, NO_INPUT, type ClassName, type EndReason, type GameState, type SurvivorState, type Team } from "./types.ts";
 import { createGame, step, STEP } from "./game.ts";
 import type { AiTrace, SimConfig } from "./config.ts";
+import { matchReport, type MatchReport } from "./report.ts";
 
 export interface StuckMeter {
   /** tempo seguido (s) com deslocamento abaixo do mínimo e caminho válido */
@@ -131,4 +132,16 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
     layout: `g${g.arena.layout.generators}c${g.arena.layout.cage}e${g.arena.layout.exit}`,
     chases: chaseEpisodes(log, switches), survivors: g.survivors.map(s => ({ cls: s.cls, st: s.st, captures: s.captures })),
   };
+}
+
+/**
+ * Partida sem humano com o relatório de playtest (report.ts): a vaga 0 é um bot da classe `cls` (o cérebro de
+ * `botBrainOf(cfg, 0)`), como em `playHeadless`. Base de tools/sim/compare-human.ts (humano × bot).
+ */
+export function playHeadlessReport(cfg: SimConfig, cls: ClassName, seed: number): MatchReport {
+  const g = createGame(cfg, cls, seed, { report: true });
+  g.survivors[0].bot = true;
+  const limit = Math.ceil((cfg.balance.match.hard_time_limit + 1) / STEP);
+  for (let i = 0; i < limit && !g.over; i++) { step(cfg, g, NO_INPUT); g.events.length = 0; }
+  return matchReport(g);
 }
