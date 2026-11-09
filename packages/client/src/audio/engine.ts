@@ -3,9 +3,10 @@
 // contexto depois de ter rodado) e volume persistente em localStorage, gravado com atraso.
 // O AudioContext só nasce quando alguém pede (gesto, initAudio, barramento); o import não cria nada, para rodar em
 // Node (testes) e sem Web Audio (tudo vira no-op). Valores de mixagem: data/balance.yaml `audio.buses`,
-// `audio.volume_ramp_tc` e `audio.volume_persist_delay`.
+// `audio.volume_ramp_tc` e `audio.volume_persist_delay`; taxa do contexto: `audio.compose.sample_rate` (a dos stems, A-3).
 import type { Balance } from "@thehell/shared";
 import { balance } from "../data.ts";
+import { exposeDebugHook } from "../debug-hooks.ts";
 
 /** barramentos de entrada: os sliders de música, efeitos, voz e UI (GDD-v0.3 §11, Mixagem) */
 export const BUSES = ["music", "sfx", "voice", "ui"] as const;
@@ -80,10 +81,27 @@ function loadVolumes(storage: VolumeStorage | null, defaults: Volumes): Volumes 
   return out;
 }
 
+/** construtores de contexto que o navegador pode expor (webkitAudioContext: Safari antigo) */
+export interface AudioCtors { AudioContext?: new (opts?: AudioContextOptions) => AudioContext; webkitAudioContext?: new (opts?: AudioContextOptions) => AudioContext }
+
+/**
+ * Cria o AudioContext na taxa dos stems (A-3). Os stems são gravados a `audio.compose.sample_rate`, e o decodeAudioData
+ * reamostra para a taxa do contexto: num contexto de 44,1 kHz o reamostrador do Chromium trata o loop como buffer
+ * finito (1 amostra a menos e borda descontínua = estalo na junção; tools/audio/check-loop.mjs). Forçando a taxa, o
+ * buffer fica exato e o navegador reamostra só a saída para o dispositivo, como fluxo contínuo.
+ * Navegador que recusa a opção (construtor lança): cai para o construtor sem opção; depois para webkitAudioContext.
+ */
+export function createAudioContext(sampleRate: number, g: AudioCtors = globalThis as unknown as AudioCtors): AudioContext | null {
+  for (const Ctor of [g.AudioContext, g.webkitAudioContext]) {
+    if (!Ctor) continue;
+    try { return new Ctor({ sampleRate }); } catch { /* opção não suportada ou taxa recusada */ }
+    try { return new Ctor(); } catch { /* este construtor não serve: tenta o próximo */ }
+  }
+  return null;
+}
+
 function defaultContext(): AudioContext | null {
-  const g = globalThis as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
-  const Ctor = g.AudioContext ?? g.webkitAudioContext;
-  return Ctor ? new Ctor() : null;
+  return createAudioContext(balance.audio.compose.sample_rate);
 }
 
 function defaultStorage(): VolumeStorage | null {
@@ -239,10 +257,11 @@ declare global {
   interface Window { __thehellAudio?: () => AudioHookState }
 }
 
-/** no navegador: desbloqueio no gesto, gravação ao sair da página e gancho só-leitura do e2e (tools/audio/e2e.mjs).
+/** no navegador: desbloqueio no gesto, gravação ao sair da página e gancho só-leitura do e2e (tools/audio/e2e.mjs, só com ?debug=1).
  *  Nada disso cria o AudioContext. */
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   getEngine().installUnlock(window);
   window.addEventListener("pagehide", () => getEngine().flushVolumes());
-  window.__thehellAudio = () => { const e = getEngine(); return { state: e.state(), buses: e.volumes(), plays: e.plays() }; };
+  // gancho só com ?debug=1 (D-33)
+  exposeDebugHook("__thehellAudio", (): AudioHookState => { const e = getEngine(); return { state: e.state(), buses: e.volumes(), plays: e.plays() }; });
 }

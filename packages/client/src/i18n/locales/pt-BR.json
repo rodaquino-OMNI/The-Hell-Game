@@ -225,5 +225,15 @@
   "key.alt_right": "Alt direito",
   "key.enter": "Enter",
   "key.backspace": "Backspace",
-  "key.numpad": "Teclado numérico {n}"
+  "key.numpad": "Teclado numérico {n}",
+
+  "caption.hunter_steps": "Passos pesados: o caçador",
+  "caption.hunter_growl": "Rosnado: golpe do caçador",
+  "caption.hunter_dash": "Motor acelerando: investida do caçador",
+  "caption.hunter_projectile": "Estalidos agudos: disparo do caçador",
+  "caption.hunter_trap": "Estalos metálicos: armadilha do caçador",
+  "caption.puzzle_fail": "Faíscas: falha no gerador",
+  "caption.generator_done": "Zumbido subindo: gerador concluído",
+  "caption.cage": "Grade batendo: sobrevivente preso",
+  "caption.rescue": "Acorde de alívio: sobrevivente salvo"
 }

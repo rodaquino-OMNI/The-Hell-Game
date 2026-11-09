@@ -225,5 +225,15 @@
   "key.alt_right": "Right Alt",
   "key.enter": "Enter",
   "key.backspace": "Backspace",
-  "key.numpad": "Numpad {n}"
+  "key.numpad": "Numpad {n}",
+
+  "caption.hunter_steps": "Heavy footsteps: the hunter",
+  "caption.hunter_growl": "Growl: hunter's strike",
+  "caption.hunter_dash": "Engine revving: hunter's dash",
+  "caption.hunter_projectile": "Sharp ticks: hunter's shot",
+  "caption.hunter_trap": "Metal clicks: hunter's trap",
+  "caption.puzzle_fail": "Sparks: generator failure",
+  "caption.generator_done": "Rising hum: generator completed",
+  "caption.cage": "Bars slam: survivor caged",
+  "caption.rescue": "Relief chord: survivor rescued"
 }

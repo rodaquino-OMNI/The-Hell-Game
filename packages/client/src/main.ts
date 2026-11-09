@@ -10,6 +10,7 @@ import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
 import { getControls, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
+import { exposeDebugHook } from "./debug-hooks.ts";
 import { getColorMode } from "./look.ts";
 import { getLayerA, getReduceFlicker } from "./render/layers.ts";
 import { bobScale, cameraFov } from "./render/motion.ts";
@@ -54,20 +55,21 @@ function init() {
   if (urlRetro) { view.thirdPerson = false; setupStatusBar(); }
 }
 
+// ganchos de depuração só com ?debug=1 (D-33, debug-hooks.ts)
 /** gancho somente-leitura para os testes ponta a ponta (tools/smoke.mjs) */
-(window as unknown as { __thehell: () => GameState | undefined }).__thehell = () => G;
+exposeDebugHook("__thehell", () => G);
 /** gancho de render (capturas de referência e renderer.info) e intensidades PS1 do parâmetro de URL `?ps1=` */
 installRenderHook(() => ctx, () => G);
 // `?ps1=` (depuração e capturas de referência) vale por cima das opções salvas
 setPs1(urlPs1);
-/** gancho somente-leitura das opções (tools/a11y/axe.mjs): o que o jogador escolheu e o estado efetivo de cada módulo */
-(window as unknown as { __thehellOptions: () => unknown }).__thehellOptions = () => ({
+/** gancho somente-leitura das opções (tools/a11y/axe.mjs; só com ?debug=1): o que o jogador escolheu e o estado efetivo de cada módulo */
+exposeDebugHook("__thehellOptions", () => ({
   options: currentOptions(), ps1: getPs1(), layerA: getLayerA(), reduceFlicker: getReduceFlicker(), bobScale: bobScale(), fov: cameraFov(),
   colorMode: getColorMode(), uiScale: getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim(), controls: getControls(),
   puzzleZone: gameCfg.balance.puzzles.timing.zone,
-});
+}));
 /** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
-if (urlRetro) (window as unknown as { __thehellView: typeof view }).__thehellView = view;
+if (urlRetro) exposeDebugHook("__thehellView", view);
 
 function start() {
   hideMenu();
