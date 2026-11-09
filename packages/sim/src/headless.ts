@@ -62,33 +62,28 @@ export interface HeadlessResult {
   replans: number;
   layout: string;
   /**
-   * duração (s) de cada episódio contínuo do caçador em `chase`/`attack`/`recoil` que terminou com o alvo derrubado
-   * (preso ou morto pelo golpe/projétil; GDD-v0.3 §8.5, aceite da mediana ≥ 15 s). Vazio sem a IA do caçador.
+   * Perseguição antes da captura (GDD-v0.3 §8.5, aceite da mediana ≥ 15 s; definição da D-35): duração (s) de cada
+   * episódio em que o caçador persegue um alvo, visto OU lembrado (modos `chase`/`attack`/`recoil`; com a D-35 o
+   * cérebro utility segue em `chase` enquanto a memória do alvo vale), contínuo até o alvo ser derrubado (preso ou
+   * morto pelo golpe ou projétil). Trocar de alvo abre outro episódio. Só os episódios que terminam em captura entram.
+   * Vazio sem a IA do caçador.
    */
   chases: number[];
-  /**
-   * informativo (R4): o mesmo, mas o episódio continua enquanto o caçador investiga a última posição lembrada do
-   * mesmo alvo (`investigate` com `ai.memory` do alvo ainda válida): perder o alvo de vista por instantes num loop
-   * não encerra a perseguição; trocar de alvo abre outro episódio
-   */
-  chasesMemory: number[];
 }
 
 const CHASE_MODES: readonly string[] = ["chase", "attack", "recoil"];
 
-export interface ChaseMeter { memory: boolean; from: number; target: number; done: number[] }
-export const newChaseMeter = (memory: boolean): ChaseMeter => ({ memory, from: -1, target: -1, done: [] });
+export interface ChaseMeter { from: number; target: number; done: number[] }
+export const newChaseMeter = (): ChaseMeter => ({ from: -1, target: -1, done: [] });
 
 /** atualiza o medidor depois de um passo; `downed` = algum sobrevivente livre foi preso ou morto neste passo */
 export function measureChase(g: GameState, m: ChaseMeter, downed: boolean) {
   const ai = g.hunter.ai;
   if (!ai) return;
-  let on = CHASE_MODES.includes(ai.mode);
-  if (!on && m.memory && m.from >= 0 && ai.mode === "investigate" && ai.memory && ai.memory.id === m.target && ai.memory.until > g.t) on = true;
-  if (on && m.from < 0) { m.from = g.t - STEP; m.target = ai.target; }
-  // com memória o episódio é de um alvo: trocar de alvo abre outro episódio
-  if (on && m.memory && ai.target >= 0 && ai.target !== m.target) m.from = g.t - STEP;
-  if (on && ai.target >= 0) m.target = ai.target;
+  const on = CHASE_MODES.includes(ai.mode);
+  const target = ai.target >= 0 ? ai.target : ai.memory?.id ?? -1;
+  if (on && (m.from < 0 || (target >= 0 && target !== m.target))) m.from = g.t - STEP;
+  if (on && target >= 0) m.target = target;
   // o golpe que prende pode levar a cage no mesmo passo: conta se o episódio estava aberto
   if (m.from >= 0 && downed) { m.done.push(g.t - m.from); m.from = on ? g.t : -1; return; }
   if (!on) m.from = -1;
@@ -108,12 +103,12 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
   const meter = newStuckMeter(g);
   const limit = Math.ceil((cfg.balance.match.hard_time_limit + 1) / STEP);
   let end: Extract<GameState["events"][number], { type: "end" }> | null = null;
-  const strict = newChaseMeter(false), memory = newChaseMeter(true);
+  const chase = newChaseMeter();
   for (let i = 0; i < limit && !g.over; i++) {
     const before = g.survivors.map(s => s.st);
     step(c, g, NO_INPUT);
     const downed = g.survivors.some((s, k) => before[k] === "ok" && (s.st === "cage" || s.st === "dead"));
-    measureChase(g, strict, downed); measureChase(g, memory, downed);
+    measureChase(g, chase, downed);
     measureStuck(c, g, meter, STEP);
     for (const e of g.events) if (e.type === "end") end = e;
     g.events.length = 0;
@@ -124,6 +119,6 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
     captures: g.survivors.reduce((n, s) => n + s.captures, 0),
     stuck: meter, transitions, replans: g.hunter.ai?.replans ?? 0,
     layout: `g${g.arena.layout.generators}c${g.arena.layout.cage}e${g.arena.layout.exit}`,
-    chases: strict.done, chasesMemory: memory.done,
+    chases: chase.done,
   };
 }

@@ -36,7 +36,7 @@ async function runJob(job: Job): Promise<Row[]> {
       return { ...r, stuck: !!r.stuck.failAt, stuckWorst: r.stuck.worst, dither: r.stuck.dither, failAt: r.stuck.failAt };
     } catch (e) {
       return {
-        seed, time: 0, team: null, reason: null, escaped: 0, captures: 0, transitions: {}, replans: 0, layout: "", chases: [], chasesMemory: [],
+        seed, time: 0, team: null, reason: null, escaped: 0, captures: 0, transitions: {}, replans: 0, layout: "", chases: [],
         stuck: false, stuckWorst: 0, dither: 0, failAt: null, error: (e as Error).stack ?? String(e),
       };
     }
@@ -100,8 +100,8 @@ function report(map: string, difficulty: string, nav: string, rows: Row[]): bool
   console.log(`travas (T-03, > ai.stuck_fail_after): ${stuck.length} · maior sequência abaixo do mínimo ${Math.max(0, ...ok.map(r => r.stuckWorst)).toFixed(1)} s · vaivém máx (informativo) ${Math.max(0, ...ok.map(r => r.dither)).toFixed(1)} s`);
   console.log(`replanejamentos do anti-travamento: ${ok.reduce((s, r) => s + r.replans, 0)} (${mean(r => r.replans).toFixed(1)} por partida)`);
   const median = (xs: number[]) => { const v = [...xs].sort((a, b) => a - b); return v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : NaN; };
-  const chases = ok.flatMap(r => r.chases), withMemory = ok.flatMap(r => r.chasesMemory);
-  console.log(`perseguição antes da captura: mediana ${median(chases).toFixed(1)} s (n=${chases.length}) · com memória do alvo (informativo) ${median(withMemory).toFixed(1)} s (n=${withMemory.length})`);
+  const chases = ok.flatMap(r => r.chases);
+  console.log(`perseguição antes da captura (alvo visto ou lembrado, D-35; aceite §8.5 ≥ 15 s): mediana ${median(chases).toFixed(1)} s (n=${chases.length})`);
   console.log(`exceções: ${errors.length}`);
   console.log(`transições: ${Object.entries(trans).sort().map(([k, v]) => `${k.replace(">", "→")} ${v}`).join(", ")}`);
   console.log(`transições fora do grafo (GDD-v0.3 §8.2): ${invalid.length ? invalid.join(", ") : "nenhuma"}`);

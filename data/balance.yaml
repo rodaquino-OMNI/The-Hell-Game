@@ -184,6 +184,10 @@ ai:
   search_radius: 6                  # §8.1: ao chegar ao ponto investigado, vasculha pontos sorteados até esta distância
   loop_band: 1.6                    # §8.4: alvo "no loop" se estiver a até isto da rota do loop (= maps.corridor_min, largura mínima da rota)
   static_target_speed: 0.5          # §8.4 "alvo parado": velocidade percebida abaixo disto
+  search_samples: 8                 # §8.1: amostras por sorteio de ponto de vasculha (fica o mais distante já navegável)
+  # D-35 (§8.1 memória, §8.2; valor LACUNA): sem o alvo à vista o caçador segue em Perseguir enquanto a memória vale; ao chegar à
+  # última posição conhecida, projeta a fuga tantos metros na direção da última velocidade percebida
+  chase_projection: 6
   by_difficulty:
     easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
     normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}

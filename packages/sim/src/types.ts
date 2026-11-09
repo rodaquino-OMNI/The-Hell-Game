@@ -163,7 +163,11 @@ export interface HunterAi {
   /** instante da última troca de alvo */
   switchedAt: number;
   /** última posição conhecida do alvo (memória da dificuldade) */
-  memory: { id: number; x: number; z: number; until: number } | null;
+  memory: {
+    id: number; x: number; z: number; until: number;
+    /** velocidade percebida na última leitura (direção de fuga projetada ao chegar à última posição, D-35) */
+    vx: number; vz: number;
+  } | null;
   /** ponto investigado e prazo; `spot` = ponto atual da vasculha em volta dele */
   investigate: { x: number; z: number; until: number; spot: Vec | null } | null;
   /** ruído ouvido ainda não tratado (vira investigação depois do tempo de reação) */

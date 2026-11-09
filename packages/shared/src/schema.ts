@@ -282,6 +282,7 @@ export const BalanceSchema = z.object({
     target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
     target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
+    search_samples: z.number().int().positive(), chase_projection: pos,      // técnicos (§8.1; D-35)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
     anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6

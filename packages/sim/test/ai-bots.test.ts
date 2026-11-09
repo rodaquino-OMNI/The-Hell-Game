@@ -454,25 +454,24 @@ describe("determinismo e simulador", () => {
     const r = playHeadless(comp({ difficulty: "nightmare" }), 3);
     expect(r.stuck.failAt).toBeNull();
     expect(r.team).not.toBeNull();
-    for (const d of [...r.chases, ...r.chasesMemory]) expect(d).toBeGreaterThan(0);
-    expect(r.chasesMemory.length).toBeGreaterThanOrEqual(r.chases.length - 1);
+    for (const d of r.chases) expect(d).toBeGreaterThan(0);
   });
-  it("medidor de perseguição: fecha no derrubado; com memória, a investigação do mesmo alvo continua o episódio", () => {
-    const g = game(), ai = g.hunter.ai!;
-    const strict = newChaseMeter(false), mem = newChaseMeter(true);
-    const tick = (mode: typeof ai.mode, downed = false, dt = 1) => { g.t += dt; ai.mode = mode; measureChase(g, strict, downed); measureChase(g, mem, downed); };
+  it("medidor de perseguição (D-35): alvo visto ou lembrado, contínuo até a captura; trocar de alvo abre outro", () => {
+    const g = game(), ai = g.hunter.ai!, m = newChaseMeter();
+    const tick = (mode: typeof ai.mode, downed = false, dt = 1) => { g.t += dt; ai.mode = mode; measureChase(g, m, downed); };
     ai.target = 1; tick("chase"); tick("chase");
-    ai.target = -1; ai.memory = { id: 1, x: 0, z: 0, until: g.t + 5 }; tick("investigate");
+    ai.target = -1; ai.memory = { id: 1, x: 0, z: 0, until: g.t + 5, vx: 0, vz: 0 }; tick("chase"); // só lembrado
     ai.target = 1; tick("chase"); tick("recoil", true);
-    expect(strict.done.map(x => Math.round(x))).toEqual([1]);
-    expect(mem.done.map(x => Math.round(x))).toEqual([4]);
+    expect(m.done.map(x => Math.round(x))).toEqual([4]);
     tick("cage"); tick("patrol", true);
-    expect(strict.done).toHaveLength(1);
+    expect(m.done).toHaveLength(1);
     ai.target = 2; tick("chase"); ai.target = 1; tick("chase"); tick("attack", true);
-    expect(mem.done.map(x => Math.round(x))).toEqual([4, 1]);
+    expect(m.done.map(x => Math.round(x))).toEqual([4, 1]);
+    ai.target = 1; tick("chase"); tick("investigate"); tick("chase"); tick("chase", true); // investigar encerra o episódio
+    expect(m.done.map(x => Math.round(x))).toEqual([4, 1, 1]);
     const noAi = createGame(makeConfig(b, map, { ruleset: "v1" }), "Curandeiro", 1);
-    measureChase(noAi, strict, true);
-    expect(strict.done).toHaveLength(2);
+    measureChase(noAi, m, true);
+    expect(m.done).toHaveLength(3);
   });
   it("personalidade de bot desconhecida não existe nos dados (personalityOf lê ai.bots.personalities)", () => {
     const s = game().survivors[1], ai = newBotAi(cfg, { seed: 2 }, s);
