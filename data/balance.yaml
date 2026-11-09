@@ -61,8 +61,9 @@ generator:
   fail_spark_time: 3
   completed_reveal: 3
   # GDD-v0.2 §3.4 ("revela o gerador por 3 s" na linha do ruído de 25 m) × §6.2 ("revela a posição por 3 s", sem raio).
-  # LACUNA: false = só o caçador dentro de noise.generator_done reage (leitura conservadora); true = alcança de qualquer distância.
-  completed_reveal_global: false
+  # D-21 (Rodrigo, 09/11/2026): o caçador vê o alerta de conserto de qualquer ponto do mapa (true). false = só o
+  # caçador dentro de noise.generator_done reage (leitura anterior, conservadora).
+  completed_reveal_global: true
   by_team_size:                    # GDD-v0.2 §3.5
     1: {required: 2, bonus: 1}
     2: {required: 3, bonus: 2}
@@ -385,9 +386,29 @@ render:
 # ---------- 15. Áudio (GDD-v0.3 §11) ----------
 audio:
   music:
+    # A-2 (music.ts / musicState.ts). Um stem por estado musical; o nome é também o arquivo
+    # `audio/music/<stem>.mp3` (contrato com o A-3). GDD-v0.3 §11: 5 stems (ambiente, tensão, perseguição,
+    # pressão final, resgate).
     stems: [ambient, tension, chase, final_pressure, rescue]
-    tension_radius: 25
-    crossfade_bars: 1
+    tension_radius: 25                # GDD-v0.3 §11 e GDD-v0.2 §11: tensão com o caçador a < 25 m
+    crossfade_bars: 1                 # GDD-v0.3 §11: crossfade de 1 compasso
+    # Andamento, compasso e tom: decisão do Rodrigo, 09/11/2026 (sessão Áudio): 90 BPM, 4/4, Ré menor, síntese PS1
+    # pura. Compasso = beats_per_bar × 60 / bpm = 2,667 s; a troca de stem cai no início do compasso seguinte
+    # (GDD-v0.3 §11). `key` é lido pela composição procedural (A-3).
+    bpm: 90
+    beats_per_bar: 4
+    key: "D minor"
+    # LACUNA (GDD não define): ganho linear do stem ativo (os inativos ficam em 0). Proposta: 1, porque os stems já
+    # saem masterizados a −16 LUFS (GDD-v0.3 §11, medido no A-7); o volume do jogador fica no barramento `music`.
+    layer_gain: 1
+    # LACUNA (GDD não define): constantes de tempo (s) do ducking (GDD-v0.3 §11: −8 dB em eventos críticos).
+    # Proposta: ataque 0,05 s (a música abaixa em ~150 ms, junto com o evento) e soltura 0,5 s (volta em ~1,5 s,
+    # sem "bombear").
+    duck_attack: 0.05
+    duck_release: 0.5
+    # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
+    # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
+    start_lead: 0.1
   max_voices: 32
   occlusion_lowpass_hz: 800
   loudness_lufs: -16
@@ -398,18 +419,45 @@ audio:
   # 1 = sem atenuação). Linear e não dB porque é o valor que o slider mostra e o GainNode recebe, e 0 representa o
   # mudo sem precisar de −∞ dB. Barramentos = os sliders separados de música, efeitos, voz e UI (GDD-v0.3 §11,
   # Mixagem; GDD-v0.2 §11) somados no master.
-  # LACUNA (GDD v0.2/v0.3 não definem o volume inicial dos sliders). Proposta: 1 em todos, para a música chegar ao
-  # jogador no nível em que foi masterizada (−16 LUFS, GDD-v0.3 §11) e os bipes da fase 0 manterem o volume atual
-  # (antes ligados direto no destino); decisão do Rodrigo pendente.
+  # Volume inicial dos sliders (GDD v0.2/v0.3 não definem): D-28 (docs/plano-construcao.md §7), 1 em todos, para a
+  # música chegar ao jogador no nível em que foi masterizada (−16 LUFS, GDD-v0.3 §11) e os bipes da fase 0
+  # manterem o volume atual.
   buses: {master: 1, music: 1, sfx: 1, voice: 1, ui: 1}
-  # LACUNA (GDD não define): constante de tempo (s) da rampa setTargetAtTime ao mudar um volume. Proposta: 0,02 s
+  # D-29 (docs/plano-construcao.md §7; GDD não define): constante de tempo (s) da rampa setTargetAtTime ao mudar um volume. Proposta: 0,02 s
   # (chega a ~95% em 3 constantes = 60 ms), curta o bastante para o slider responder na hora e longa o bastante para
   # não estalar ("zipper noise") com o ganho mudando em degrau.
   volume_ramp_tc: 0.02
-  # LACUNA (GDD não define): atraso (s) para gravar os volumes no localStorage depois da última mudança (o slider
+  # D-29 (docs/plano-construcao.md §7; GDD não define): atraso (s) para gravar os volumes no localStorage depois da última mudança (o slider
   # arrastado não grava a cada quadro; o ganho muda na hora). Proposta: 0,25 s; também grava ao sair da página
   # (pagehide).
   volume_persist_delay: 0.25
+  # A-4 (voices.ts): prioridade por tipo de voz (inteiro; maior = mais importante). Com as audio.max_voices vagas
+  # ocupadas, a voz nova derruba a ativa de menor prioridade (a mais antiga entre as empatadas) se a prioridade da
+  # nova for maior ou igual; senão é recusada (GDD-v0.3 §11, "limite de 32 vozes por prioridade";
+  # docs/handoff/plano-audio-v5.md §1, "a 33ª derruba a de menor prioridade e mais antiga").
+  # A ordem segue a legibilidade de jogo: o telegraph é o aviso obrigatório de habilidade do caçador (GDD-v0.3 §11,
+  # "Telegraph sonoro"; GDD-v0.2 §11, "parte do telegraph"), depois o caçador e o batimento (ameaça), o gerador
+  # (objetivo), os passos, a UI e o ambiente.
+  # LACUNA (o GDD não define a tabela nem os valores numéricos): proposta abaixo, decisão do Rodrigo pendente.
+  voice_priority: {telegraph: 100, hunter: 90, heartbeat: 80, generator: 50, footstep: 40, ui: 30, ambience: 10}
+  # A-4 (spatial.ts): parâmetros do PannerNode de cada voz. panning_model HRTF: GDD-v0.3 §11 e GDD-v0.2 §11.
+  # LACUNA (o GDD não define o modelo de distância nem as distâncias). Proposta: "inverse" (padrão da Web Audio,
+  # https://webaudio.github.io/web-audio-api/#dom-pannernode-distancemodel): ganho = ref / (ref + rolloff·(d − ref))
+  # para d > ref, cheio até ref_distance.
+  # ref_distance 4 m: em 3ª pessoa a câmera (o ouvinte) fica a ≈ 3,85 m do personagem (prototype_extras.camera:
+  # √(distance² + shoulder² + (height − source_height)²) = √(3,6² + 0,8² + 1,1²) ≈ 3,85 m, sem recuo de parede);
+  # com ref 2 um som no personagem sairia a 20·log10(2 / 3,85) ≈ −5,7 dB; com ref 4 sai sem atenuação.
+  # max_distance 60 m (= render.camera.far, o que a câmera ainda enxerga; o pátio tem 62 m de lado): no modelo inverse
+  # a distância é limitada a max_distance, então o ganho para de cair em ref / max (4/60 ≈ −23,5 dB); não silencia.
+  panner: {panning_model: HRTF, distance_model: inverse, ref_distance: 4, max_distance: 60, rolloff_factor: 1}
+  # LACUNA (o GDD só fixa o corte de 800 Hz): constante de tempo (s) da rampa setTargetAtTime do passa-baixa quando a
+  # voz entra ou sai de oclusão. Proposta: 0,05 s (~95% em 0,15 s), sem estalo ao cruzar a quina de uma parede. Sem
+  # oclusão o filtro abre até a frequência de Nyquist do contexto (sampleRate / 2), isto é, fica transparente.
+  occlusion_ramp_tc: 0.05
+  # LACUNA (o GDD não define): altura (m) padrão da fonte sonora no eixo y do render quando quem toca não informa.
+  # Proposta: 1,2 m, perto do peito de um sobrevivente (survivor.height 1,75 m), abaixo do olho da câmera em 1ª pessoa
+  # (render.camera.eye_height 1,5 m).
+  source_height: 1.2
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:
