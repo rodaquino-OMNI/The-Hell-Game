@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startServer } from "../lib/server.mjs";
+import { SEED, gotoPaused } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -36,8 +37,6 @@ const strictTime = args.includes("--strict-time");
 let url = args.find((a, i) => a.startsWith("http") && args[i - 1] !== "--out");
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
 const B = balance.render.budgets, ST = balance.render.stress;
-/** semente fixa (mesma das capturas de referência) */
-const SEED = 1234;
 /** saída de 1280×720, a resolução em que o GDD-v0.3 §10.6 mede o FPS (C-10: escala inteira da resolução interna) */
 const VIEWPORT = { width: 1280, height: 720 };
 const MB = 1e6;
@@ -58,11 +57,8 @@ async function renderBudget(browser, preset, retro) {
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   // relógio parado: a cena só desenha quando o hook pede (um quadro por vista)
-  // instala e pausa ANTES de navegar (o Playwright reaplica o relógio a cada documento novo; o boot do cliente não arma
-  // timer antes do #go): pausar depois do goto corria contra o relógio ("Cannot fast-forward to the past")
-  await page.clock.install({ time: 0 });
-  await page.clock.pauseAt(1000);
-  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&stress=1${retro ? "&retro=1" : ""}`, { waitUntil: "load" });
+  // instalado e pausado ANTES de navegar (tools/lib/capture-page.mjs)
+  await gotoPaused(page, `${url}/?debug=1&seed=${SEED}&preset=${preset}&stress=1${retro ? "&retro=1" : ""}`);
   await page.click("#go");
   const r = await page.evaluate(async (preset) => {
     await window.__thehellCharactersReady();
