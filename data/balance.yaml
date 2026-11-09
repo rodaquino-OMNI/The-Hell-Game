@@ -391,7 +391,13 @@ render:
   # pairs e frames: os do V7 (21 × 32); warmup: os 2 quadros que já eram descartados ao trocar de camadas. pairs ≥ 5
   # (schema): com menos pares a mediana reamostrada só assume poucos valores distintos e o IC percentil degenera
   # (com 1 par o IC é um ponto, e a regra "falha só se o limite inferior passar" vira a regra da mediana crua)
-  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07}
+  # ci_mode (D-48, supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): warn | fail. Em warn
+  # o resultado de falha do custo das camadas vira aviso visível (anotação ::warning e resumo do job) e não reprova a
+  # CI; o resto de tools/visual/compare.mjs e os portões de tools/perf/budget.mjs (draw calls, triângulos, download)
+  # seguem reprovando. Motivo: viés do tipo de runner; um runner novo com base 36,3 ms/quadro sem camadas mediu 1,52×
+  # (IC [1,52, 1,53]) em 09/11/2026 num PR que não mexe no render (PR #68, job 128986770134), acima do teto da CI 1,50×.
+  # PRAZO: volta para fail no mesmo PR que implementar a issue #59 (comparação com o build de main no mesmo job)
+  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: warn}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,
