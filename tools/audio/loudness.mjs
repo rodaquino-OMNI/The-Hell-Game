@@ -208,7 +208,7 @@ function main(argv) {
 
   if (!hasBinaries(["ffmpeg"])) {
     if (process.env.CI) {
-      console.error("FALHA: ffmpeg ausente no PATH com CI definido (o passo \"Áudio: ffmpeg para os testes de stems\" do ci.yml instala com apt-get)");
+      console.error("FALHA: ffmpeg ausente no PATH com CI definido (o passo \"Áudio: ffmpeg (stems A-3 e loudness A-7)\" do ci.yml instala com apt-get)");
       process.exitCode = 1;
     } else console.warn("AVISO: ffmpeg ausente no PATH; medição de loudness PULADA (fora da CI). Instale com apt-get install ffmpeg.");
     return;

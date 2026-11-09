@@ -1,7 +1,7 @@
 // Loudness e créditos (item A-7 do V5; GDD-v0.3 §11, linha "Mixagem"): tools/audio/loudness.mjs.
 // Créditos: com lista de arquivos injetada (sem ffmpeg) e no repositório real. Loudness: MP3 sintéticos gerados pelo
 // ffmpeg num diretório temporário com a mesma estrutura de public/ (audio/music/...), medidos com ebur128. Sem ffmpeg:
-// na CI (process.env.CI) o teste FALHA (o passo "Áudio: ffmpeg para os testes de stems" do ci.yml instala); fora da CI
+// na CI (process.env.CI) o teste FALHA (o passo "Áudio: ffmpeg (stems A-3 e loudness A-7)" do ci.yml instala); fora da CI
 // o bloco é pulado com aviso, no padrão de audio-stems.test.ts.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

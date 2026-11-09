@@ -1,7 +1,7 @@
 // Stems de música (item A-3 do V5; GDD-v0.3 §11, C-13): os 5 MP3 gerados por tools/audio/compose.ts existem, têm o
 // mesmo comprimento em número inteiro de compassos, loudness −16 LUFS ±1 com pico real ≤ −1 dBTP (ffmpeg ebur128) e
 // fecham o loop sem degrau. Usa ffmpeg/ffprobe do sistema. Sem o binário: na CI (process.env.CI) o teste FALHA
-// (o passo "Áudio: ffmpeg para os testes de stems" do ci.yml instala); fora da CI o bloco é pulado com aviso.
+// (o passo "Áudio: ffmpeg (stems A-3 e loudness A-7)" do ci.yml instala); fora da CI o bloco é pulado com aviso.
 //
 // Comprimento: o exato vem da DECODIFICAÇÃO (ffmpeg respeita o atraso e o padding do cabeçalho Xing/LAME, como o
 // Chromium, conferido em tools/audio/check-loop.mjs). A duração que o ffprobe informa é quadros × 1152 amostras e inclui

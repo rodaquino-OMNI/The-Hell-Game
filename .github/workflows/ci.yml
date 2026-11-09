@@ -22,15 +22,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - name: "Áudio: ffmpeg para os testes de stems"
+      # créditos antes do ffmpeg: não dependem dele, e em passo próprio a falha do loudness não esconde a de créditos
+      - name: "Áudio: créditos de public/audio em creditos.csv (A-7)"
+        run: node tools/audio/loudness.mjs --credits
+      - name: "Áudio: ffmpeg (stems A-3 e loudness A-7)"
         run: |
-          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends ffmpeg; fi
           ffmpeg -version | head -1
-      - name: "Áudio: loudness da música (−16 LUFS ±1, ≤ −1 dBTP) e créditos (A-7)"
-        run: |
-          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
-          node tools/audio/loudness.mjs
-          node tools/audio/loudness.mjs --credits
+      - name: "Áudio: loudness da música (−16 LUFS ±1, ≤ −1 dBTP) (A-7)"
+        run: node tools/audio/loudness.mjs
       - name: Testes com cobertura (sim ≥ 90%)
         run: pnpm coverage
       - name: Paleta (contraste e daltonismo)
