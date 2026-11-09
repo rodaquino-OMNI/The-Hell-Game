@@ -485,7 +485,19 @@ render:
   # §5.3) no Retro em 1ª pessoa nos três presets, na cena LEG com a máscara chapada de tools/visual/compare.mjs.
   # Contraste fora do cone com o fator 1 / 0,7 / 0,4: low 4,70 / 3,84 / 2,96; medium 4,76 / 3,91 / 3,02;
   # high 3,61 / 3,06 / 2,45 (o high limita: 0,65 dá 2,95). Conferido em tools/visual/compare.mjs (legibilidade Retro)
-  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7}
+  # preset_scale (D-54, supervisão por delegação do Rodrigo, 09/11/2026; Art Bible §5.3: corpo do caçador ≥ 3:1): fator
+  # por preset sobre a intensidade escolhida (opção × preset_scale × retro_scale no Retro em 1ª pessoa). No shader a
+  # cor do contorno continua limitada a token × amount, então o fator > 1 alarga a borda sem clarear além dessa cor.
+  # Escolha: o menor fator (passo 0,05) com o corpo ≥ legibility.min_contrast fora (LEG) e dentro (LEG_IN) do cone na
+  # 3ª pessoa, cena LEG com a máscara chapada de tools/visual/compare.mjs, camadas do preset. Medium fica em 1 (sem
+  # mudança). Fora / dentro do cone, fator 1 → escolhido: low 3,43 / 2,76 → 3,84 / 3,02 com 1,15 (1,10 dá 2,92 dentro);
+  # high 2,56 / 5,08 → 3,05 / 5,26 com 1,30 (1,25 dá 2,98 fora); medium 3,21 / 5,58. No low (sem camada B) "dentro"
+  # é só o ângulo: o caçador fica quase todo atrás do aliado e do gerador (lâmpada e feixe), sobra a faixa do braço
+  # (83 px; 204 fora) com fresnel mais fraco (Y 0,125 × 0,153 fora) contra o fundo clareado pelo halo da lâmpada e do
+  # feixe (Y 0,0136 × 0,0090 fora). Pesa mais o contorno: com o Y dele de fora o fundo de dentro dá 3,19; com o fundo
+  # de fora o contorno de dentro dá 2,97. Retro em 1ª pessoa, fora
+  # do cone, depois de D-54: low 4,14, medium 3,91, high 3,44. Conferido em tools/visual/compare.mjs (legibilidade D-54)
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7, preset_scale: {low: 1.15, medium: 1, high: 1.3}}
   models:
     survivor_tris: [300, 600]
     hunter_tris: [800, 1200]

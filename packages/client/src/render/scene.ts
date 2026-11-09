@@ -13,7 +13,7 @@ import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLaye
 import { clientRandom, urlPreset, urlRetroClass, type RetroClass } from "./options.ts";
 import { retroMode } from "./retro/mode.ts";
 import { createPresenter, type Presenter } from "./present.ts";
-import { Ps1Material, ps1Uniforms, setHunterOutlineRetroView } from "./ps1.ts";
+import { Ps1Material, ps1Uniforms, setHunterOutlinePreset, setHunterOutlineRetroView } from "./ps1.ts";
 import { createIndustrial, type Industrial } from "./retro/industrial.ts";
 import { createViewmodel, type Viewmodel } from "./retro/viewmodel.ts";
 import { createGenVisual, createLock, type GenVisual } from "./states.ts";
@@ -168,6 +168,7 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   if (industrial) ctx.retro = { industrial, vm: null };
   onLayersChange(l => applyLayers(ctx, l));
   setLayers(presetLayers(presenter.preset));
+  setHunterOutlinePreset(presenter.preset);
   return ctx;
 }
 
@@ -183,6 +184,8 @@ function applyLayers(ctx: RenderCtx, l: LayerSet) {
 export function setPreset(ctx: RenderCtx, name: Presenter["preset"]) {
   ctx.presenter.setPreset(name);
   setLayers(presetLayers(name));
+  // D-54: contorno do caçador com o fator do preset (render.hunter_outline.preset_scale)
+  setHunterOutlinePreset(name);
   const [iw, ih] = rc.presets[name].internal;
   ctx.cam.aspect = iw / ih; ctx.cam.updateProjectionMatrix();
   ctx.retro?.vm?.setAspect(iw / ih);

@@ -6,7 +6,7 @@ import { balance } from "../data.ts";
 import { exposeDebugHook } from "../debug-hooks.ts";
 import type { PresetName } from "./present.ts";
 import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
-import { getHunterOutline, getPs1, Ps1Material, setHunterOutline, setHunterOutlineShape, setPs1, type Ps1Intensity } from "./ps1.ts";
+import { getHunterOutline, getPs1, Ps1Material, setHunterOutline, setHunterOutlinePresetScale, setHunterOutlineShape, setPs1, type Ps1Intensity } from "./ps1.ts";
 import { tok } from "../look.ts";
 import { genVisuals, meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
 import { characterForm, telegraphOn } from "./characters/runtime.ts";
@@ -29,6 +29,8 @@ export interface RenderHook {
   setHunterOutline(v: number): void;
   /** forma do contorno para comparação de arte (amount ≤ 1/token por canal; null = render.hunter_outline) */
   setHunterOutlineShape(s: { amount: number; power: number } | null): void;
+  /** fator do preset no contorno fixado à mão (D-54, comparação de arte; null = render.hunter_outline.preset_scale) */
+  setHunterOutlinePresetScale(v: number | null): void;
   /** opção "reduzir flicker" (GDD-v0.3 §12.4) */
   getReduceFlicker(): boolean;
   setReduceFlicker(on: boolean): void;
@@ -86,7 +88,7 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     getPs1,
     setPs1,
     setPreset: name => setPreset(need().ctx, name),
-    getHunterOutline, setHunterOutline, setHunterOutlineShape,
+    getHunterOutline, setHunterOutline, setHunterOutlineShape, setHunterOutlinePresetScale,
     getLayers, setLayers, getLayerA, setLayerA, getReduceFlicker, setReduceFlicker, setOverrides,
     info: () => {
       const { ctx } = need();
