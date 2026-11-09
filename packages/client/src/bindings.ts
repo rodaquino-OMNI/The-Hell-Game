@@ -1,19 +1,11 @@
 // Remapeamento de teclas (V8, GDD-v0.3 §12.2: "remapeamento de todas as ações"). Cada ação tem uma lista de teclas
 // (KeyboardEvent.code); o padrão vem de data/balance.yaml `ui.controls.keyboard`. Puro (sem DOM), testado em
 // packages/client/test/options.test.ts.
-import { CONTROL_ACTIONS, type ControlAction } from "@thehell/shared";
+import { CONTROL_ACTIONS, SAFE_KEY_CODE, type ControlAction } from "@thehell/shared";
 import { balance } from "./data.ts";
 
 export type Bindings = Record<ControlAction, string[]>;
 export { CONTROL_ACTIONS, type ControlAction };
-
-/**
- * Teclas que podem virar atalho: só as que o navegador não usa sozinhas. Ficam de fora F1–F12 (F5 recarrega, F11 tela
- * cheia, F12 ferramentas), Alt e Meta (menu e sistema), ContextMenu, Tab (navegação, WCAG 2.1.2), Esc (cancela a
- * captura e fecha diálogos), / e ' (busca rápida do Firefox) e as de navegação de página (PageUp/Down, Home, End).
- * Lista técnica (KeyboardEvent.code, https://www.w3.org/TR/uievents-code/), não número de jogo.
- */
-const SAFE_CODE = /^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|Arrow(Up|Down|Left|Right)|Space|Enter|Backspace|(Shift|Control)(Left|Right)|Comma|Period|Semicolon|Minus|Equal|Bracket(Left|Right)|Backslash|Backquote|Numpad(Add|Subtract|Multiply|Decimal|Enter))$/;
 
 /** saídas fixas do quebra-cabeça (P-10: Esc, Backspace, X; a tecla de interagir e a de correr também saem) */
 export const PUZZLE_EXIT_KEYS: readonly string[] = ["Escape", "Backspace", "KeyX"];
@@ -28,7 +20,7 @@ export function defaultBindings(): Bindings {
 }
 
 /** a tecla pode ser atribuída a uma ação */
-export const bindable = (code: string) => SAFE_CODE.test(code);
+export const bindable = (code: string) => SAFE_KEY_CODE.test(code);
 
 /**
  * mapeamento salvo → mapeamento válido. Primeiro as listas salvas válidas (o que o jogador escolheu vale), depois o

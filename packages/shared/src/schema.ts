@@ -3,7 +3,7 @@
 // detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
 // audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
-import { CONTROL_ACTIONS } from "./controls.ts";
+import { CONTROL_ACTIONS, SAFE_KEY_CODE } from "./controls.ts";
 
 const num = z.number().finite();
 const pos = num.nonnegative();
@@ -33,7 +33,7 @@ const UiSchema = z.object({
     sensitivity: z.object({ min: num.positive(), max: num.positive(), default: num.positive(), step: num.positive() }).strict()
       .refine(s => s.min <= s.default && s.default <= s.max, "sensitivity: min ≤ default ≤ max"),
     invert_y: z.boolean(),
-    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
+    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(SAFE_KEY_CODE, "tecla fora do conjunto seguro (controls.ts SAFE_KEY_CODE)"))),
     toggle_run: z.boolean(), toggle_interact: z.boolean(),
     gamepad: z.object({
       deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1), menu_stick: num.gt(0).max(1),
