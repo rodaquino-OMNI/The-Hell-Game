@@ -83,7 +83,7 @@ async function reportCheck(page, game) {
   check(saved.seed === SEED && saved.difficulty === PICK && JSON.stringify(saved) === JSON.stringify(rep), "arquivo baixado diferente do relatório copiado");
   check(await counting(), "Enter em Baixar .json pulou a contagem");
   // clique (mouse) também não pula
-  await page.click("#rptd").catch(() => {});
+  await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.click("#rptd")]);
   check(await counting(), "clique em Baixar .json pulou a contagem");
   check(await page.evaluate(() => window.__rptNoReload === true), "botões do relatório recarregaram a página");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-relatorio.png") });

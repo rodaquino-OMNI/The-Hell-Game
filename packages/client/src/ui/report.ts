@@ -37,8 +37,11 @@ export async function copyText(text: string, clip: Pick<Clipboard, "writeText"> 
 }
 
 /** baixa `text` como `name` (Blob e link `download` temporário fora da tela de fim; nada vai para a rede) */
+// a URL do Blob só é revogada no download seguinte: revogar logo após o clique pode cortar a leitura em Firefox/Safari
+let lastUrl: string | null = null;
 export function downloadText(text: string, name: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  const url = (lastUrl = URL.createObjectURL(new Blob([text], { type: "application/json" })));
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
@@ -46,7 +49,6 @@ export function downloadText(text: string, name: string) {
   document.body.append(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url));
 }
 
 export interface ReportData {
