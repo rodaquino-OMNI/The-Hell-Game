@@ -3,6 +3,7 @@
 // no mixer, Art Bible §7). Material: Ps1Material do V1 (snap, afim, Gouraud; o skinning está no próprio material).
 // V3: skin do jogador (troca de cor das secundárias no atlas + acessório pequeno no peito) e olhos do caçador que
 // acendem no preparo (telegraph, Art Bible §1.5 e §4).
+// D-18: o caçador leva o contorno (borda de luz por vértice do Ps1Material, render.hunter_outline) nas malhas iluminadas.
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -47,12 +48,15 @@ let manifestP: Promise<Manifest> | null = null;
 
 const url = (p: string) => import.meta.env.BASE_URL + p;
 
-/** material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3) */
-function convertMaterial(m: THREE.Material): THREE.Material {
+/**
+ * material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3).
+ * `rim`: contorno do caçador (D-18) nas malhas iluminadas
+ */
+function convertMaterial(m: THREE.Material, rim: boolean): THREE.Material {
   const std = m as THREE.MeshStandardMaterial;
   const map = std.map ?? undefined;
   if (map) { map.colorSpace = THREE.NoColorSpace; map.generateMipmaps = false; map.minFilter = map.magFilter = THREE.NearestFilter; map.needsUpdate = true; }
-  const out = std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map });
+  const out = std.emissiveMap ? new Ps1Material({ lit: false, fog: false, map }) : new Ps1Material({ lit: true, map, rim });
   out.name = std.name;
   return out;
 }
@@ -65,8 +69,10 @@ function loadManifest(): Promise<Manifest> {
   return manifestP;
 }
 
-function loadAsset(id: string): Promise<Asset> {
-  let p = assets.get(id);
+function loadAsset(id: string, rim: boolean): Promise<Asset> {
+  // o contorno muda o material: com e sem contorno são entradas separadas (retrato do teste de silhueta × jogo)
+  const key = rim ? id + ":contorno" : id;
+  let p = assets.get(key);
   if (!p) {
     p = loadManifest().then(async man => {
       fps = man.anim_fps;
@@ -78,14 +84,14 @@ function loadAsset(id: string): Promise<Asset> {
         const mesh = o as THREE.SkinnedMesh;
         if (!mesh.isMesh) return;
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        const conv = mats.map(m => { if (!cache.has(m)) cache.set(m, convertMaterial(m)); return cache.get(m)!; });
+        const conv = mats.map(m => { if (!cache.has(m)) cache.set(m, convertMaterial(m, rim)); return cache.get(m)!; });
         mesh.material = Array.isArray(mesh.material) ? conv : conv[0];
         // a caixa da pose T não acompanha a animação; 6 personagens não pesam no recorte
         mesh.frustumCulled = false;
       });
       return { scene: gltf.scene, clips: gltf.animations, meta: new Map(entry.clipes.map(c => [c.nome, c])), ...(entry.acessorio ? { anchor: entry.acessorio } : {}) };
     });
-    assets.set(id, p);
+    assets.set(key, p);
   }
   return p;
 }
@@ -136,7 +142,7 @@ function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefi
     for (const mesh of meshes) {
       const m = mesh.material as Ps1Material, map = m.uniforms.tMap.value as THREE.Texture | null;
       if (!map || m.name !== "atlas") continue;
-      if (!cache.has(map)) { const nm = new Ps1Material({ lit: true, map: skinAtlas(map, skin) }); nm.name = m.name; cache.set(map, nm); }
+      if (!cache.has(map)) { const nm = new Ps1Material({ lit: true, map: skinAtlas(map, skin), rim: "PS1_RIM" in m.defines }); nm.name = m.name; cache.set(map, nm); }
       mesh.material = cache.get(map)!;
     }
   }
@@ -209,13 +215,16 @@ export function setTelegraph(root: THREE.Object3D, on: boolean) {
 /** olhos acesos agora (para testes ponta a ponta e capturas) */
 export const telegraphOn = (root: THREE.Object3D) => instances.get(root)?.telegraph?.on ?? false;
 
-/** contêiner do personagem (posição e rumo vêm da simulação); o modelo entra quando o .glb termina de carregar */
-export function createCharacter(id: string, skin?: SkinDef): THREE.Group {
+/**
+ * contêiner do personagem (posição e rumo vêm da simulação); o modelo entra quando o .glb termina de carregar.
+ * `o.outline`: contorno do caçador (D-18); vale para todas as instâncias do mesmo id (materiais compartilhados)
+ */
+export function createCharacter(id: string, skin?: SkinDef, o: { outline?: boolean } = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = "personagem:" + id;
   const inst: Instance = { id, model: null, mixer: null, actions: new Map(), meta: new Map(), current: null, mem: null, step: -1, wantTelegraph: null };
   instances.set(root, inst);
-  const p = loadAsset(id).then(a => {
+  const p = loadAsset(id, o.outline ?? false).then(a => {
     const model = cloneSkinned(a.scene);
     // o glTF olha para +Z; na simulação o rumo 0 olha para −Z
     model.rotation.y = Math.PI;
