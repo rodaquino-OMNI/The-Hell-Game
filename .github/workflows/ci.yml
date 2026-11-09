@@ -38,6 +38,8 @@ jobs:
         run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
+      - name: "Áudio: contexto inicia após o clique (A-1)"
+        run: node tools/audio/e2e.mjs
       - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
         run: pnpm a11y
       - name: Fumaça do protótipo original
