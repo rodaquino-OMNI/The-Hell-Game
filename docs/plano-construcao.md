@@ -231,6 +231,7 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-37 | `audio.director.hunter_audible_radius` = 30 m (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | além do raio, medido do personagem visto, passos e telegraphs do caçador não tocam, para o som não virar bússola (GDD-v0.3 §11, "sem enviar a posição do caçador"); logo além da camada de tensão (`audio.music.tension_radius` 25 m, GDD-v0.3 §11) e cobre todo alcance de telegraph (`hunter.dash.max` 11 m, `hunter.projectile.max` 16 m) |
 | D-39 | `audio.captions.enabled_default` = true: legendas de som ligadas por padrão (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | quem não ouve perderia o telegraph do caçador antes de achar a opção, e o GDD-v0.3 §12.4 pede legendas de sons (GDD-v0.3 §11, L218: ícone direcional); o jogador desliga em Opções (`setCaptionsEnabled`, localStorage) |
 | D-40 | `audio.captions.durations` = [3, 5, 8] s, padrão 3 s (`default_duration_index: 0`) (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | duração da legenda na tela ajustável no menu (`setCaptionDuration`, só valores da lista, gravada no localStorage) |
+| D-41 | diretor de áudio ligado (`audio.director_enabled: true`) no PR de ligação, commit separado e revertível (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | V5 fecha pelo critério do plano-audio-v5 §5; mudo em M até os sliders do V8 |
 
 ## 8. Riscos principais
 

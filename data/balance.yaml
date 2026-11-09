@@ -552,9 +552,10 @@ audio:
   source_height: 1.2
   # ---------- A-5: efeitos sintetizados, telegraph e diretor de áudio ----------
   # D-32 (docs/plano-construcao.md §7: main publicável, coisa pela metade atrás de flag em dados): o diretor
-  # (audio/director.ts) só toca com true. Fica false até a ligação em main.ts e os stems do A-3 estarem verdes;
-  # com false, updateAudio/audioEvents não fazem nada e os bipes da fase 0 continuam por beep().
-  director_enabled: false
+  # (audio/director.ts) só toca com true. Ligado depois da ligação em main.ts/hud.ts (V5) e dos stems do A-3 verdes
+  # (tools/audio/e2e-director.mjs na CI). Com false, updateAudio/audioEvents não fazem nada e os bipes da fase 0
+  # continuam por beep(). D-41 (docs/plano-construcao.md §7): ligado num commit isolado, revertível sozinho.
+  director_enabled: true
   # Síntese PS1 pura (decisão do Rodrigo, 09/11/2026): todo efeito é sintetizado em tempo de execução a partir da
   # receita abaixo (zero arquivos, zero licença). Terror leve 12+ (GDD-v0.2 §1; docs/handoff/plano-audio-v5.md §2):
   # sem gritos, golpe = impacto abafado.
