@@ -321,7 +321,8 @@ function chaseActions(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, s: Se
     ai.intercept = project(cfg, closestOnLoop(onLoop.loop, { x: s.x + s.vx * tau, z: s.z + s.vz * tau }));
   }
   if (H.windup || H.dashing > 0) return;
-  if (d < h.melee.range && H.atk <= 0) {
+  // D-50: só prepara o golpe com linha de visão até o alvo (não tenta golpear pela quina; segue perseguindo em volta)
+  if (d < h.melee.range && H.atk <= 0 && lineOfSight(cfg.map, p.self, s)) {
     setMode(cfg, p.t, ai, "attack");
     H.windup = { kind: "melee", t: h.telegraph_min, total: h.telegraph_min };
     return;
@@ -455,10 +456,11 @@ function release(cfg: SimConfig, g: GameState, ai: HunterAi, kind: "melee" | "da
     g.projectiles.push({ id: g.nextId++, x: H.x, z: H.z, vx: (dx / k) * h.projectile.speed, vz: (dz / k) * h.projectile.speed, t: cfg.balance.prototype_extras.projectile_life });
     return;
   }
-  // golpe: sai no fim do preparo e só acerta se o alvo ainda estiver no alcance; recarga gasta mesmo errando
+  // golpe: sai no fim do preparo e só acerta se o alvo ainda estiver no alcance e com linha de visão (D-50, mesma
+  // função da percepção); recarga gasta mesmo errando
   H.atk = cfg.meleeCooldown;
   const c = g.survivors.find(s => s.id === ai.target);
-  if (c && c.st === "ok" && dist(c, H) < h.melee.range) {
+  if (c && c.st === "ok" && dist(c, H) < h.melee.range && lineOfSight(cfg.map, H, c)) {
     fx.hit(c, g.gateStarted ? h.melee.damage_final : h.melee.damage);
     H.recoil = h.melee.recoil;
     ai.captured = c.st !== "ok";
