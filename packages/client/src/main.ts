@@ -4,6 +4,7 @@
 import { createGame, drainEvents, step, STEP, type GameState } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
+import { installMuteKey } from "./audio/mute.ts";
 import { updateListener, updateSpatial } from "./audio/spatial.ts";
 import { $, balance, cfg } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
@@ -18,6 +19,7 @@ import { urlPs1, urlRetro, urlRetroClass, urlSeed } from "./render/options.ts";
 import { setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
+import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
 import { initLocale } from "./ui/locale.ts";
 import { hideMenu, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
@@ -65,6 +67,8 @@ function start() {
 setupInput(() => G);
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
+// mudo do master na tecla M até os sliders do V8 (D-41), com aviso na linha de mensagens do HUD
+installMuteKey(window, muted => showMessage(t(muted ? "caption.sound_muted" : "caption.sound_unmuted")));
 
 // ---------- quadro ----------
 function loop(now: number) {

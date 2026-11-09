@@ -13,7 +13,8 @@
 //     quando o navegador expõe) e em tempo real (quadros de rAF);
 //  5. legenda: com o telegraph tocado a ≤ audio.director.hunter_audible_radius (D-37, 30 m), getCaptions() tem a
 //     legenda do telegraph (audio.captions.effects, A-6);
-//  6. zero erros de console e pageerror.
+//  6. mudo: a tecla M zera o master (window.__thehellAudio) e mostra o aviso no HUD; M de novo restaura (D-41);
+//  7. zero erros de console e pageerror.
 // A página abre com `?ruleset=v1`: o telegraph (hunter.windup) só existe nas regras v1 (GDD-v0.2 §4.1).
 // Opcional: `--record <arquivo.webm> [segundos]` grava a saída do master (MediaRecorder sobre um
 // MediaStreamDestination ligado em paralelo ao AudioDestinationNode por um script de teste) durante uma partida curta
@@ -211,16 +212,22 @@ try {
   if (!(tele.hunterDist <= AUDIBLE)) await fail(`telegraph tocado a ${tele.hunterDist} m (> ${AUDIBLE} m, D-37)`);
   if (!caption) await fail("sem legenda de telegraph em getCaptions(): " + JSON.stringify(h2.captions));
 
-  // espera o fim do preparo e lê os quadros
-  await page.waitForTimeout(Math.ceil((tele.windup.total + hunter.melee.recoil) * 1000) + 300);
+  // espera, por estado, um quadro amostrado depois do som em que o preparo já acabou (efeito solto)
+  const settled = await page.waitForFunction(t0 => window.__e2eFrames.some(f => f.t > t0 && !f.windup), tele.gameT, { timeout: TELEGRAPH_WAIT_MS, polling: 50 }).then(() => true, () => false);
+  if (!settled) await fail("o preparo não terminou: " + JSON.stringify(await page.evaluate(() => window.__e2eFrames.slice(-5))));
   const frames = await page.evaluate(() => window.__e2eFrames.slice());
-  const firstSeen = frames.find(f => f.tele && f.t >= tele.gameT - 1e-9 && f.windup);
-  if (!firstSeen) await fail("a render nunca mostrou o telegraph (olhos acesos) do preparo");
-  const prevFrame = frames[frames.indexOf(firstSeen) - 1];
-  if (Math.abs(firstSeen.t - tele.gameT) > 1e-9) await fail(`telegraph sonoro no t=${tele.gameT}, visual no t=${firstSeen.t}: quadros diferentes`);
-  if (prevFrame && prevFrame.tele) await fail("os olhos já estavam acesos no quadro anterior ao som: " + JSON.stringify({ prevFrame, firstSeen }));
-  const endIdx = frames.findIndex((f, i) => i > frames.indexOf(firstSeen) && !f.windup);
-  if (endIdx < 0) await fail("o preparo não terminou dentro da janela medida");
+  // quadro do som = o quadro amostrado com o mesmo relógio da partida (o amostrador roda depois do draw do quadro)
+  const seenIdx = frames.findIndex(f => Math.abs(f.t - tele.gameT) <= 1e-9);
+  if (seenIdx < 0) await fail(`nenhum quadro amostrado com t=${tele.gameT} (quadro do som)`);
+  const firstSeen = frames[seenIdx];
+  if (!firstSeen.tele || !firstSeen.windup) await fail(`no quadro do som (t=${tele.gameT}) a render não mostrava o telegraph: ` + JSON.stringify(firstSeen));
+  if (firstSeen.windup.kind !== tele.windup.kind) await fail("kind do visual ≠ kind do som: " + JSON.stringify({ firstSeen, tele }));
+  // no quadro anterior não havia ESTE preparo: sem preparo, outro kind, ou um preparo mais velho (t restante menor)
+  const prevFrame = frames[seenIdx - 1];
+  if (prevFrame?.windup && prevFrame.windup.kind === firstSeen.windup.kind && prevFrame.windup.t >= firstSeen.windup.t) {
+    await fail("o mesmo preparo já estava visível no quadro anterior ao som: " + JSON.stringify({ prevFrame, firstSeen }));
+  }
+  const endIdx = frames.findIndex((f, i) => i > seenIdx && !f.windup);
   const endFrame = frames[endIdx];
   const latency = tele.outputLatency && tele.outputLatency > 0 ? tele.outputLatency : (tele.baseLatency ?? 0);
   const leadGame = tele.windup.t; // s de jogo do quadro do som até o passo do efeito
@@ -238,7 +245,7 @@ try {
       outputLatency_s: tele.outputLatency, baseLatency_s: tele.baseLatency,
       antecedencia_ouvido_s: +(leadGame - latency).toFixed(4),
       antecedencia_tempo_real_s: +((endFrame.now - firstSeen.now) / 1000 - latency).toFixed(4),
-      quadros_ate_o_efeito: endIdx - frames.indexOf(firstSeen),
+      quadros_ate_o_efeito: endIdx - seenIdx,
     },
     legenda: { key: caption.key, dir: caption.dir, intensity: +caption.intensity.toFixed(3) },
   };
@@ -249,6 +256,21 @@ try {
     writeFileSync(record.file, Buffer.from(b64, "base64"));
     measures.gravacao = { arquivo: record.file, bytes: Buffer.byteLength(b64, "base64") };
   }
+
+  // mudo do master na tecla M (D-41, audio/mute.ts): 0 e aviso no HUD; de novo M volta ao volume de antes
+  const audioHook = () => page.evaluate(() => window.__thehellAudio());
+  const before = (await audioHook()).buses.master;
+  const msg = () => page.evaluate(() => document.getElementById("msg")?.textContent ?? "");
+  const catalog = JSON.parse(readFileSync(new URL("../../packages/client/src/i18n/locales/pt-BR.json", import.meta.url), "utf8"));
+  await page.keyboard.press("KeyM");
+  const mutedVol = (await audioHook()).buses.master, mutedMsg = await msg();
+  if (mutedVol !== 0) await fail(`M não zerou o master: ${mutedVol}`);
+  if (mutedMsg !== catalog["caption.sound_muted"]) await fail(`aviso do mudo ausente no HUD: "${mutedMsg}"`);
+  await page.keyboard.press("KeyM");
+  const back = (await audioHook()).buses.master, backMsg = await msg();
+  if (back !== before) await fail(`M de novo não restaurou o master: ${back} ≠ ${before}`);
+  if (backMsg !== catalog["caption.sound_unmuted"]) await fail(`aviso de som ligado ausente no HUD: "${backMsg}"`);
+  measures.mudo = { antes: before, mudo: mutedVol, depois: back };
 
   await browser.close();
   browser = undefined;
