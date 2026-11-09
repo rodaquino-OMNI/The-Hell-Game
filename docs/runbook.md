@@ -67,6 +67,12 @@ Metas do GDD v0.3 §10.6, limiares em `data/balance.yaml` `render.budgets`.
 
 **Na CI (automático):** `pnpm perf:budget` (`tools/perf/budget.mjs`) abre a cena de pior caso (`?stress=1`: caçador e 5 sobreviventes das 5 classes, inclusive Protetor e Batedor só como atores de render, mapa inteiro, camadas do preset, armadilhas e projéteis no máximo) em cada preset, sem e com `?retro=1`, e falha se `renderer.info` passar de `render.budgets.draw_calls` ou `triangles` em alguma vista. Também mede o download inicial (bytes transferidos até o jogo ficar jogável, rede limitada a `render.stress.network_mbps`) e o tempo até jogar. O tempo de relógio só é reportado na CI: no SwiftShader o primeiro quadro mede a CPU do runner, não a GPU do jogador; a CI falha se a transferência do download inicial na rede limitada passar de `time_to_play_s` (com `--strict-time`, o tempo de relógio também conta). Relatório `budget.json` e `budget.md` no artefato `orcamentos-desempenho` quando falha.
 
+**Custo das camadas contra main (CI, D-49 / issue #59):** o passo "Build de main para o custo das camadas" faz `git worktree add` de `HEAD^1` em `$RUNNER_TEMP/main` e compila o cliente; `tools/visual/compare.mjs --baseline "$RUNNER_TEMP/main"` mede o PR e main no mesmo navegador, em rodadas intercaladas, e só reprova se o limite inferior do IC de (razão do PR − razão de main) passar de `render.cost_check.main_delta`. O resumo do job traz as duas razões e a diferença por vista. Se o passo de main falhar ou main não tiver o gancho de custo, aparece a anotação "Custo das camadas sem build de main" e vale o portão absoluto de D-44. Reproduzir localmente (com `pnpm build` feito no PR):
+
+1. `git worktree add --detach ../main-custo origin/main && cd ../main-custo && pnpm install --frozen-lockfile && pnpm data && pnpm --filter @thehell/client build && cd -`
+2. `node tools/visual/compare.mjs --baseline ../main-custo` e ler as linhas `custo × main` (anotar a carga da máquina, que o log imprime).
+3. `git worktree remove ../main-custo`.
+
 **FPS em Intel UHD 620 (manual; LACUNA até haver máquina):** a CI não tem GPU real. Medir no fim das fases 2 e 5 numa máquina do Rodrigo ou de um testador:
 
 1. Máquina com Intel UHD Graphics 620 (conferir em `chrome://gpu`: "GL_RENDERER" com "UHD Graphics 620"; aceleração por hardware ligada), carregador ligado, plano de energia equilibrado, outras abas e programas fechados.
