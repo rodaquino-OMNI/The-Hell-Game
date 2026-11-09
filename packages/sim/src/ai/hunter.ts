@@ -128,6 +128,9 @@ export function trackLoop(cfg: SimConfig, ai: HunterAi, s: SeenSurvivor): { loop
  * memória do alvo vale, a contagem continua com o ângulo do próprio caçador em volta do mesmo obstáculo (ele segue o
  * alvo pela rota; só usa a própria posição e os metadados do mapa). Memória expirada ou de outro alvo: zera.
  */
+// LACUNA (aproximação, GDD v0.3 §8.4): com o alvo só lembrado, as voltas são contadas pelo ângulo do PRÓPRIO caçador em
+// volta do obstáculo; na troca de fonte (alvo visto ↔ caçador) o trecho entre as duas posições é descartado (conta a
+// menos, conservador) e, se o alvo saiu do loop sem ser visto, o caçador ainda conta voltas até a memória expirar.
 export function trackLoopMemory(cfg: SimConfig, ai: HunterAi, self: Vec, t: number): void {
   const m = ai.memory, lp = ai.loop;
   if (!lp || !m || m.id !== lp.target || m.until <= t) { ai.loop = null; return; }
