@@ -587,11 +587,11 @@ net:
 # exceções, partidas sem fim e transições fora do grafo do §8.2 reprovam sempre. Tolerância null = "a medir".
 # Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
 # para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado); chase_median só usa lotes
-# com ≥ min_samples episódios. Medição de 09/11/2026 (`pnpm sim --check --noise=10`, bots do protótipo, hunter_brain
-# utility, grade A*, com a D-21 `generator.completed_reveal_global: true`). Desvio máx por dificuldade / no agregado:
-# hunter_win 0 / 0; duration_mean 9,75 s (easy) / 3,67 s; captures_per_match 0,062 (nightmare) / 0,0235;
-# short_match_rate 0,040 (easy) / 0,0164; chases_per_match 0,071 (nightmare) / 0,0277; chase_median: por dificuldade
-# só 1 lote válido (a medir) / 7,0 s (5 lotes válidos).
+# com ≥ min_samples episódios. Medição refeita no R4 (09/11/2026, `pnpm sim --check --noise=10`, bots do protótipo,
+# hunter_brain utility com a D-35 — Perseguir pela memória — e a D-36 — telegraph em toda habilidade —, grade A*,
+# D-21 ligada). Desvio máx por dificuldade / no agregado: hunter_win 0 / 0; duration_mean 8,12 s / 2,51 s;
+# captures_per_match 0,0346 / 0,0097; short_match_rate 0,0355 / 0,0068; chases_per_match 0,049 / 0,0100;
+# chase_median: por dificuldade < 2 lotes válidos (a medir) / 15,5 s (9 lotes válidos; a D-35 alonga os episódios).
 # PORTA SATURADA HOJE (bots do protótipo; a tabela do check marca "saturada"): vitória do caçador 0%, capturas e
 # perseguições perto de 0 e partidas curtas perto de 100% ficam a menos de 1 tolerância do limite físico, então a
 # piora do lado de perto não reprova (a vitória do caçador ainda reprova se passar do outro lado da banda). Hoje só
@@ -603,10 +603,10 @@ sim:
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
   regression:
     hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.02, pooled_max_worsening: 0.005}  # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 42, pooled_max_worsening: 16}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.27, pooled_max_worsening: 0.1}      # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.17, pooled_max_worsening: 0.07}                     # §7.6: < 5%
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 35, pooled_max_worsening: 11}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.15, pooled_max_worsening: 0.05}     # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.16, pooled_max_worsening: 0.03}                     # §7.6: < 5%
     # §8.5 (aceite: mediana ≥ 15 s). Com < 10 episódios a mediana oscila > 12 s entre lotes: não é comparada.
-    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: 30, min_samples: 10}  # null = a medir (R4)
+    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: 66, min_samples: 10}  # null = a medir (amostra pequena com bots do protótipo)
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
-    chases_per_match:   {worse: lower, max_worsening: 0.3, pooled_max_worsening: 0.12}
+    chases_per_match:   {worse: lower, max_worsening: 0.21, pooled_max_worsening: 0.05}
