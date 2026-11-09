@@ -1,10 +1,11 @@
 // Humano × bot competente (R8, relatório humano). Lê de 1 a 5 relatórios de `matchReport` (JSON de packages/sim,
 // report.ts: as partidas do dono do projeto no staging) e, para cada grupo de dificuldade × classe da vaga 0 × mapa ×
 // flags de mapa presente neles, joga N partidas headless com bots competentes (`ai.bot_brain: competent` em todas as
-// vagas, a vaga 0 com a mesma classe) e imprime lado a lado as medianas: tempo por quebra-cabeça (vaga 0, tentativas
-// que terminaram em acerto ou erro, tempo ativo), tempo por gerador (obrigatórios concluídos, do primeiro trabalho ao
+// vagas, a vaga 0 com a mesma classe) e imprime lado a lado as medianas: tempo por quebra-cabeça RESOLVIDO (vaga 0,
+// tempo ativo do acerto + tentativas erradas anteriores no mesmo gerador; por tentativa só informativo), tempo por gerador (obrigatórios concluídos, do primeiro trabalho ao
 // pronto), duração da partida, capturas e perseguições da vaga 0 por partida, e a fuga da vaga 0. Destaca se o tempo
 // humano por quebra-cabeça cai na meta `generator.puzzle_time_target.full` (GDD-v0.2 §6.2 L141: 12–18 s).
+// Recusa relatórios do Treino (`mode: "tutorial"`); partida inacabada (`over: false`) gera aviso e fica fora das medianas.
 //
 // Uso:  pnpm exec tsx tools/sim/compare-human.ts rel1.json [rel2.json … rel5.json] [--n=200] [--workers=2] [--seed=1] [--json=saida.json]
 //       (acima de 50 partidas: `flock /tmp/claude-0/heavy.lock pnpm exec tsx tools/sim/compare-human.ts … --workers=2`)
@@ -18,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { loadBalanceFile, loadMapFile } from "../../packages/shared/src/node.ts";
 import type { Balance } from "../../packages/shared/src/schema.ts";
-import { CLASSES, makeConfig, playHeadlessReport, REPORT_VERSION, type ClassName, type MatchReport } from "../../packages/sim/src/index.ts";
+import { CLASSES, makeConfig, playHeadlessReport, puzzleSolves, REPORT_VERSION, type ClassName, type MatchReport } from "../../packages/sim/src/index.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 type Difficulty = Balance["difficulty"];
@@ -48,8 +49,13 @@ const median = (xs: readonly number[]): number | null => {
 
 export interface Side {
   matches: number;
-  /** mediana do tempo ativo das tentativas da vaga 0 que terminaram em acerto ou erro (todas as partidas juntas) */
+  /**
+   * mediana do tempo por quebra-cabeça RESOLVIDO da vaga 0 (`puzzleSolves` de report.ts: tentativas erradas
+   * anteriores no mesmo gerador somadas ao acerto; todas as partidas juntas). É a métrica da meta 12–18 s.
+   */
   puzzle: number | null; puzzleN: number;
+  /** informativo: mediana por tentativa terminada (acerto ou erro) */
+  attempt: number | null; attemptN: number;
   /** mediana da duração dos obrigatórios concluídos (primeiro trabalho → pronto) */
   generator: number | null; generatorN: number;
   duration: number | null;
@@ -64,11 +70,13 @@ export interface Side {
 
 /** medianas de um lado (humano ou bot) a partir dos relatórios */
 export function summarize(reports: readonly MatchReport[]): Side {
-  const puzzles = reports.flatMap(r => r.human.puzzles.filter(p => p.result !== "abandoned").map(p => p.time));
+  const puzzles = reports.flatMap(r => puzzleSolves(r.human.puzzles).map(p => p.time));
+  const attempts = reports.flatMap(r => r.human.puzzles.filter(p => p.result !== "abandoned").map(p => p.time));
   const gens = reports.flatMap(r => r.team.generators.filter(x => !x.bonus && x.duration !== null).map(x => x.duration!));
   return {
     matches: reports.length,
     puzzle: median(puzzles), puzzleN: puzzles.length,
+    attempt: median(attempts), attemptN: attempts.length,
     generator: median(gens), generatorN: gens.length,
     duration: median(reports.map(r => r.duration)),
     captures: median(reports.map(r => r.human.captures.length)),
@@ -98,7 +106,8 @@ export function sideBySide(group: Group, human: Side, bot: Side, target: readonl
   const pct = (v: number) => `${(100 * v).toFixed(0)}%`;
   const rows: [string, string, string][] = [
     ["partidas", `${human.matches}`, `${bot.matches}`],
-    ["tempo por quebra-cabeça (mediana)", `${s(human.puzzle, " s")} (${human.puzzleN})`, `${s(bot.puzzle, " s")} (${bot.puzzleN})`],
+    ["tempo por quebra-cabeça resolvido (mediana)", `${s(human.puzzle, " s")} (${human.puzzleN})`, `${s(bot.puzzle, " s")} (${bot.puzzleN})`],
+    ["tempo por tentativa, acerto ou erro (mediana)", `${s(human.attempt, " s")} (${human.attemptN})`, `${s(bot.attempt, " s")} (${bot.attemptN})`],
     ["tempo por gerador obrigatório (mediana)", `${s(human.generator, " s")} (${human.generatorN})`, `${s(bot.generator, " s")} (${bot.generatorN})`],
     ["duração da partida (mediana)", s(human.duration, " s"), s(bot.duration, " s")],
     ["capturas da vaga 0 por partida (mediana)", s(human.captures), s(bot.captures)],
@@ -110,7 +119,7 @@ export function sideBySide(group: Group, human: Side, bot: Side, target: readonl
   const line = (a: string, b: string, c: string) => `${a.padEnd(w0)} | ${b.padStart(w1)} | ${c}`;
   const flags = group.mapFlags ? Object.entries(group.mapFlags).filter(([, v]) => v).map(([k]) => k).join(",") || "nenhuma" : "protótipo";
   const [lo, hi] = target;
-  const verdict = human.puzzle === null ? `SEM DADO: nenhum quebra-cabeça humano terminado (meta ${lo}–${hi} s)`
+  const verdict = human.puzzle === null ? `SEM DADO: nenhum quebra-cabeça humano resolvido (meta ${lo}–${hi} s)`
     : human.puzzle >= lo && human.puzzle <= hi ? `DENTRO da meta: ${s(human.puzzle, " s")} em ${lo}–${hi} s (GDD-v0.2 §6.2)`
       : `FORA da meta: ${s(human.puzzle, " s")} fora de ${lo}–${hi} s (GDD-v0.2 §6.2)`;
   return [
@@ -118,7 +127,7 @@ export function sideBySide(group: Group, human: Side, bot: Side, target: readonl
     line("métrica", "humano", "bot competente"),
     line("-".repeat(w0), "-".repeat(w1), "-".repeat(14)),
     ...rows.map(r => line(...r)),
-    `>> tempo humano por quebra-cabeça: ${verdict}`,
+    `>> tempo humano por quebra-cabeça resolvido: ${verdict}`,
   ].join("\n");
 }
 
@@ -132,11 +141,19 @@ async function runGroup(group: Group, n: number, seed0: number, workers: number)
   return parts.flat();
 }
 
-function readReport(path: string): MatchReport {
+/** lê e valida um relatório: versão atual, ruleset v1 e partida normal (o Treino nunca é comparado com o bot) */
+export function readReport(path: string): MatchReport {
   const r = JSON.parse(readFileSync(path, "utf8")) as MatchReport;
   if (r.version !== REPORT_VERSION) throw new Error(`${path}: relatório versão ${r.version}, esperado ${REPORT_VERSION}`);
+  if (r.mode !== "normal") throw new Error(`${path}: relatório do modo "${r.mode}" (Treino); só partidas normais são comparáveis aos bots`);
   if (r.ruleset !== "v1") throw new Error(`${path}: só o ruleset v1 é comparável aos bots competentes`);
   return r;
+}
+
+/** separa as partidas terminadas das inacabadas (`over: false`); as inacabadas ficam fora das medianas */
+export function finishedOnly(reports: readonly { path: string; report: MatchReport }[]): { kept: MatchReport[]; warnings: string[] } {
+  const warnings = reports.filter(x => !x.report.over).map(x => `aviso: ${x.path} é de partida inacabada (over: false, ${x.report.duration.toFixed(1)} s); fica fora das medianas`);
+  return { kept: reports.filter(x => x.report.over).map(x => x.report), warnings };
 }
 
 if (!isMainThread) {
@@ -164,7 +181,11 @@ if (!isMainThread) {
     console.error("uso: tsx tools/sim/compare-human.ts rel1.json [… rel5.json] [--n=200] [--workers=2] [--seed=1] [--json=saida.json]");
     process.exit(2);
   }
-  const reports = paths.map(readReport);
+  let read: { path: string; report: MatchReport }[];
+  try { read = paths.map(path => ({ path, report: readReport(path) })); } catch (e) { console.error((e as Error).message); process.exit(2); }
+  const { kept: reports, warnings } = finishedOnly(read);
+  for (const w of warnings) console.error(w);
+  if (!reports.length) { console.error("nenhum relatório de partida terminada para comparar"); process.exit(2); }
   const target = balance.generator.puzzle_time_target.full as [number, number];
   const out: { group: Group; human: Side; bot: Side }[] = [];
   for (const { group, reports: rs } of groupsOf(reports)) {

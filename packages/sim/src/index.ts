@@ -21,6 +21,6 @@ export { rescueAllowed, skipTutorialStep, startTutorial, tutorialGoal, tutorialF
 export { TUTORIAL_STEPS } from "@thehell/shared";
 // relatório de playtest (R8): createGame(cfg, cls, seed, { report: true }) e matchReport(g) no fim
 export {
-  matchReport, newMatchLog, observeStep, reportConfig, REPORT_VERSION, type ChaseEnd, type ChaseRecord, type GeneratorReport, type MatchLog,
+  matchReport, newMatchLog, puzzleSolves, type PuzzleSolve, observeStep, reportConfig, REPORT_VERSION, type ChaseEnd, type ChaseRecord, type GeneratorReport, type MatchLog,
   type MatchReport, type PuzzleRecord, type PuzzleResult,
 } from "./report.ts";

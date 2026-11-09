@@ -308,8 +308,16 @@ export interface MatchReport {
   human: {
     slot: 0; cls: ClassName; bot: boolean; state: SurvivorState;
     puzzles: PuzzleRecord[];
-    /** mediana do tempo ativo das tentativas que terminaram em acerto ou erro */
+    /** informativo: mediana do tempo ativo por TENTATIVA terminada (acerto ou erro); a meta usa `puzzleSolveMedian` */
     puzzleMedian: number | null;
+    /**
+     * quebra-cabeças resolvidos (métrica da meta `generator.puzzle_time_target`, GDD-v0.2 §6.2): do início da
+     * primeira tentativa errada desde o último acerto no mesmo gerador até o acerto; `time` = tempo ativo do acerto
+     * mais o das tentativas erradas anteriores (as abandonadas não somam nem reiniciam)
+     */
+    puzzleSolves: PuzzleSolve[];
+    /** mediana de `puzzleSolves[].time`: o "tempo por quebra-cabeça resolvido" */
+    puzzleSolveMedian: number | null;
     chases: (ChaseRecord & { duration: number })[];
     hits: number; damage: number; heals: number; healed: number;
     captures: number[]; deaths: number[];
@@ -319,13 +327,32 @@ export interface MatchReport {
   };
   team: {
     generators: GeneratorReport[];
-    puzzles: { human: number; bots: number; botMedian: number | null };
+    /** `botMedian`: por tentativa terminada (como `puzzleMedian`); `botSolveMedian`: por resolvido (como `puzzleSolveMedian`) */
+    puzzles: { human: number; bots: number; botMedian: number | null; botSolveMedian: number | null };
     /** tentativas de quebra-cabeça dos bots (vagas 1+) */
     botPuzzles: PuzzleRecord[];
     chases: { total: number; capture: number; onHuman: number; captureDurations: number[] };
     captures: number; deaths: number; rescues: number; escaped: number;
     survivors: { id: number; cls: ClassName; bot: boolean; state: SurvivorState; captures: number; rescues: number; hits: number }[];
   };
+}
+
+export interface PuzzleSolve { who: number; gen: number; start: number; end: number; time: number; fails: number }
+
+/** quebra-cabeças resolvidos a partir das tentativas em ordem (ver `puzzleSolves` no relatório) */
+export function puzzleSolves(records: readonly PuzzleRecord[]): PuzzleSolve[] {
+  const out: PuzzleSolve[] = [];
+  const pending = new Map<string, { start: number; time: number; fails: number }>();
+  for (const r of records) {
+    const k = `${r.who}:${r.gen}`, p = pending.get(k);
+    if (r.result === "fail") {
+      if (p) { p.time += r.time; p.fails++; } else pending.set(k, { start: r.start, time: r.time, fails: 1 });
+    } else if (r.result === "ok") {
+      out.push({ who: r.who, gen: r.gen, start: p ? p.start : r.start, end: r.end, time: r.time + (p?.time ?? 0), fails: p?.fails ?? 0 });
+      pending.delete(k);
+    }
+  }
+  return out;
 }
 
 /** relatório da partida (JSON serializável); exige `createGame(..., { report: true })` */
@@ -354,6 +381,7 @@ export function matchReport(g: GameState): MatchReport {
     score: { points: g.points, categories: { ...P.score }, hunterPoints: g.hunterPoints },
     human: {
       slot: 0, cls: P.cls, bot: P.bot, state: P.st, puzzles: mine, puzzleMedian: median(mine.filter(finished).map(r => r.time)),
+      puzzleSolves: puzzleSolves(mine), puzzleSolveMedian: median(puzzleSolves(mine).map(x => x.time)),
       chases: chases.filter(c => c.target === 0).map(withDur),
       hits: H.hits, damage: H.damage, heals: H.heals, healed: H.healed, captures: [...H.captures], deaths: [...H.deaths],
       rescued: H.rescued.map(r => ({ ...r })), rescues: H.rescues.map(r => ({ ...r })), escapedAt: H.escapedAt,
@@ -363,7 +391,9 @@ export function matchReport(g: GameState): MatchReport {
         gen: i, bonus: g.gens[i].bonus, start: x.start, end: x.end, duration: x.start !== null && x.end !== null ? x.end - x.start : null,
         human: pair(x, 0), bots: pair(x, 1),
       })),
-      puzzles: { human: mine.filter(r => r.result === "ok").length, bots: theirs.filter(r => r.result === "ok").length, botMedian: median(theirs.filter(finished).map(r => r.time)) },
+      puzzles: { human: mine.filter(r => r.result === "ok").length, bots: theirs.filter(r => r.result === "ok").length, botMedian: median(theirs.filter(finished).map(r => r.time)),
+        botSolveMedian: median(puzzleSolves(theirs).map(x => x.time)),
+      },
       botPuzzles: theirs,
       chases: {
         total: chases.length, capture: chases.filter(c => c.ended === "capture").length, onHuman: chases.filter(c => c.target === 0).length,

@@ -3,7 +3,9 @@
 // num cenário controlado, a equivalência das perseguições com `chaseEpisodes` e o script tools/sim/compare-human.ts.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -125,8 +127,14 @@ describe("relatório: cenário controlado", () => {
     expect(p[1].time).toBeCloseTo(2, 9);
     expect(p[2].time).toBeCloseTo(t4 - t3, 9);
     expect(p[3].start).toBe(t5); expect(p[3].time).toBeCloseTo(t6 - t5, 9);
-    // mediana das tentativas terminadas (acerto ou erro): 301/60, 2 e 61/60 s
+    // informativo, por tentativa terminada (acerto ou erro): 301/60, 2 e 61/60 s
     expect(r.human.puzzleMedian).toBeCloseTo(2, 9);
+    // por quebra-cabeça resolvido: 301/60 s; e o 2º = erro (2 s) + acerto (61/60 s), sem o abandono entre eles
+    expect(r.human.puzzleSolves).toEqual([
+      { who: 0, gen: 0, start: t1, end: t2, time: expect.closeTo(301 * STEP, 9), fails: 0 },
+      { who: 0, gen: 0, start: t2, end: t6, time: expect.closeTo(2 + 61 * STEP, 9), fails: 1 },
+    ]);
+    expect(r.human.puzzleSolveMedian).toBeCloseTo((301 * STEP + 2 + 61 * STEP) / 2, 9);
     const gen = r.team.generators[0];
     expect(gen.start).toBe(t1);
     expect(gen.end).toBe(t6);
@@ -135,6 +143,29 @@ describe("relatório: cenário controlado", () => {
     expect(gen.bots).toEqual({ puzzles: 0, turbo: 0, fails: 0, time: 0 });
     expect(r.team.puzzles.human).toBe(2);
     expect(r.team.generators[1].start).toBeNull();
+  });
+
+  it("erro rápido seguido de acerto: o tempo por resolvido soma os dois (o erro não baixa a mediana)", () => {
+    const g = controlled("Curandeiro");
+    atGen(g, 0);
+    tap(g, { interact: true });
+    const t1 = g.t;
+    wait(g, 59);
+    g.puzzle!.t = g.puzzle!.zoneCenter > 0.5 ? 0 : 1; g.puzzle!.dir = g.puzzle!.t === 0 ? 1 : -1;
+    // marcador longe da zona: erro rápido (1 s)
+    tap(g, { puzzleSpace: true });
+    const t2 = g.t;
+    wait(g, 179);
+    const z = g.puzzle!;
+    if (z.kind === "timing") { z.t = z.zoneCenter; tap(g, { puzzleSpace: true }); }
+    else for (const a of [...z.seq]) tap(g, { puzzleArrow: a });
+    const t3 = g.t;
+    const r = matchReport(g);
+    expect(r.human.puzzles.map(x => x.result)).toEqual(["fail", "ok", "abandoned"]); // o reaberto depois do acerto segue aberto
+    expect(r.human.puzzles[0].time).toBeCloseTo(t2 - t1, 9);
+    expect(r.human.puzzleSolves).toEqual([{ who: 0, gen: 0, start: t1, end: t3, time: expect.closeTo(t3 - t1, 9), fails: 1 }]);
+    expect(r.human.puzzleSolveMedian).toBeCloseTo(t3 - t1, 9);
+    expect(r.human.puzzleSolveMedian!).toBeGreaterThan(r.human.puzzleMedian!);
   });
 
   it("bot: tentativa = tempo de trabalho (`survivor.bot.puzzle_time`) e o tempo entra no gerador como dos bots", () => {
@@ -156,6 +187,7 @@ describe("relatório: cenário controlado", () => {
       expect(x.end - x.start).toBeCloseTo(b.survivor.bot.puzzle_time, 1);
     }
     expect(r.team.puzzles.botMedian).toBeCloseTo(b.survivor.bot.puzzle_time, 1);
+    expect(r.team.puzzles.botSolveMedian).toBeCloseTo(b.survivor.bot.puzzle_time, 1);
     const gen = r.team.generators[i];
     expect(gen.bots.puzzles).toBe(2);
     expect(gen.bots.time).toBeGreaterThanOrEqual(2 * b.survivor.bot.puzzle_time);
@@ -259,6 +291,8 @@ describe("relatório: perseguições", () => {
 // tools/sim/compare-human.ts fica fora do projeto TypeScript de packages/sim: import dinâmico com os tipos mínimos
 interface Side { matches: number; puzzle: number | null; puzzleN: number; generator: number | null; duration: number | null; escape: number }
 interface CompareModule {
+  readReport(path: string): unknown;
+  finishedOnly(r: { path: string; report: unknown }[]): { kept: unknown[]; warnings: string[] };
   summarize(r: unknown[]): Side;
   groupsOf(r: unknown[]): { group: { difficulty: string; cls: string }; reports: unknown[] }[];
   sideBySide(group: unknown, human: Side, bot: Side, target: readonly [number, number]): string;
@@ -284,14 +318,30 @@ describe("tools/sim/compare-human.ts", () => {
     expect(m.sideBySide(groups[0].group, { ...side, puzzle: target[1] + 1 }, side, target)).toMatch(/FORA da meta/);
     expect(m.sideBySide(groups[0].group, { ...side, puzzle: null }, side, target)).toMatch(/SEM DADO/);
     expect(m.summarize([]).escape).toBe(0);
+    // a mediana da meta é por quebra-cabeça resolvido (mesma conta de report.ts)
+    expect(side.puzzle).toBeCloseTo(rep.human.puzzleSolveMedian, 9);
+    // partida inacabada: aviso e fora das medianas
+    const f = m.finishedOnly([{ path: "a.json", report: rep }, { path: "b.json", report: { ...rep, over: false } }]);
+    expect(f.kept.length).toBe(1);
+    expect(f.warnings).toEqual([expect.stringMatching(/b\.json.*over: false/)]);
+    // Treino recusado
+    const dir = mkdtempSync(join(tmpdir(), "rep-"));
+    const tut = join(dir, "treino.json");
+    writeFileSync(tut, JSON.stringify({ ...rep, mode: "tutorial" }));
+    expect(() => m.readReport(tut)).toThrow(/Treino/);
+    expect(m.readReport(fixture)).toMatchObject({ mode: "normal" });
   });
   it("roda de ponta a ponta com o fixture (2 partidas de bot) e recusa argumentos inválidos", () => {
     const out = execFileSync(tsx, [script, fixture, "--n=2", "--workers=1"], { cwd: root, encoding: "utf8" });
-    expect(out).toMatch(/tempo por quebra-cabeça \(mediana\)/);
+    expect(out).toMatch(/tempo por quebra-cabeça resolvido \(mediana\)/);
     expect(out).toMatch(/tempo por gerador obrigatório/);
-    expect(out).toMatch(/>> tempo humano por quebra-cabeça: (DENTRO|FORA) da meta/);
+    expect(out).toMatch(/>> tempo humano por quebra-cabeça resolvido: (DENTRO|FORA) da meta/);
     expect(out).toMatch(/bots: 2 partidas por grupo/);
     expect(() => execFileSync(tsx, [script, "--n=2"], { cwd: root, stdio: "pipe" })).toThrow();
+    const dir = mkdtempSync(join(tmpdir(), "rep-"));
+    const tut = join(dir, "treino.json");
+    writeFileSync(tut, JSON.stringify({ ...JSON.parse(readFileSync(fixture, "utf8")), mode: "tutorial" }));
+    expect(() => execFileSync(tsx, [script, tut, "--n=2"], { cwd: root, stdio: "pipe" })).toThrow(/Treino/);
   }, LONG_MS);
 });
 
