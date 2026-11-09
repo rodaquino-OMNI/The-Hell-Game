@@ -14,7 +14,7 @@ import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
-import { getControls, isMuteKey, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
+import { getControls, isMuteKey, muteMessage, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
 import { exposeDebugHook } from "./debug-hooks.ts";
 import { getColorMode } from "./look.ts";
 import { getLayerA, getReduceFlicker } from "./render/layers.ts";
@@ -25,7 +25,6 @@ import { getPs1, setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
-import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
 import { initLocale } from "./ui/locale.ts";
 import { applyOptions } from "./ui/apply.ts";
@@ -105,7 +104,7 @@ exposeDebugHook("__thehellCaptions", {
 startPadLoop(() => G);
 // mudo do master (D-41) na tecla da ação `mute` (remapeável, V8; padrão M), com aviso na linha de mensagens do HUD;
 // o slider de volume geral do menu de opções acompanha
-installMuteKey(window, muted => { showMessage(t(muted ? "caption.sound_muted" : "caption.sound_unmuted")); refreshVolumeSliders(); }, undefined, isMuteKey);
+installMuteKey(window, muted => { showMessage(muteMessage(muted)); refreshVolumeSliders(); }, undefined, isMuteKey);
 
 // ---------- quadro ----------
 function loop(now: number) {

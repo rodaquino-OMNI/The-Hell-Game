@@ -3,6 +3,7 @@
 // packages/client/test/options.test.ts.
 import { CONTROL_ACTIONS, SAFE_KEY_CODE, type ControlAction } from "@thehell/shared";
 import { balance } from "./data.ts";
+import { t, type Key } from "./i18n/index.ts";
 
 export type Bindings = Record<ControlAction, string[]>;
 export { CONTROL_ACTIONS, type ControlAction };
@@ -85,3 +86,22 @@ export function held(b: Bindings, action: ControlAction, keys: Readonly<Record<s
 export function holdOrToggle(toggle: boolean, prev: boolean, down: boolean, pressed: boolean): boolean {
   return toggle ? (pressed ? !prev : prev) : down;
 }
+
+const ARROW_KEY: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+const NAMED_KEY: Record<string, Key> = { Space: "key.space", ShiftLeft: "key.shift_left", ShiftRight: "key.shift_right", ControlLeft: "key.ctrl_left", ControlRight: "key.ctrl_right", AltLeft: "key.alt_left", AltRight: "key.alt_right", Enter: "key.enter", Backspace: "key.backspace" };
+
+/** nome legível de uma tecla (KeyboardEvent.code) no idioma atual */
+export function keyName(code: string): string {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^Numpad\d$/.test(code)) return t("key.numpad", { n: code.slice(6) });
+  if (ARROW_KEY[code]) return ARROW_KEY[code];
+  if (NAMED_KEY[code]) return t(NAMED_KEY[code]);
+  return code;
+}
+
+/** teclas de uma lista ("W / ↑"), ou "sem tecla" */
+export const keysText = (codes: readonly string[]) => (codes.length ? codes.map(keyName).join(" / ") : t("key.unbound"));
+
+/** rótulo das teclas atuais de uma ação, para textos de interface (ex.: aviso do mudo, D-41) */
+export const keyLabel = (b: Bindings, action: ControlAction) => keysText(b[action]);

@@ -246,6 +246,6 @@
   "caption.generator_done": "Rising hum: generator completed",
   "caption.cage": "Bars slam: survivor caged",
   "caption.rescue": "Relief chord: survivor rescued",
-  "caption.sound_muted": "Sound muted (M to unmute)",
-  "caption.sound_unmuted": "Sound on (M to mute)"
+  "caption.sound_muted": "Sound muted ({key} to unmute)",
+  "caption.sound_unmuted": "Sound on ({key} to mute)"
 }

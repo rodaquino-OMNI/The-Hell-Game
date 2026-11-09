@@ -7,7 +7,7 @@
 import { $, balance, px } from "../data.ts";
 import { captionDuration, captionDurations, captionsEnabled, setCaptionDuration, setCaptionsEnabled } from "../audio/captions.ts";
 import { BUSES, getBusVolume, setBusVolume, type VolumeName } from "../audio/engine.ts";
-import { CONTROL_ACTIONS, rebind, bindable, type ControlAction } from "../bindings.ts";
+import { CONTROL_ACTIONS, keyName, keysText, rebind, bindable, type ControlAction } from "../bindings.ts";
 import { locale, t, type Key } from "../i18n/index.ts";
 import { COLOR_MODE_OPTIONS, type ColorModeOption } from "../look.ts";
 import { pingName } from "../text.ts";
@@ -30,8 +30,6 @@ const ACTION_LABEL: Record<Exclude<ControlAction, "ping_1" | "ping_2" | "ping_3"
 const PING_ACTIONS = ["ping_1", "ping_2", "ping_3", "ping_4"] as const;
 /** nomes dos botões no layout "standard" da Gamepad API (https://w3c.github.io/gamepad/#remapping); símbolos, sem idioma */
 const PAD_BUTTON = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "Select", "Start", "L3", "R3", "↑", "↓", "←", "→", "Home"];
-const ARROW_KEY: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
-const NAMED_KEY: Record<string, Key> = { Space: "key.space", ShiftLeft: "key.shift_left", ShiftRight: "key.shift_right", ControlLeft: "key.ctrl_left", ControlRight: "key.ctrl_right", AltLeft: "key.alt_left", AltRight: "key.alt_right", Enter: "key.enter", Backspace: "key.backspace" };
 
 /** nome da ação no idioma atual (pings: "Ping: <tipo>") */
 export function actionName(a: ControlAction): string {
@@ -39,16 +37,6 @@ export function actionName(a: ControlAction): string {
   return pi >= 0 ? t("act.ping", { name: pingName(balance.ui.ping_types[pi]) }) : t(ACTION_LABEL[a as keyof typeof ACTION_LABEL]);
 }
 
-/** nome legível de uma tecla (KeyboardEvent.code) */
-export function keyName(code: string): string {
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
-  if (/^Digit\d$/.test(code)) return code.slice(5);
-  if (/^Numpad\d$/.test(code)) return t("key.numpad", { n: code.slice(6) });
-  if (ARROW_KEY[code]) return ARROW_KEY[code];
-  if (NAMED_KEY[code]) return t(NAMED_KEY[code]);
-  return code;
-}
-const keysText = (codes: readonly string[]) => (codes.length ? codes.map(keyName).join(" / ") : t("key.unbound"));
 
 let opts: Options = defaultOptions();
 let onLanguage: () => void = () => {};

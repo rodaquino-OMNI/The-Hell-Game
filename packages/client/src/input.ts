@@ -4,7 +4,8 @@
 // data/balance.yaml `ui.controls`.
 import type { Arrow, GameState, PlayerInput } from "@thehell/sim";
 import { balance } from "./data.ts";
-import { actionsOf, defaultBindings, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
+import { t } from "./i18n/index.ts";
+import { actionsOf, defaultBindings, keyLabel, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
 import { button, padSticks, type PadLike } from "./gamepad.ts";
 
 const ctl = balance.ui.controls;
@@ -45,6 +46,8 @@ export function pingIndexOf(code: string): number {
 
 /** a tecla é a do mudo (ação `mute`, D-41; audio/mute.ts `installMuteKey`) */
 export const isMuteKey = (code: string) => prefs.keys.mute.includes(code);
+/** aviso do mudo com a tecla atual da ação `mute` (remapeável; padrão M) */
+export const muteMessage = (muted: boolean) => t(muted ? "caption.sound_muted" : "caption.sound_unmuted", { key: keyLabel(prefs.keys, "mute") });
 
 /** zera os estados alternados (nova partida) */
 export function resetInput() { hold.run = hold.interact = false; for (const k of Object.keys(keys)) keys[k] = false; }
