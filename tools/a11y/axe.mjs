@@ -4,6 +4,9 @@
 //   - roda o axe-core (regras WCAG 2.0/2.1/2.2 A e AA) no menu inicial, na loja, no HUD, na tela de espectador e
 //     nas telas de fim (protótipo e v1); falha com qualquer violação;
 //   - mede o contraste de todo texto visível contra o fundo efetivo e exige ≥ `ui.min_contrast`;
+//   - menu de opções (V8): axe, só teclado (cada opção muda o estado efetivo: getReduceFlicker, bobScale, fov, getPs1,
+//     getLayerA, getBusVolume, escala da fonte, modo daltônico, controles), Esc na captura de tecla, persistência ao
+//     recarregar e navegação só por gamepad (navigator.getGamepads simulado);
 //   - percorre o fluxo só por teclado: Tab até a loja, Enter abre, Esc fecha e o foco volta; Tab até COMEÇAR, Enter
 //     inicia a partida; na tela de fim o foco vai para "Jogar de novo";
 //   - confere o HUD: seta de ameaça com setor 0–7 quando o caçador está dentro de `ui.threat_radius`, ping com
@@ -14,6 +17,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { startServer } from "../lib/server.mjs";
 
@@ -91,14 +95,144 @@ function checkContrast({ min, bg }) {
 const shot = async (page, name) => { if (shotsDir) await page.screenshot({ path: join(shotsDir, `r7-${name}.png`) }); };
 const game = (page, fn, arg) => page.evaluate(fn, arg);
 
-/** Tab até o elemento `id` ficar com o foco (até 40 passos) */
+/**
+ * espera a partida começar (`t` > 0,5 s de simulação). Sem prazo fixo: falha só se a partida não for criada em
+ * STALL_MS ou se o relógio da simulação ficar parado por STALL_MS (máquina carregada anda devagar, mas anda); o
+ * critério (t > 0,5) é o mesmo. Registra o `t` atingido e o tempo real gasto.
+ */
+const STALL_MS = 15000, MIN_T = 0.5;
+async function waitStarted(page, name) {
+  const t0 = Date.now();
+  let lastT = -1, lastMove = Date.now(), t = null;
+  for (;;) {
+    t = await page.evaluate(() => window.__thehell?.()?.t ?? null);
+    if (t !== null && t > MIN_T) break;
+    if (t !== lastT) { lastT = t; lastMove = Date.now(); }
+    if (Date.now() - lastMove > STALL_MS) {
+      fail(`${name}: partida parada em t=${t === null ? "(não criada)" : t.toFixed(3)} s por ${STALL_MS / 1000} s (${((Date.now() - t0) / 1000).toFixed(1)} s no total)`);
+      return false;
+    }
+    await sleep(50);
+  }
+  report.push(`${name}: partida começou (t=${t.toFixed(2)} s de simulação em ${((Date.now() - t0) / 1000).toFixed(1)} s reais)`);
+  return true;
+}
+
+/** Tab até o elemento `id` ficar com o foco (até 80 passos: o menu de opções tem ~50 controles) */
 async function tabTo(page, id) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 80; i++) {
     if (await page.evaluate((x) => document.activeElement?.id === x, id)) return true;
     await page.keyboard.press("Tab");
   }
   fail(`teclado: Tab não chegou em #${id}`);
   return false;
+}
+
+const optState = (page) => page.evaluate(() => window.__thehellOptions());
+const audioVol = (page, bus) => page.evaluate((b) => window.__thehellAudio().buses[b], bus);
+const active = (page) => page.evaluate(() => document.activeElement?.id);
+
+/** Tab até `id` e uma tecla; devolve se chegou */
+async function tabPress(page, id, key) { if (!(await tabTo(page, id))) return false; await page.keyboard.press(key); return true; }
+
+/** menu de opções só pelo teclado: cada opção muda o estado efetivo do módulo dono; recarregar mantém */
+async function optionsFlow(page, locale, T, pt) {
+  const n = `${locale}/opcoes`, ob = balance.ui.options, fov0 = balance.prototype_extras.camera.fov;
+  await page.focus("body");
+  if (!(await tabPress(page, "op", "Enter"))) return;
+  if (!(await page.isVisible("#opts"))) { fail(`${n}: Enter não abriu as opções`); return; }
+  if ((await active(page)) !== "optt") fail(`${n}: foco não foi para o título das opções`);
+  if ((await page.textContent("#optt")) !== T["opt.title"]) fail(`${n}: título sem tradução`);
+  await axe(page, n);
+  if (pt) await shot(page, "opcoes");
+  const before = await optState(page);
+  let changed = 0;
+  const check = (ok, msg) => { if (ok) changed++; else fail(`${n}: ${msg}`); };
+  if (await tabPress(page, "o-ps1-snap", "Home")) { const o = await optState(page); check(o.ps1.snap === 0, `tremor de vértice ${o.ps1.snap} depois de Home`); }
+  if (await tabPress(page, "o-la-grain", "ArrowLeft")) {
+    const o = await optState(page), want = balance.render.layer_a.grain - ob.intensity_step;
+    check(Math.abs(o.layerA.grain - want) < 1e-9, `grão ${o.layerA.grain}, esperado ${want}`);
+  }
+  if (await tabPress(page, "o-flicker", "Space")) { const o = await optState(page); check(o.reduceFlicker && o.options.reduceFlicker, `reduzir flicker não ligou getReduceFlicker() (${o.reduceFlicker})`); }
+  if (await tabPress(page, "o-bob", "Space")) { const o = await optState(page); check(o.bobScale === ob.reduced_bob, `reduzir balanço deu bobScale ${o.bobScale}`); }
+  if (await tabPress(page, "o-fov", "ArrowRight")) { const o = await optState(page); check(o.fov === fov0 + ob.fov_step, `fov ${o.fov} depois de → (esperado ${fov0 + ob.fov_step})`); }
+  if (await tabPress(page, "o-vol-music", "Home")) { const v = await audioVol(page, "music"); check(v === 0, `volume da música ${v} depois de Home`); }
+  if (await tabTo(page, "o-font-normal")) {
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    const o = await optState(page);
+    check(o.options.fontSize === "xlarge" && Number(o.uiScale) === ob.font_scales.xlarge, `fonte ${o.options.fontSize} escala ${o.uiScale}`);
+    await axe(page, `${n}-fonte-${ob.font_scales.xlarge}`);
+    if (pt) await shot(page, "opcoes-fonte-grande");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+  }
+  if (await tabTo(page, "o-color-normal")) { await page.keyboard.press("ArrowRight"); check((await optState(page)).colorMode === "protanopia", "modo daltônico não mudou"); }
+  for (const [id, key] of [["o-invy", "invertY"], ["o-trun", "toggleRun"], ["o-tint", "toggleInteract"], ["o-puz", "puzzleAccessible"]]) {
+    if (await tabPress(page, id, "Space")) { const o = await optState(page); check(o.options[key] === !before.options[key], `${id} não mudou ${key}`); }
+  }
+  const c = await optState(page);
+  if (!c.controls.toggleRun || !c.controls.toggleInteract || !c.controls.invertY) fail(`${n}: controles não chegaram a input.ts: ${JSON.stringify(c.controls)}`);
+  // remapeamento: Enter no botão, nova tecla; o foco fica no botão; Esc na captura cancela sem fechar o diálogo
+  if (await tabPress(page, "kb-forward", "Enter")) {
+    await page.keyboard.press("KeyI");
+    check((await optState(page)).options.keys.forward.join() === "KeyI", "remapeamento de Andar para frente não gravou KeyI");
+    if ((await active(page)) !== "kb-forward") fail(`${n}: foco saiu do botão remapeado`);
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+    if (!(await page.isVisible("#opts"))) fail(`${n}: Esc na captura de tecla fechou o diálogo`);
+    if ((await optState(page)).options.keys.forward.join() !== "KeyI") fail(`${n}: Esc na captura mudou a tecla`);
+  }
+  await axe(page, `${n}-alterado`);
+  if (pt) await shot(page, "opcoes-alterado");
+  await page.keyboard.press("Escape");
+  if (await page.isVisible("#opts")) fail(`${n}: Esc não fechou as opções`);
+  if ((await active(page)) !== "op") fail(`${n}: foco não voltou ao botão Opções`);
+  // persistência: recarregar mantém tudo
+  await page.reload({ waitUntil: "load" });
+  const r = await optState(page);
+  const okPersist = r.reduceFlicker && r.bobScale === ob.reduced_bob && r.fov === fov0 + ob.fov_step && r.ps1.snap === 0 && r.options.fontSize === "normal" &&
+    r.colorMode === "protanopia" && r.options.puzzleAccessible && r.controls.toggleRun && r.options.keys.forward.join() === "KeyI" && (await audioVol(page, "music")) === 0;
+  if (!okPersist) fail(`${n}: opções não persistiram depois de recarregar: ${JSON.stringify(r)}`);
+  else report.push(`${n}: ${changed} opções mudadas só pelo teclado, conferidas no estado efetivo e depois de recarregar`);
+  await gamepadFlow(page, n);
+  // volta ao padrão para o resto do fluxo (partida e HUD com os valores de data/balance.yaml)
+  await page.evaluate(() => { localStorage.removeItem("thehell.options"); localStorage.removeItem("thehell.audio.volumes"); });
+  await page.reload({ waitUntil: "load" });
+}
+
+/** só pelo gamepad (navigator.getGamepads simulado): direcional até Opções, A abre, A liga uma opção, ← no slider, B fecha */
+async function gamepadFlow(page, n) {
+  const m = balance.ui.controls.gamepad.menu;
+  await page.evaluate(() => {
+    const pad = { connected: true, mapping: "standard", id: "simulado", index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+    // o jogo só começa a ler o controle no gamepadconnected (ui/padnav.ts); o evento real exige um controle físico
+    window.dispatchEvent(new Event("gamepadconnected"));
+    document.activeElement?.blur();
+  });
+  const frames = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  const press = async (i) => {
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: true, value: 1 }; }, i); await frames();
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: false, value: 0 }; }, i); await frames();
+  };
+  const goTo = async (id, max) => { for (let k = 0; k < max && (await active(page)) !== id; k++) await press(m.down); return (await active(page)) === id; };
+  if (!(await goTo("op", 40))) { fail(`${n}/gamepad: direcional não chegou ao botão Opções`); return; }
+  await press(m.confirm);
+  if (!(await page.isVisible("#opts"))) { fail(`${n}/gamepad: A não abriu as opções`); return; }
+  const flick = (await optState(page)).reduceFlicker;
+  if (!(await goTo("o-flicker", 60))) { fail(`${n}/gamepad: direcional não chegou em reduzir flicker`); return; }
+  await press(m.confirm);
+  if ((await optState(page)).reduceFlicker === flick) fail(`${n}/gamepad: A no checkbox não mudou reduzir flicker`);
+  if (!(await goTo("o-fov", 10))) { fail(`${n}/gamepad: direcional não chegou no fov`); return; }
+  const f = (await optState(page)).fov;
+  await press(m.left);
+  if ((await optState(page)).fov !== f - balance.ui.options.fov_step) fail(`${n}/gamepad: ← no slider de fov não desceu um passo`);
+  await press(m.back);
+  if (await page.isVisible("#opts")) fail(`${n}/gamepad: B não fechou as opções`);
+  else if ((await active(page)) !== "op") fail(`${n}/gamepad: foco não voltou ao botão Opções`);
+  else report.push(`${n}/gamepad: abriu, mudou 2 opções e fechou só pelo controle`);
 }
 
 try {
@@ -134,9 +268,13 @@ try {
       if ((await page.evaluate(() => document.activeElement?.id)) !== "sh") fail(`${locale}: foco não voltou ao botão da loja`);
     }
 
+    // ---------- menu de opções (V8): só teclado, axe, cada opção muda o estado, persistência, gamepad ----------
+    await optionsFlow(page, locale, T, pt);
+
     // ---------- partida (protótipo): começar pelo teclado, HUD, fim ----------
     if (await tabTo(page, "go")) await page.keyboard.press("Enter");
-    await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
+    // sem partida não há HUD para conferir: a falha já foi registrada (com o t atingido); segue para o próximo idioma
+    if (!(await waitStarted(page, `${locale}/partida`))) { await ctx.close(); continue; }
     const top = await page.textContent("#top");
     const gens = await game(page, () => window.__thehell().gens.filter(g => !g.bonus).length);
     const objectives = T["hud.objectives"].split("{")[0].trim();
@@ -176,7 +314,7 @@ try {
     await shot(page, pt ? "hud" : `hud-${locale}`);
 
     await game(page, () => { window.__thehell().hunter.hp = 0; });
-    await page.waitForSelector("#end", { state: "visible", timeout: 5000 });
+    await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const et = await page.textContent("#et");
     if (et !== T["end.hunter_down.title"]) fail(`${locale}: fim do protótipo com título "${et}"`);
     if ((await page.evaluate(() => document.activeElement?.id)) !== "again") fail(`${locale}: foco não foi para "Jogar de novo"`);
@@ -186,9 +324,9 @@ try {
     // ---------- v1: espectador e fim com end.team / end.reason / end.individual ----------
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, () => { const g = window.__thehell(); g.survivors[0].st = "dead"; g.survivors[0].hp = 0; });
-    await page.waitForSelector("#spec", { state: "visible", timeout: 5000 });
+    await page.waitForSelector("#spec", { state: "visible", timeout: STALL_MS });
     const spt = await page.textContent("#spt");
     if (spt !== T["spec.dead"]) fail(`${locale}: espectador com título "${spt}"`);
     const before = await page.textContent("#spw");
@@ -200,7 +338,7 @@ try {
     await axe(page, `${locale}/espectador`);
     if (pt) await shot(page, "espectador");
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
-    await page.waitForSelector("#end", { state: "visible", timeout: 5000 });
+    await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const v1Title = await page.textContent("#et"), v1Sub = await page.textContent("#es");
     const expectTitle = T["end.v1.title"].match(/dead \{([^}]*)\}/)[1];
     if (v1Title !== expectTitle) fail(`${locale}: fim v1 (morto, limite de tempo) com título "${v1Title}", esperado "${expectTitle}"`);
@@ -211,9 +349,9 @@ try {
     // v1, limite de tempo com o jogador vivo: "não escapou" (não "morreu", erro do END_TEXT antigo)
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await page.waitForFunction(() => window.__thehell?.()?.t > 0.5, null, { timeout: 15000 });
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
-    await page.waitForSelector("#end", { state: "visible", timeout: 5000 });
+    await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const notEscaped = T["end.v1.title"].match(/other \{([^}]*)\}/)[1];
     const t2 = await page.textContent("#et");
     if (t2 !== notEscaped) fail(`${locale}: fim v1 no limite com o jogador vivo: "${t2}", esperado "${notEscaped}"`);

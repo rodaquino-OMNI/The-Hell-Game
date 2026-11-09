@@ -416,6 +416,10 @@ render:
     lamp: {size: [0.4, 0.3, 0.4], height: 1.2}       # lâmpada no topo do gerador (mesmo padrão do feixe)
     pending_hz: 1                                    # pendente: pisca devagar, 1 vez por segundo
     pending_duty: 0.5                                # fração do ciclo do pendente com o feixe aceso
+    # V8 (GDD-v0.3 §12.4 "redução de flicker"): com a opção ligada o pendente não apaga; alterna aceso e esta fração
+    # do brilho (o "pronto" continua contínuo, então o padrão segue distinto, Art Bible §4). LACUNA (GDD e Art Bible
+    # não definem a fração). Proposta: 0,5, metade do brilho, ainda ≥ 3:1 sobre a névoa (gen.pendente sobre world.fog)
+    pending_reduced_level: 0.5
     progress_hz: 2                                   # em progresso: pulsa 2 vezes por segundo
     progress_pulse: 0.8                              # no pico do pulso a largura do feixe é × (1 + progress_pulse)
     # bônus: espiral de spiral_steps blocos (lado spiral_block) em spiral_turns voltas de raio spiral_radius, girando a
@@ -853,6 +857,68 @@ ui:
   ftue_target_min: 10
   min_contrast: 4.5
   locales: [pt-BR, en, es]
+  # ---- V8 (F2-08): menu de opções, controles e acessibilidade (GDD-v0.3 §12.2 e §12.4) ----
+  options:
+    # passo dos sliders de intensidade (render.ps1.*, render.layer_a.*: 0 a 1, GDD-v0.3 §10.1 e §10.2) e de volume
+    # (audio.buses, ganho linear 0 a 1, A-1). LACUNA (GDD não define o passo). Proposta: 0,05 (20 posições)
+    intensity_step: 0.05
+    fov_step: 1                     # graus; faixa em ui.fov (GDD-v0.3 §12.2: 60 a 100)
+    # "fonte em 3 tamanhos" (GDD-v0.3 §12.4): escala aplicada a todo texto da interface (fonte monoespaçada atual;
+    # a fonte pixel OFL é LACUNA da Art Bible §8). LACUNA (GDD e Art Bible não definem os tamanhos). Proposta:
+    # 100%, 125% e 150% (WCAG 2.2 1.4.4 pede texto legível até 200%; o zoom do navegador cobre o resto)
+    font_scales: {normal: 1, large: 1.25, xlarge: 1.5}
+    font_default: normal
+    # "redução de balanço de câmera" (GDD-v0.3 §12.4): multiplicador de render.retro.bob com a opção ligada (0 = zera)
+    reduced_bob: 0
+  # GDD-v0.3 §12.2: remapeamento de todas as ações, sensibilidade e inversão do eixo Y
+  controls:
+    mouse_rad_per_px: 0.0025        # rad por pixel de mouse com sensibilidade 1 (prototype/the-hell.html L114)
+    pitch_limit: 1.2                # rad, limite do olhar para cima e para baixo (prototype/the-hell.html L114)
+    key_turn_speed: 2               # rad/s girando com as setas ← → (prototype/the-hell.html L136)
+    # LACUNA (GDD-v0.3 §12.2 pede sensibilidade, sem faixa). Proposta: 0,25× a 3× da sensibilidade do protótipo
+    sensitivity: {min: 0.25, max: 3, default: 1, step: 0.05}
+    invert_y: false
+    # teclado padrão (KeyboardEvent.code): os mesmos do protótipo (GDD-v0.2 §12.2, prototype/the-hell.html L109–L113)
+    # e os pings 1–4 do R7 (GDD-v0.3 §12.1). `attack` também sai pelo clique do mouse (GDD-v0.2 §12.2); sem tecla
+    # padrão para não mudar os controles da fase 0 (o jogador pode atribuir uma no menu)
+    keyboard:
+      forward: [KeyW]
+      back: [KeyS]
+      left: [KeyA]
+      right: [KeyD]
+      run: [ShiftLeft, ShiftRight]
+      interact: [KeyE]
+      ability: [KeyQ]
+      attack: []
+      camera: [KeyV]
+      look_left: [ArrowLeft]
+      look_right: [ArrowRight]
+      puzzle_confirm: [Space]
+      ping_1: [Digit1]
+      ping_2: [Digit2]
+      ping_3: [Digit3]
+      ping_4: [Digit4]
+      mute: [KeyM]                  # mudo do volume geral (D-41, audio/mute.ts); sem botão padrão no gamepad
+    # "alternar em vez de segurar" (GDD-v0.3 §12.4): padrão desligado (segurar, como no protótipo)
+    toggle_run: false
+    toggle_interact: false
+    # gamepad no layout "standard" da Gamepad API (GDD-v0.3 §12.2; índices em https://w3c.github.io/gamepad/#remapping:
+    # botões 0 A/Cruz, 1 B/Círculo, 2 X/Quadrado, 3 Y/Triângulo, 4 LB, 5 RB, 6 LT, 7 RT, 8 Select, 9 Start, 10 L3,
+    # 11 R3, 12–15 direcional ↑ ↓ ← →; eixos 0/1 analógico esquerdo x/y, 2/3 direito x/y, negativo = esquerda/cima).
+    # LACUNA (GDD não define qual botão faz o quê). Proposta: a escolha abaixo, no padrão de jogos de terror
+    # assimétrico em console (A interage, gatilho direito ataca, gatilho esquerdo corre); decisão do Rodrigo pendente
+    gamepad:
+      deadzone: 0.25                # fração do curso do analógico ignorada (LACUNA; proposta)
+      look_speed: 2.5               # rad/s com o analógico direito no fim do curso (LACUNA; proposta)
+      trigger_threshold: 0.5        # gatilho analógico conta como apertado a partir desta fração (LACUNA; proposta)
+      menu_stick: 0.5               # analógico esquerdo vira direção nos menus a partir desta fração (LACUNA; proposta)
+      axes: {move_x: 0, move_y: 1, look_x: 2, look_y: 3}
+      # em partida; no quebra-cabeça: `interact` confirma (timing), `puzzle_exit` sai e o direcional dá as setas
+      buttons: {interact: 0, puzzle_exit: 1, ability: 3, attack: 7, run: 6, camera: 11, ping_1: 12, ping_2: 15, ping_3: 13, ping_4: 14}
+      # menus: direcional move o foco, ← → ajustam slider; A ativa; B volta (= Esc)
+      menu: {confirm: 0, back: 1, up: 12, down: 13, left: 14, right: 15}
+      # repetição ao segurar uma direção no menu (s): primeira repetição e intervalo (LACUNA; proposta)
+      menu_repeat: {delay: 0.4, interval: 0.12}
 
 # ---------- Laço do cliente (GDD-v0.3 §13.3: passo fixo de 1/60 s) ----------
 # O laço acumula o tempo real do quadro e roda quantos passos de 1/60 s couberem, para a partida andar em
