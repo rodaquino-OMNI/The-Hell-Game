@@ -4,7 +4,7 @@ import type { ClassName, GameState, Hunter, Survivor } from "@thehell/sim";
 import type * as THREE from "three";
 import { balance, cfg } from "../../data.ts";
 import { exposeDebugHook } from "../../debug-hooks.ts";
-import { animateCharacter, charactersReady, createCharacter } from "./runtime.ts";
+import { animateCharacter, charactersReady, createCharacter, prefetchCharacters } from "./runtime.ts";
 
 /** modelo de cada classe jogável hoje (as demais fichas — Batedor, Protetor — entram com as classes, fase 4) */
 export const SURVIVOR_MODEL: Record<ClassName, string> = { Curandeiro: "curandeiro", Mecânico: "mecanico", Atacador: "atacador" };
@@ -13,6 +13,9 @@ const HUNTER_MODEL = "espectro";
 
 /** vida abaixo da qual o sobrevivente está ferido (survivor.wounded_hp, GDD-v0.3 §8.3) */
 const woundedHp = balance.survivor.wounded_hp;
+
+/** D-45: pede em baixa prioridade os .glb que a partida usa (o caçador primeiro: é o maior e o do telegraph) */
+export const prefetchMatchCharacters = () => prefetchCharacters([HUNTER_MODEL, ...new Set(Object.values(SURVIVOR_MODEL))]);
 
 /** modelo da classe; `skin` (V3) troca só cores secundárias e põe o acessório pequeno */
 export const createSurvivorModel = (s: Survivor, skin?: SkinDef) => createCharacter(SURVIVOR_MODEL[s.cls], skin);

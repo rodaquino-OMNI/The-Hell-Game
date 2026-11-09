@@ -19,6 +19,12 @@ describe("dados", () => {
     expect(() => parseBalance(yaml.replace(/^ {2}hp: 100$/m, "  hp: -5"))).toThrow();
     expect(() => parseBalance(yaml.replace(/^ruleset: \w+$/m, "ruleset: qualquer"))).toThrow();
   });
+  it("tecla padrão fora do conjunto seguro (SAFE_KEY_CODE) reprova os dados (V8)", () => {
+    expect(yaml).toMatch(/^ {6}mute: \[KeyM\]/m);
+    expect(() => parseBalance(yaml.replace(/^( {6}mute: )\[KeyM\]/m, "$1[F5]"))).toThrow();
+    expect(() => parseBalance(yaml.replace(/^( {6}mute: )\[KeyM\]/m, "$1[Tab]"))).toThrow();
+    expect(parseBalance(yaml.replace(/^( {6}mute: )\[KeyM\]/m, "$1[KeyN]")).ui.controls.keyboard.mute).toEqual(["KeyN"]);
+  });
   it("mapa do Pátio passa no schema", () => {
     expect(loadMapFile(root + "data/maps/patio.json").walls.length).toBe(15);
   });

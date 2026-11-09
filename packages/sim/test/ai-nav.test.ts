@@ -121,8 +121,8 @@ describe("partidas headless (amostra do aceite T-03; o lote de 1.000 roda em too
           expect(HUNTER_TRANSITIONS[from]).toContain(to);
         }
         // o caçador chega a perseguir; com os bots competentes (padrão do MJ-B) às vezes ouve antes de ver
-        // (patrol>investigate>chase), então vale qualquer entrada em chase
-        expect(Object.keys(r.transitions).some(k => k.endsWith(">chase"))).toBe(true);
+        // (patrol>investigate>chase), então vale entrar em chase pela patrulha ou pela investigação
+        expect(Object.keys(r.transitions).some(k => k === "patrol>chase" || k === "investigate>chase")).toBe(true);
       }
     });
   }

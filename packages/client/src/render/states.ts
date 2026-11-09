@@ -4,6 +4,7 @@
 //
 // Padrões (Art Bible §4: "sem depender só de cor"):
 //  - pendente: feixe laranja-avermelhado que pisca devagar (render.states.pending_hz, aceso pending_duty do ciclo);
+//    com "reduzir flicker" (V8) alterna aceso e meia intensidade em vez de apagar (pending_reduced_level);
 //  - em progresso: feixe amarelo que pulsa na largura (progress_hz, amplitude progress_pulse);
 //  - pronto: feixe verde-água contínuo;
 //  - bônus: feixe magenta com espiral girando em volta e losango no topo.
@@ -14,6 +15,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GameState, Generator } from "@thehell/sim";
 import { balance } from "../data.ts";
 import { FX, GEN_TOKENS, tok, type GenState } from "../look.ts";
+import { getReduceFlicker } from "./layers.ts";
 import { ps1Uniforms, Ps1Material } from "./ps1.ts";
 
 const st = balance.render.states;
@@ -29,6 +31,16 @@ export function genState(g: Generator): GenState {
 /** o feixe/lâmpada está aceso no instante `t` (só o pendente apaga: pisca a pending_hz, aceso pending_duty do ciclo) */
 export function beamLit(state: GenState, t: number): boolean {
   return state !== "pendente" || (t * st.pending_hz) % 1 < st.pending_duty;
+}
+
+/**
+ * brilho do feixe/lâmpada no instante `t` (1 = aceso, 0 = apagado). Com "reduzir flicker" (V8, GDD-v0.3 §12.4) o
+ * pendente não apaga: alterna aceso e `render.states.pending_reduced_level` do brilho, no mesmo ritmo, e continua
+ * diferente do "pronto" contínuo (Art Bible §4)
+ */
+export function beamLevel(state: GenState, t: number, reduceFlicker: boolean): number {
+  if (beamLit(state, t)) return 1;
+  return reduceFlicker ? st.pending_reduced_level : 0;
 }
 
 /** multiplicador de largura do feixe no instante `t` (só o em progresso pulsa, a progress_hz) */
@@ -94,8 +106,12 @@ export function syncGenVisual(v: GenVisual, g: Generator, t: number) {
   v.state = state; v.t = t;
   (v.lamp.material as Ps1Material).color.setHex(color);
   (v.beam.material as Ps1Material).color.setHex(color);
-  const lit = beamLit(state, t);
-  v.lamp.visible = v.beam.visible = lit;
+  const level = beamLevel(state, t, getReduceFlicker());
+  v.lamp.visible = v.beam.visible = level > 0;
+  if (level > 0 && level < 1) {
+    (v.lamp.material as Ps1Material).color.multiplyScalar(level);
+    (v.beam.material as Ps1Material).color.multiplyScalar(level);
+  }
   const bonus = state === "bonus";
   v.spiral.visible = v.diamond.visible = bonus;
   if (bonus) { v.spiral.rotation.y = TAU * st.bonus.spiral_hz * t; v.diamond.rotation.y = -v.spiral.rotation.y; }

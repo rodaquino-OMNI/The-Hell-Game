@@ -6,7 +6,7 @@
 //  2. depois do clique, os 5 stems (`audio.music.stems`) chegam com HTTP 200 e Content-Type audio/mpeg e a música toca;
 //  3. estado musical: ambient com o caçador no nascimento; o caçador é levado para perto do jogador (mutação de
 //     window.__thehell(), só com ?debug=1) e o estado muda (tension ou chase, musicState.ts);
-//  4. telegraph: com o caçador no alcance do golpe, o 1º `telegraph_*` tocado pelo diretor (registro do gancho
+//  4. telegraph: com o jogador como único alvo (bots fora) e o caçador no alcance do golpe, de frente para ele, o 1º `telegraph_*` tocado pelo diretor (registro do gancho
 //     window.__thehellAudioDirector) sai no MESMO quadro de render em que os olhos do caçador acendem
 //     (window.__thehellRender.states().telegraph, render/sync.ts), comparando o relógio da partida dos dois;
 //     mede a antecedência até o efeito em tempo de jogo, em tempo de áudio (descontando outputLatency/baseLatency,
@@ -40,7 +40,7 @@ const TELEGRAPH_CAPTION_KEYS = Object.entries(audio.captions.effects).filter(([n
 const INITIAL_MAX_BYTES = 15e6;
 
 /** esperas máximas (ms; ferramenta, não jogo): folga para máquina carregada */
-const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500;
+const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500, MODELS_WAIT_MS = 15000, TARGET_WAIT_MS = 2000;
 /** fração do alcance do golpe (hunter.melee.range) em que o caçador é posto ao lado do jogador */
 const MELEE_FRACTION = 0.5;
 /** fração do raio de tensão (audio.music.tension_radius) para a 1ª aproximação */
@@ -164,6 +164,18 @@ try {
   const h1 = await hook();
   if (!h1.music.playing) await fail("música não começou a tocar: " + JSON.stringify(h1.music));
 
+  // os personagens entram na cena quando o .glb termina de carregar (render/characters/runtime.ts `createCharacter`,
+  // pedido no clique); antes disso o caçador não tem modelo nem olhos e states().telegraph é false com windup
+  // presente. Com rede lenta (espectro.glb, ~470 kB, junto com os stems) o .glb pode chegar depois do 1º preparo:
+  // aí o JOGO toca o telegraph sem olhos na tela. Isso é um defeito real, não do teste. Ele foi reportado à sessão
+  // Visual e decidido na D-45: start() espera charactersReady(), com teto e modelo de reserva, e a Visual tem um e2e
+  // próprio com o .glb atrasado. Este teste mede o caso normal (caçador desenhável) e não cobre essa janela.
+  // Mesmo gancho das capturas de arte (tools/visual/compare.mjs)
+  const ready = await page.evaluate(ms => (typeof window.__thehellCharactersReady === "function"
+    ? Promise.race([window.__thehellCharactersReady(), new Promise(ok => setTimeout(() => ok("timeout"), ms))])
+    : "sem gancho"), MODELS_WAIT_MS);
+  if (ready !== true) await fail("modelos dos personagens não carregaram: " + ready);
+
   // amostrador por quadro (rAF registrado depois do laço do jogo: roda depois do draw() do mesmo quadro)
   await page.evaluate(() => {
     const frames = (window.__e2eFrames = []);
@@ -194,17 +206,56 @@ try {
   if (near !== "tension" && near !== "chase") await fail("estado musical não mudou com o caçador perto: " + states.join(" → "));
   if (record) await page.waitForTimeout(Math.max(0, (record.seconds / 3) * 1000));
 
-  // telegraph: caçador no alcance do golpe, espera o 1º telegraph_* novo
+  // telegraph: caçador no alcance do golpe, espera o 1º telegraph_* novo.
+  // Com `ai.hunter_brain: utility` (IA do R3, packages/sim/src/ai/hunter.ts) o caçador percebe a 10 Hz num cone de
+  // `hunter.vision_fov_deg` (ai/percept.ts), espera o tempo de reação da dificuldade e escolhe o alvo por utilidade
+  // entre os sobreviventes livres: pode preferir um bot e sair andando. Para o teste medir o telegraph (e não a
+  // escolha de alvo, que é da Frente R), o jogador fica como único alvo: os bots saem da partida (`st = "dead"`,
+  // percept.ts e updateHunterAi só olham `st === "ok"`; o fim da partida v1 exige todos terminais, match.ts, e o
+  // jogador segue "ok"). Só campos públicos do estado são tocados (st, revealed, x/z/a do caçador): com os bots
+  // mortos e o jogador revelado, percept.ts o entrega mesmo fora do cone e chooseTarget reescreve target/memória da IA
+  // sozinho (revisão do simulacao, Frente R). Os bots saem sem kill(): não há "died" nem creditHunter("kill"), então
+  // pontuação e fim desta partida não são dado do teste.
+  const soloPlayer = () => page.evaluate(() => {
+    const g = window.__thehell();
+    for (const s of g.survivors) if (s.bot) s.st = "dead";
+  });
+  // põe o caçador a k m do jogador, de frente para ele (convenção de yaw da simulação: `a` olha para (−sen a, −cos a),
+  // perception.ts `inCone`), e mantém o jogador revelado por `hunter.reveal.duration` (o efeito da revelação
+  // periódica, game.ts `periodicReveal`; percept.ts entrega quem tem `revealed > 0` mesmo fora do cone). Sem isso, em
+  // patrulha a IA anda ~3 m/s (`hunter.patrol_speed`) e gira para o próprio destino entre duas leituras do teste
+  // (~100–150 ms reais no Chromium headless): sai do contato e do cone antes de vencer o tempo de reação, que exige o
+  // jogador percebido de forma contínua (ai/hunter.ts `think`, `noticed`). Não mexe se já há preparo, para não
+  // perturbar o quadro medido
+  const aim = (k, reveal) => page.evaluate(([k, reveal]) => {
+    const g = window.__thehell(), H = g.hunter, p = g.survivors[0];
+    if (H.windup) return false;
+    H.x = p.x + k; H.z = p.z; H.a = Math.atan2(-(p.x - H.x), -(p.z - H.z));
+    p.revealed = reveal;
+    return true;
+  }, [k, reveal]);
   const playsBefore = (await hook()).plays.length;
   const frameBefore = (await hook()).frame;
-  await place(hunter.melee.range * MELEE_FRACTION);
+  await soloPlayer();
+  // checagem por resultado contra no-op silencioso (campo renomeado, gancho mudado): antes de esperar o som, a IA tem
+  // de ter escolhido o jogador (`hunter.target`, game.ts nos dois cérebros). Separa falha de preparo de falha de áudio
+  const playerId = await page.evaluate(() => window.__thehell().survivors[0].id);
+  let chosen = false;
+  for (const end = Date.now() + TARGET_WAIT_MS; !chosen && Date.now() < end;) {
+    await aim(hunter.melee.range * MELEE_FRACTION, hunter.reveal.duration);
+    await page.waitForTimeout(50);
+    chosen = await page.evaluate(id => window.__thehell().hunter.target === id, playerId);
+  }
+  if (!chosen) await fail("IA não escolheu o jogador: " + JSON.stringify(await page.evaluate(() => { const H = window.__thehell().hunter; return { target: H.target, mode: H.ai?.mode ?? null, windup: H.windup }; })));
   let tele = null, h2 = null;
   for (const end = Date.now() + TELEGRAPH_WAIT_MS; !tele && Date.now() < end;) {
+    // a IA anda e gira entre as leituras: recoloca no alcance e de frente até surgir o preparo
+    await aim(hunter.melee.range * MELEE_FRACTION, hunter.reveal.duration);
     await page.waitForTimeout(50);
     h2 = await hook();
     tele = h2.plays.find(p => p.frame > frameBefore && p.name.startsWith("telegraph_")) ?? null;
   }
-  if (!tele) await fail("nenhum telegraph_* tocou com o caçador ao lado do jogador: " + JSON.stringify({ frame: h2?.frame, plays: h2?.plays.slice(playsBefore), state: await page.evaluate(() => { const g = window.__thehell(); return { t: g.t, over: g.over, H: { x: g.hunter.x, z: g.hunter.z, windup: g.hunter.windup, atk: g.hunter.atk, target: g.hunter.target }, P: g.survivors[0] }; }) }));
+  if (!tele) await fail("nenhum telegraph_* tocou com o caçador ao lado do jogador: " + JSON.stringify({ frame: h2?.frame, plays: h2?.plays.slice(playsBefore), state: await page.evaluate(() => { const g = window.__thehell(); return { t: g.t, over: g.over, H: { x: g.hunter.x, z: g.hunter.z, windup: g.hunter.windup, atk: g.hunter.atk, target: g.hunter.target, mode: g.hunter.ai?.mode ?? null }, P: g.survivors[0] }; }) }));
   if (!tele.windup) await fail("telegraph tocou sem windup no estado do quadro: " + JSON.stringify(tele));
   if (tele.name !== `telegraph_${tele.windup.kind}`) await fail("telegraph com kind errado: " + JSON.stringify(tele));
   // legenda do telegraph (A-6), lida logo depois
@@ -265,11 +316,13 @@ try {
   await page.keyboard.press("KeyM");
   const mutedVol = (await audioHook()).buses.master, mutedMsg = await msg();
   if (mutedVol !== 0) await fail(`M não zerou o master: ${mutedVol}`);
-  if (mutedMsg !== catalog["caption.sound_muted"]) await fail(`aviso do mudo ausente no HUD: "${mutedMsg}"`);
+  // o aviso traz a tecla da ação mute ({key}, V8b); com o mapeamento padrão (ui.controls.keyboard.mute), "KeyM" → "M"
+  const muteLabel = bal.ui.controls.keyboard.mute.map(c => c.replace(/^(Key|Digit)/, "")).join(" / ");
+  if (mutedMsg !== catalog["caption.sound_muted"].replace("{key}", muteLabel)) await fail(`aviso do mudo ausente no HUD: "${mutedMsg}"`);
   await page.keyboard.press("KeyM");
   const back = (await audioHook()).buses.master, backMsg = await msg();
   if (back !== before) await fail(`M de novo não restaurou o master: ${back} ≠ ${before}`);
-  if (backMsg !== catalog["caption.sound_unmuted"]) await fail(`aviso de som ligado ausente no HUD: "${backMsg}"`);
+  if (backMsg !== catalog["caption.sound_unmuted"].replace("{key}", muteLabel)) await fail(`aviso de som ligado ausente no HUD: "${backMsg}"`);
   measures.mudo = { antes: before, mudo: mutedVol, depois: back };
 
   await browser.close();

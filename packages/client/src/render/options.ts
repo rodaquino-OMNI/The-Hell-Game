@@ -6,6 +6,9 @@
 //                 barra de estado inferior e Pátio industrial. Sem o parâmetro nada muda.
 //  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   ferramenta e classe mostradas no mockup (Protetor
 //                 e Batedor ainda não existem na simulação, fase 4: só a vista muda)
+//  ?stress=1      cena de pior caso dos orçamentos de render (V7, GDD-v0.3 §10.6; render/stress.ts): 6 personagens
+//                 das 5 classes, mapa inteiro visível, camadas do preset. A simulação fica parada; combina com
+//                 ?preset e ?retro=1
 //  ?debug=1       ganchos globais `window.__thehell*` das ferramentas de teste (src/debug-hooks.ts, D-33); sem ele não existem
 // Sem `?seed`, a partida e as texturas continuam aleatórias como na fase 0.
 import { nextRandom } from "@thehell/sim";
@@ -44,3 +47,6 @@ export type RetroClass = (typeof RETRO_CLASSES)[number];
 const retroClassRaw = params.get("retro_class");
 /** classe da vista do mockup pedida na URL, ou indefinida (= classe da partida) */
 export const urlRetroClass: RetroClass | undefined = (RETRO_CLASSES as readonly string[]).includes(retroClassRaw ?? "") ? (retroClassRaw as RetroClass) : undefined;
+
+/** cena de pior caso dos orçamentos de render (`?stress=1`; V7) */
+export const urlStress: boolean = params.get("stress") === "1";

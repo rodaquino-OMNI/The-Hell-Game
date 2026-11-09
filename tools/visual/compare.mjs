@@ -13,7 +13,9 @@
 //   - renderer.info (draw calls e triângulos) dentro de render.budgets em cada preset com as camadas dele;
 //   - camada A com intensidades em 0 = camadas desligadas (pixel a pixel); cada efeito da camada A muda a imagem;
 //   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
-//   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720);
+//   - custo: medium com A+B / medium sem camadas (tempo síncrono por quadro, 1280×720), na vista das capturas e com o
+//     caçador no cone da lanterna; D-44: pares ABBA, IC por bootstrap (render.cost_check), falha só se o limite inferior
+//     do IC passar de render.layer_cost_factor × (1 + ci_runner_margin), aviso se a mediana passar de layer_cost_factor;
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
@@ -23,14 +25,14 @@
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
 //   --shots   grava também v1-ligado.png, v1-desligado.png e v4-patio-<preset>.png em 1280×720 com deviceScaleFactor 2
 //             (revisão humana; marco A3)
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { cpus, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { decodePng, encodePng } from "./png.mjs";
+import { startServer } from "../lib/server.mjs";
+import { abbaOrder, costVerdict, median } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -51,7 +53,7 @@ const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/ba
 const SEED = 1234;
 // As referências foram capturadas no layout 0 com `ruleset: prototype` (padrão dos dados até o marco MJ-B). Desde o
 // MJ-B o padrão é v1 (layout pela semente, IA do caçador): a captura fixa o protótipo pela via que o cliente já
-// oferece (`?ruleset=`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
+// oferece (`?ruleset=`, só com `?debug=1`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
 const RULES = "ruleset=prototype";
 /** vista das capturas: 3ª pessoa, olhando a jaula, um muro próximo, dois aliados e três feixes */
 const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };
@@ -96,11 +98,8 @@ const SCENES = [
 ];
 
 let server;
-if (!url) {
-  url = "http://127.0.0.1:18082";
-  server = spawn(process.execPath, [join(root, "packages/server/dist/server.mjs")], { env: { ...process.env, PORT: "18082" }, stdio: ["ignore", "ignore", "inherit"] });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 const failures = [];
 const fail = (m) => { failures.push(m); console.error("FALHA:", m); };
 
@@ -168,9 +167,15 @@ async function openGame(browser, preset, viewport) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+  // relógio: instala e pausa ANTES de navegar (o Playwright reaplica o relógio a cada documento novo, e o boot do
+  // cliente não arma timer antes do #go). Pausar depois do goto corria contra o relógio, que já anda em tempo real:
+  // com o carregamento lento, "clock.pauseAt: Cannot fast-forward to the past". Efeito colateral (medido): no documento
+  // novo Date.now() continua 1000, mas performance.now() fica no pequeno atraso real entre install e pauseAt (antes
+  // ≈ 1000); o cliente só usa tempos relativos (main.ts: last = performance.now() em start()), e as capturas seguem
+  // idênticas às referências
   await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
+  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
   await page.click("#go");
   // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
   await page.evaluate(() => window.__thehellCharactersReady?.());
@@ -299,28 +304,49 @@ try {
   }
 
   // custo das camadas (render.layer_cost_factor): preset médio, 1280×720 (escala 3), custo síncrono por quadro
-  // (hook bench: readPixels de 1 pixel a cada quadro) com A+B e sem camadas, em pares; vale a mediana das razões.
+  // (hook bench: readPixels de 1 pixel a cada quadro) sem camadas (A) e com A+B (B), em pares.
   // Mede o tempo de CPU do processo de GPU do Chromium (o SwiftShader rasteriza na CPU): bem menos sensível à carga
-  // da máquina que o relógio de parede, que fica como reserva fora do Linux
+  // da máquina que o relógio de parede, que fica como reserva fora do Linux.
+  // V7: duas vistas, a das capturas e o caçador dentro do cone da lanterna (pior caso: ele entra no passe de sombra),
+  // na vista da prova de legibilidade com o caçador a LEG.distance m bem à frente.
+  // D-44 (b) (render.cost_check; tools/visual/cost-stats.mjs): sem GPU a razão depende do tipo de runner, então aqui
+  // é proxy de regressão: pares intercalados ABBA, cost_check.warmup quadros descartados a cada troca de camadas,
+  // mediana das razões pareadas com IC por bootstrap determinístico. Falha só se o limite inferior do IC passar de
+  // layer_cost_factor × (1 + cost_check.ci_runner_margin) (viés do runner); AVISO se a mediana passar de
+  // layer_cost_factor (o orçamento de hardware, conferido no procedimento manual da UHD 620 em docs/runbook.md). O log traz a máquina (CPU, núcleos, carga) e o ms/quadro de A para comparar
+  // runs entre runners. Sem repetir na falha
   {
     const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
-    const NONE_L = { A: false, B: false, C: false };
-    const AB = { A: true, B: true, C: false };
-    const FRAMES = 16, ROUNDS = 11;
+    const CC = balance.render.cost_check, k = balance.render.layer_cost_factor;
+    const LAYERS = { A: { A: false, B: false, C: false }, B: { A: true, B: true, C: false } };
     const gpu = gpuProcesses();
     const clock = gpu.length ? () => cpuMs(gpu) : () => performance.now();
-    const run = async (layers) => {
-      await cost.page.evaluate(([l, view, a]) => { const h = window.__thehellRender; h.setLayers(l); h.setLayerA(a); h.bench(view, 2); }, [layers, VIEW, layerADefaults]);
+    const run = async (layers, view) => {
+      await cost.page.evaluate(([l, view, a, w]) => { const h = window.__thehellRender; h.setLayers(l); h.setLayerA(a); h.bench(view, w); }, [layers, view, layerADefaults, CC.warmup]);
       const t0 = clock();
-      await cost.page.evaluate(([view, n]) => window.__thehellRender.bench(view, n), [VIEW, FRAMES]);
-      return (clock() - t0) / FRAMES;
+      await cost.page.evaluate(([view, n]) => window.__thehellRender.bench(view, n), [view, CC.frames]);
+      return (clock() - t0) / CC.frames;
     };
-    // rodadas pareadas (sem camadas, A+B): a razão de cada par cancela a variação lenta de carga; vale a mediana
-    const none = [], ab = [], ratio = [];
-    for (let r = 0; r < ROUNDS; r++) { none.push(await run(NONE_L)); ab.push(await run(AB)); ratio.push(ab[r] / none[r]); }
-    const med = (v) => [...v].sort((x, y) => x - y)[v.length >> 1], k = balance.render.layer_cost_factor;
-    console.log(`custo (medium, 1280×720, ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}): sem camadas ${med(none).toFixed(1)} ms, A+B ${med(ab).toFixed(1)} ms por quadro (medianas); razão pareada ${med(ratio).toFixed(2)}× (teto ${k}×)`);
-    if (med(ratio) > k) fail(`camadas A+B custam ${med(ratio).toFixed(2)}× o preset sem camadas (teto ${k}×)`);
+    const cpu = cpus();
+    const machine = `${cpu[0]?.model ?? "?"}, ${cpu.length} núcleos, carga ${loadavg().map(x => x.toFixed(1)).join("/")}`;
+    console.log(`custo: máquina ${machine}; ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}; ${CC.pairs} pares ABBA de ${CC.frames} quadros (${CC.warmup} de aquecimento descartados), IC ${Math.round(CC.ci * 100)}% por bootstrap (${CC.bootstrap_resamples} reamostragens, semente ${CC.seed})`);
+    const VIEWS = [{ name: "capturas", view: VIEW }, { name: "caçador no cone", view: LEG.view, cone: true }];
+    for (const v of VIEWS) {
+      if (v.cone) {
+        await cost.page.evaluate(([LEG]) => {
+          const G = window.__thehell(), P = G.survivors[0], H = G.hunter, a = LEG.view.yaw;
+          H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
+          H.a = Math.atan2(P.x - H.x, P.z - H.z);
+        }, [LEG]);
+      }
+      const ms = { A: [], B: [] };
+      for (let r = 0; r < CC.pairs; r++) for (const which of abbaOrder(r)) ms[which].push(await run(LAYERS[which], v.view));
+      const c = costVerdict(ms.A, ms.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
+      const x2 = (n) => `${n.toFixed(2)}×`;
+      console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento), falha se limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : c.verdict === "warn" ? "AVISO" : "FALHA"}`);
+      if (c.verdict === "fail") fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto da CI ${x2(c.fail)} (render.layer_cost_factor × (1 + render.cost_check.ci_runner_margin)): regressão (D-44)`);
+      else if (c.verdict === "warn") console.warn(`AVISO: custo das camadas na vista ${v.name}: mediana ${x2(c.median)} acima do orçamento ${x2(c.budget)} (render.layer_cost_factor), limite inferior do IC ${x2(c.lo)} ≤ teto da CI ${x2(c.fail)}; no SwiftShader a razão depende do runner (proxy de regressão, D-44), não falha. Máquina: ${machine}`);
+    }
     await cost.page.close();
   }
 
@@ -423,8 +449,8 @@ try {
     for (const preset of Object.keys(balance.render.presets)) {
       const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
       await p.clock.install({ time: 0 });
-      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
       await p.clock.pauseAt(1000);
+      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
       await p.click("#go");
       await p.evaluate(() => window.__thehellCharactersReady?.());
       for (const [suffix, damage] of [["", 0], ["-dano", 1]]) {

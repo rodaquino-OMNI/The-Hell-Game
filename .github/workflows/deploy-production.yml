@@ -17,7 +17,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: superfly/flyctl-actions/setup-flyctl@1.6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-17)
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6 (2026-04-08)
       - run: flyctl deploy --config fly.production.toml --remote-only --build-arg APP_VERSION=${{ github.sha }}
       - run: curl -fsS https://the-hell.fly.dev/healthz
