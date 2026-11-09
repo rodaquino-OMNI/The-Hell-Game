@@ -3,12 +3,13 @@
 // livre, e ouvinte seguindo a câmera. AudioContext falso (Node não tem Web Audio).
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GameMap } from "@thehell/shared";
 import { loadBalanceFile } from "@thehell/shared/node";
 import { lineOfSight } from "@thehell/sim";
 import { createEngine, useEngine } from "../src/audio/engine.ts";
 import { cameraAxes, createSpatial, isOccluded } from "../src/audio/spatial.ts";
+import { cfg as simCfg } from "../src/data.ts";
 import { createVoiceManager } from "../src/audio/voices.ts";
 
 const bal = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
@@ -295,5 +296,40 @@ describe("audio/spatial: ouvinte na câmera (A-4)", () => {
     sp.updateListener(cam(0, 0));
     sp.updateSpatial(hero);
     expect(v.occluded).toBe(false);
+  });
+});
+
+// R7-mapas (D-22/23/25): a oclusão lê as paredes do mapa EFETIVO (`cfg.map` de makeConfig), a mesma fonte da simulação
+// (`SimConfig.map`); com `maps.v1.short_loop_pillars` ligada entram 3 pilares 1×1 m, um deles em (−10, 0), em cima da linha FREE
+describe("audio/spatial: mapa padrão = cfg.map efetivo (R7)", () => {
+  const PILLAR: [number, number, number, number] = [-10, 0, 1, 1];
+  const engineOnly = () => {
+    const ctx = new FakeCtx();
+    const engine = createEngine({ createContext: () => ctx as unknown as AudioContext, storage: null, cfg });
+    engine.ensure();
+    return engine;
+  };
+  afterEach(() => { vi.doUnmock("../src/data.ts"); vi.resetModules(); });
+
+  it("sem deps.map, usa cfg.map de data.ts: hoje ele traz todas as paredes do pátio e a linha FREE fica livre", () => {
+    for (const w of patio.walls) expect(simCfg.map.walls).toContainEqual(w);
+    expect(isOccluded(simCfg.map, FREE.listener, FREE.source)).toBe(false);
+    expect(isOccluded(simCfg.map, BEHIND.listener, BEHIND.source)).toBe(true);
+    const sp = createSpatial({ engine: engineOnly(), cfg });
+    sp.updateListener(cam(FREE.listener.x, FREE.listener.z));
+    expect(sp.play("footstep", src(), { bus: "sfx", pos: FREE.source })!.occluded).toBe(false);
+  });
+
+  it("uma parede que só existe no mapa efetivo (pilar do v1) oclui a voz; o mapa de topo não é lido", async () => {
+    expect(patio.walls).not.toContainEqual(PILLAR);
+    const real = await import("../src/data.ts");
+    vi.resetModules();
+    vi.doMock("../src/data.ts", () => ({ ...real, cfg: { ...real.cfg, map: { ...real.cfg.map, walls: [...real.cfg.map.walls, PILLAR] } } }));
+    const fresh = await import("../src/audio/spatial.ts");
+    const sp = fresh.createSpatial({ engine: engineOnly(), cfg });
+    sp.updateListener(cam(FREE.listener.x, FREE.listener.z));
+    const v = sp.play("footstep", src(), { bus: "sfx", pos: FREE.source })!;
+    expect(v.occluded).toBe(true);
+    expect((v.filter as unknown as FakeFilter).frequency.value).toBe(cfg.occlusion_lowpass_hz);
   });
 });
