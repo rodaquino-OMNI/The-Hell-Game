@@ -44,7 +44,7 @@ Cada personagem tem uma **forma-chave** que não muda com skin nenhuma. Skins tr
 
 | Classe | Forma-chave (nunca muda) | Acessório | Por que essa forma |
 | --- | --- | --- | --- |
-| Curandeiro | capuz arredondado e manto que abre embaixo | cajado com caduceu, mais alto que a cabeça | o cajado é a única linha vertical acima da cabeça entre os sobreviventes |
+| Curandeiro | capuz arredondado e manto que abre embaixo | cajado de mago: madeira nodosa com amarrado de couro e três galhos fechando um cristal emissivo, mais alto que a cabeça (marco A2, variante (a), sem caduceu — escolha do aprovador em 09/11/2026, issue #24) | o cajado é a única linha vertical acima da cabeça entre os sobreviventes |
 | Mecânico | capacete com lanterna (quadrado no topo da cabeça) | chave inglesa grande na mão | o capacete quadrado se lê de longe |
 | Atacador | corpo igual ao do Mecânico, sem capacete | espada nas costas, com o cabo acima do ombro direito | pedido do filho (A1-1); a diagonal da espada e o cabo acima do ombro são únicos no elenco |
 | Batedor | corpo mais fino e cabeça com ponta | cachecol que voa para trás | o cachecol mostra a direção e a velocidade |
