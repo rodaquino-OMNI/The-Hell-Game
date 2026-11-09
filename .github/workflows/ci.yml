@@ -22,6 +22,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: "Áudio: ffmpeg para os testes de stems"
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+          ffmpeg -version | head -1
       - name: Testes com cobertura (sim ≥ 90%)
         run: pnpm coverage
       - name: Paleta (contraste e daltonismo)
@@ -42,6 +46,8 @@ jobs:
         run: pnpm smoke
       - name: "Áudio: contexto inicia após o clique (A-1)"
         run: node tools/audio/e2e.mjs
+      - name: "Áudio: stems decodificados no Chromium com comprimento exato e loop sem estalo (A-3)"
+        run: node tools/audio/check-loop.mjs
       - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
         run: pnpm a11y
       - name: Fumaça do protótipo original
