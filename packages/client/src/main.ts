@@ -28,7 +28,7 @@ import { messageText } from "./text.ts";
 import { matchConfig, selectedDifficulty } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
 import { applyOptions } from "./ui/apply.ts";
-import { hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
+import { closeMenuDialogs, hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
 import { currentOptions, refreshVolumeSliders, setupOptions } from "./ui/options.ts";
 import { startPadLoop } from "./ui/padnav.ts";
 import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
@@ -103,6 +103,7 @@ async function start() {
   init();
   // nenhum passo da simulação antes dos personagens (D-45): o botão fica em "carregando…" na espera
   await gate.wait();
+  closeMenuDialogs();
   hideMenu();
   playing = true;
   clock.acc = 0;

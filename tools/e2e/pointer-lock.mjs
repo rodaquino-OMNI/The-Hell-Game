@@ -4,6 +4,10 @@
 // (packages/client/src/pointer-filter.ts; limite em data/balance.yaml `client.mouse_max_delta`). Inicia a partida com
 // um clique real do mouse em "#go" (page.mouse.click no centro do botão), várias vezes (a corrida é intermitente), e confere que o yaw do
 // sobrevivente (`__thehell().survivors[0].a`, que é o yaw da câmera de cada passo) continua 0 depois do início.
+// Fase 3 (determinística; o clique real sozinho não pega a regressão: no headless o par espúrio pode chegar com
+// locked=false e o ± se anula dentro de um passo): na última página, solta e retoma o lock e, no pointerlockchange,
+// despacha mousemove sintéticos (movementX −568, o salto medido) lendo `view.yaw` logo depois de cada um
+// (`__thehellInput`, ?debug=1): o primeiro do lock e o acima de client.mouse_max_delta não giram; um pequeno gira.
 // Uso: node tools/e2e/pointer-lock.mjs [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre: tools/lib/server.mjs)
 import { createRequire } from "node:module";
 import { startServer } from "../lib/server.mjs";
@@ -66,6 +70,29 @@ try {
     if (!(r2.max < NUDGE_MAX)) fail(`início ${i + 1}/${STARTS}: a câmera saltou ao mexer ${NUDGE} px no mouse: ` + JSON.stringify(r2));
     results.push({ fase1: r.max, fase2: r2.max, locked: r2.locked, moves: r2.moves });
   }
+  // fase 3: eventos sintéticos no próprio pointerlockchange; leitura do yaw por evento
+  const det = await page.evaluate(async () => {
+    const c = document.getElementById("c");
+    if (document.pointerLockElement) {
+      const off = new Promise(r => document.addEventListener("pointerlockchange", r, { once: true }));
+      document.exitPointerLock();
+      await off;
+    }
+    const yaw = () => window.__thehellInput().yaw;
+    const fire = (dx) => { const y0 = yaw(); document.dispatchEvent(new MouseEvent("mousemove", { movementX: dx, movementY: 0, bubbles: true })); return yaw() - y0; };
+    const on = new Promise(r => document.addEventListener("pointerlockchange", () => {
+      // o ouvinte do input.ts (registrado no início) já rodou: a sessão de lock nova começou
+      r({ locked: !!document.pointerLockElement, first: fire(-568), outlier: fire(-568), small: fire(-5) });
+    }, { once: true }));
+    // o evaluate do Playwright conta como gesto do usuário (requestPointerLock exige ativação)
+    await c.requestPointerLock();
+    return on;
+  });
+  console.log("fase 3 (sintética):", JSON.stringify(det));
+  if (!det.locked) fail("fase 3: o pointer lock não foi retomado: " + JSON.stringify(det));
+  if (!(Math.abs(det.first) < EPS)) fail(`fase 3: o primeiro mousemove do lock (−568 px) girou a câmera ${det.first} rad`);
+  if (!(Math.abs(det.outlier) < EPS)) fail(`fase 3: o mousemove acima de client.mouse_max_delta (−568 px) girou a câmera ${det.outlier} rad`);
+  if (!(Math.abs(det.small) > EPS && Math.abs(det.small) < NUDGE_MAX)) fail(`fase 3: o mousemove pequeno (−5 px) devia girar pouco a câmera: ${det.small} rad`);
   await browser.close();
   if (errors.length) fail("erros na página: " + errors.join(" | "));
   console.log("pointer-lock ok", JSON.stringify(results));

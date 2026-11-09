@@ -31,7 +31,7 @@ const WINDUP_WAIT_MS = 240000;
 const PRESET = "low", VIEWPORT = { width: 640, height: 360 };
 /** semente com o primeiro preparo cedo nas regras v1 (projétil em G.t ≈ 9,7 s, caçador a ≈ 23 m do jogador parado:
  *  dentro de audio.director.hunter_audible_radius, então o telegraph sonoro também é conferido); varredura headless de
- *  createGame + step com o jogador parado, sementes 1 a 3000 */
+ *  createGame + step com o jogador parado, sementes 1 a 3000: `pnpm exec tsx tools/e2e/seed-scan.ts` */
 const SEED = 40;
 const HUNTER_GLB = /\/models\/espectro\.glb(\?|$)/;
 
@@ -136,6 +136,40 @@ try {
     if (!st.status) fail(`${name}: aviso #gost vazio durante a espera`);
     if (st.menu === "none") fail(`${name}: menu escondido antes dos personagens`);
     if (st.t !== 0) fail(`${name}: a simulação andou antes do modelo (G.t = ${st.t})`);
+    // menu travado na espera: loja, opções, classe, dificuldade e idioma não respondem (clique do mouse, Enter e o
+    // .click() da navegação por gamepad); segundo Enter no #go não monta outra partida; o mouse não gira a câmera
+    const before = await page.evaluate(() => {
+      window.__g0 = window.__thehell();
+      const pressed = sel => [...document.querySelectorAll(sel)].map(b => b.getAttribute("aria-pressed")).join();
+      return { cls: pressed("#cls button"), dif: pressed("#dif button"), lang: pressed("#langs button"), canvas: document.querySelectorAll("canvas").length };
+    });
+    await page.keyboard.press("Enter");
+    const locked = await page.evaluate(() => {
+      for (const sel of ["#sh", "#op", "#cls button:last-child", "#dif button:last-child", "#langs button:last-child"]) document.querySelector(sel)?.click();
+      const y0 = window.__thehellInput().yaw;
+      document.dispatchEvent(new MouseEvent("mousemove", { movementX: 50, movementY: 0, bubbles: true }));
+      const pressed = sel => [...document.querySelectorAll(sel)].map(b => b.getAttribute("aria-pressed")).join();
+      const others = [...document.querySelectorAll("#menu button, #menu select, #menu input")].filter(e => e.id !== "go");
+      return {
+        shop: getComputedStyle(document.getElementById("shop")).display, opts: document.getElementById("opts").hidden,
+        cls: pressed("#cls button"), dif: pressed("#dif button"), lang: pressed("#langs button"),
+        sameGame: window.__thehell() === window.__g0, canvas: document.querySelectorAll("canvas").length,
+        focus: document.activeElement?.id ?? null, yaw: window.__thehellInput().yaw - y0,
+        inert: others.every(e => e.inert && e.getAttribute("aria-disabled") === "true"),
+      };
+    });
+    console.log(`${name}: menu na espera: ${JSON.stringify(locked)}`);
+    if (locked.shop !== "none") fail(`${name}: a loja abriu durante a espera`);
+    if (!locked.opts) fail(`${name}: as opções abriram durante a espera`);
+    if (locked.cls !== before.cls || locked.dif !== before.dif || locked.lang !== before.lang) fail(`${name}: classe, dificuldade ou idioma mudou durante a espera: ${JSON.stringify({ before, locked })}`);
+    if (!locked.sameGame || locked.canvas !== before.canvas) fail(`${name}: o segundo Enter no #go montou outra partida`);
+    if (locked.focus !== "go") fail(`${name}: o foco saiu do #go (${locked.focus})`);
+    if (locked.yaw !== 0) fail(`${name}: o mouse girou a câmera durante a espera (${locked.yaw} rad)`);
+    if (!locked.inert) fail(`${name}: controles do menu sem inert/aria-disabled durante a espera`);
+    // clique real do mouse sobre a loja (por último: tira o foco do #go)
+    const box = await page.locator("#sh").boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    if (await page.evaluate(() => getComputedStyle(document.getElementById("shop")).display) !== "none") fail(`${name}: o clique do mouse abriu a loja durante a espera`);
     // a partida começa sozinha quando o .glb chega
     await page.waitForFunction(() => getComputedStyle(document.getElementById("menu")).display === "none", null, { timeout: DELAY_MS + 30000 });
     const tStart = Date.now();

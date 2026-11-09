@@ -50,8 +50,10 @@ jobs:
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
       - name: "D-45: partida só começa com os personagens (.glb do caçador atrasado 6 s e com falha)"
+        timeout-minutes: 10
         run: pnpm e2e:espera-personagens
       - name: "Câmera sem salto ao adquirir o pointer lock (clique real em #go, 5 inícios)"
+        timeout-minutes: 5
         run: pnpm e2e:pointer-lock
       - name: "Áudio: contexto inicia após o clique (A-1)"
         run: node tools/audio/e2e.mjs

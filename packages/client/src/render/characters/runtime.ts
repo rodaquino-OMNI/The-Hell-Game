@@ -303,8 +303,13 @@ function createFallback(id: string): Fallback {
 function disposeFallback(f: Fallback) {
   f.group.traverse(o => {
     const m = o as THREE.Mesh;
-    if (m.isMesh) m.geometry.dispose();
+    if (!m.isMesh) return;
+    m.geometry.dispose();
+    (m.material as THREE.Material).dispose();
   });
+  // material de preparo dos olhos (fora da cena enquanto os olhos estão apagados)
+  f.telegraph?.hot.dispose();
+  f.telegraph?.rest.dispose();
   f.group.removeFromParent();
 }
 

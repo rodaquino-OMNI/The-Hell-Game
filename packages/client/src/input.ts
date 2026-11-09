@@ -5,6 +5,7 @@
 import type { Arrow, GameState, PlayerInput } from "@thehell/sim";
 import { balance } from "./data.ts";
 import { pointerFilter } from "./pointer-filter.ts";
+import { exposeDebugHook } from "./debug-hooks.ts";
 import { actionsOf, defaultBindings, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
 import { button, padSticks, type PadLike } from "./gamepad.ts";
 
@@ -13,6 +14,8 @@ const gp = ctl.gamepad;
 
 /** estado de câmera controlado pela entrada (lido pela render) */
 export const view = { yaw: 0, pitch: 0, thirdPerson: true };
+/** leitura da câmera logo depois de cada evento (tools/e2e/pointer-lock.mjs despacha mousemove sintético); só com ?debug=1 (D-33) */
+exposeDebugHook("__thehellInput", () => ({ yaw: view.yaw, pitch: view.pitch }));
 let drag = false;
 const keys: Record<string, boolean> = {};
 const pending: Partial<PlayerInput> = {};
