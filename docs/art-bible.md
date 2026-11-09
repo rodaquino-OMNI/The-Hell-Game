@@ -102,7 +102,15 @@ O par mais apertado é Mecânico × Batedor para deuteranopia (12,3). A diferen�
 
 Nas capturas de tela das fases 2 e 4, repetir o teste com a emulação de deficiência visual do Chrome DevTools (aba Rendering), que simula as mesmas três condições na imagem real.
 
-As 3 paletas do modo daltônico (GDD-v0.2 §12.4) serão variações desta paleta, e cada uma tem que passar no mesmo script.
+As 3 paletas do modo daltônico (GDD-v0.3 §12.4: "Modo daltônico com 3 paletas (troca de tokens, ver Art Bible §5)") são variações desta paleta em `modos_daltonico` de `data/art/palette.json`, e cada uma passa no mesmo script (`--mode <modo>`). Aprovadas pelo filho na issue #57, opção (a):
+
+| Modo | Troca | Efeito (ΔE00, cor exata) |
+| --- | --- | --- |
+| Protanopia | nenhuma | a paleta normal já passa (pior par: Curandeiro × Atacador, 15,8) |
+| Deuteranopia | `class.batedor` [29,28,8] → [31,31,18] | pior par das classes sobe de 12,3 (Mecânico × Batedor) para 14,3 (Mecânico × Atacador); Mecânico × Batedor vai a 18,5 |
+| Tritanopia | `gen.bonus` [29,12,27] → [24,8,31] | pendente × bônus sobe de 14,6 para 20,9 |
+
+Capturas: `docs/art/marcos/v8/v8-daltonico-{protanopia,deuteranopia,tritanopia}.png` (simulação); no jogo, com o modo escolhido no menu de opções: `v8-daltonico-jogo-{opcoes,deuteranopia,tritanopia}.png` e `v8-daltonico-jogo-batedor-zoom.png` (Batedor, normal × deuteranopia).
 
 ### 5.3 Contraste
 

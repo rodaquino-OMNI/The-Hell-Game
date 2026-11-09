@@ -210,7 +210,7 @@
   "opt.color.protanopia": "Protanopía",
   "opt.color.deuteranopia": "Deuteranopía",
   "opt.color.tritanopia": "Tritanopía",
-  "opt.color_note": "Las 3 paletas esperan la aprobación de arte; hasta entonces usan los colores normales (las formas ya distinguen clases y estados).",
+  "opt.color_note": "Deuteranopía y tritanopía cambian los colores que se confunden con ese tipo de daltonismo; con protanopía los colores normales ya se distinguen. Las formas también distinguen clases y estados.",
   "opt.sensitivity": "Sensibilidad (ratón y mando)",
   "opt.invert_y": "Invertir eje Y",
   "opt.toggle_run": "Correr: pulsar alterna (en vez de mantener)",
