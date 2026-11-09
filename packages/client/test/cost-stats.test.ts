@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
 import {
   abbaOrder, bootstrapCi, costOutcome, costThresholds, costVerdict, costVsMain, crossOrder, ghaWarning, judgeCost, judgeVsMain, median,
-  vsMainOutcome, costGateOutcome, costInfo, COST_TITLE, judgeDual, p1, d2, x2,
+  vsMainOutcome, costGateOutcome, costInfo, COST_TITLE, judgeDual, p1, d2, x2, roundPlan, runRounds, checkSamples,
 } from "../../../tools/visual/cost-stats.mjs";
 
 const balance = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
@@ -192,6 +192,53 @@ describe("cost-stats: comparação com main no mesmo job (D-49, critério duplo 
     expect(pos).toEqual({ prA: 3, prB: 3, mainA: 3, mainB: 3 });
   });
 
+  it("plano das rodadas: aquecimento com ordem própria; as guardadas contam do 0 (rodada 0 com o PR primeiro)", () => {
+    const plan = roundPlan(CC.warmup_rounds, CC.pairs);
+    expect(plan).toHaveLength(CC.warmup_rounds + CC.pairs);
+    expect(plan[0]).toEqual({ round: null, order: crossOrder(1) }); // aquecimento: main primeiro
+    const kept = plan.filter(p => p.round !== null);
+    expect(kept.map(p => p.round)).toEqual([...Array(CC.pairs).keys()]);
+    kept.forEach(p => expect(p.order).toEqual(crossOrder(p.round!)));
+    expect(kept[0].order[0][0]).toBe("pr");
+    // pairs 21 (ímpar): 11 rodadas com o PR primeiro e 10 com main (desbalanço de 1, anterior ao aquecimento)
+    const first = kept.map(p => p.order[0][0]);
+    expect([first.filter(b => b === "pr").length, first.filter(b => b === "main").length]).toEqual([11, 10]);
+    // a ordem segue alternando do aquecimento para a rodada 0, também com mais aquecimentos
+    for (const w of [0, 1, 2, 3]) {
+      const order = roundPlan(w, 4).map(p => p.order[0][0]);
+      order.slice(1).forEach((b, i) => expect(b).not.toBe(order[i]));
+      expect(roundPlan(w, 4)[w]).toEqual({ round: 0, order: crossOrder(0) });
+    }
+    for (const [w, n] of [[-1, 4], [1, 0], [0.5, 4], [1, NaN]]) expect(() => roundPlan(w, n)).toThrow(/valor inválido/);
+  });
+
+  it("laço das rodadas: o aquecimento é medido nos dois builds e excluído das amostras dos dois", async () => {
+    const W = 2, N = 5, calls: [string, string, number | null][] = [];
+    // o tempo codifica a rodada: aquecimento = 999 (nunca pode aparecer nas amostras)
+    const { stopped, ms } = await runRounds(roundPlan(W, N), (g, l, r) => { calls.push([g, l, r]); return r === null ? 999 : 10 * (r + 1) + (l === "B" ? 1 : 0); });
+    expect(stopped).toBe(false);
+    expect(calls).toHaveLength(4 * (W + N));
+    expect(calls.filter(c => c[2] === null).map(c => c[0]).sort()).toEqual(["main", "main", "main", "main", "pr", "pr", "pr", "pr"]);
+    const want = { A: [10, 20, 30, 40, 50], B: [11, 21, 31, 41, 51] };
+    expect(ms).toEqual({ pr: want, main: want });
+    checkSamples(ms.pr, N, "PR");
+    // stop() interrompe na hora (exceção do lado de main)
+    let n = 0;
+    const s = await runRounds(roundPlan(W, N), () => { n++; return 1; }, () => n === 6);
+    expect(s.stopped).toBe(true);
+    expect(n).toBe(6);
+  });
+
+  it("conferência das amostras: contagem errada (ex.: aquecimento guardado) ou tempo inválido lança", () => {
+    const ok = { A: [1, 2, 3], B: [1, 2, 3] };
+    expect(() => checkSamples(ok, 3, "PR")).not.toThrow();
+    expect(() => checkSamples({ A: [9, 1, 2, 3], B: [9, 1, 2, 3] }, 3, "PR")).toThrow(/amostras de PR \(A\): 4 de 3/);
+    expect(() => checkSamples({ A: [1, 2, 3], B: [1, 2] }, 3, "main")).toThrow(/amostras de main \(B\): 2 de 3/);
+    for (const bad of [0, -1, NaN, Infinity, undefined]) {
+      expect(() => checkSamples({ A: [1, bad as number, 3], B: [1, 2, 3] }, 3, "PR")).toThrow(/não finita ou ≤ 0/);
+    }
+  });
+
   it("dados: limites estritamente positivos (+5% e +0,05) e uma rodada de aquecimento descartada", () => {
     expect([D, DR, CC.warmup_rounds]).toEqual([0.05, 0.05, 1]);
   });
@@ -204,8 +251,9 @@ describe("cost-stats: comparação com main no mesmo job (D-49, critério duplo 
     expect(judgeDual(rel(0.0, -0.02), D, rel(0.3, 0.25), DR)).toBe("warn"); // só Δrazão: otimização da base
     expect(judgeDual(rel(0.04, 0.0), D, rel(0.04, 0.0), DR)).toBe("pass");
     expect(judgeDual(rel(-0.3, -0.4), D, rel(-0.3, -0.4), DR)).toBe("pass");
-    // na borda (lo = limite) não reprova
+    // na borda (lo = limite) não reprova, nas duas medidas: a mediana de uma não substitui o limite inferior
     expect(judgeDual(rel(0.1, D), D, rel(0.1, 0.06), DR)).toBe("warn");
+    expect(judgeDual(rel(0.12, 0.06), D, rel(0.1, DR), DR)).toBe("warn");
     for (const [r, d, q, dq] of [[rel(NaN, 0), D, rel(0, 0), DR], [rel(0, 0), D, rel(0, NaN), DR], [rel(0, 0), 0, rel(0, 0), DR], [rel(0, 0), D, rel(0, 0), -0.01]] as const) {
       expect(() => judgeDual(r, d, q, dq)).toThrow(/valor inválido/);
     }

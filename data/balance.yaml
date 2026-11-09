@@ -445,10 +445,12 @@ render:
   # builds (run 42578537893, PR #80, sem mudança de render: A+B 46,6 contra 49,4 ms/quadro, −5,7%, com Δrazão −0,01).
   # Juntos, só a regressão das camadas reprova; uma lentidão só da base passa (aceito pela supervisão: perf:budget e o
   # smoke cobrem). Ruído independente nos dois builds com a dispersão do PR #53: código igual dá IC de rel_AB dentro de
-  # [−3%, +4%]; +10% só em A+B reprova, +2% passa, +6% no quadro inteiro passa (packages/client/test/cost-stats.test.ts).
+  # [−3%, +4%]; +10% só em A+B reprova, +2% passa, +6% no quadro inteiro não reprova (só aviso)
+  # (packages/client/test/cost-stats.test.ts).
   # warmup_rounds (D-51, investigação do viés): rodadas de crossOrder medidas e descartadas em cada vista antes das
   # pairs rodadas, para os dois builds chegarem às medidas com o mesmo aquecimento (a aba do PR abre antes, e o PR já
-  # desenhou as capturas no mesmo navegador)
+  # desenhou as capturas no mesmo navegador). As rodadas guardadas contam do 0 (rodada 0 com o PR primeiro; roundPlan
+  # em tools/visual/cost-stats.mjs); com pairs ímpar sobra 1 rodada com o PR primeiro, como antes do aquecimento
   cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_rel_delta: 0.05, main_ratio_delta: 0.05, warmup_rounds: 1}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do

@@ -134,6 +134,52 @@ export function crossOrder(i) {
 }
 
 /**
+ * plano das rodadas de uma vista (D-51, investigação do viés): `warmupRounds` rodadas medidas e descartadas, depois
+ * `pairs` rodadas guardadas. As guardadas usam crossOrder(r) com r = 0, 1, … (rodada 0: PR primeiro), contadas sem o
+ * aquecimento; o aquecimento j usa crossOrder(warmupRounds − j), então o último aquecimento é crossOrder(1) (main
+ * primeiro) e a ordem segue alternando até a rodada 0. Com pairs ímpar sobra 1 rodada com o PR primeiro (desbalanço
+ * de 1 que já existia antes do aquecimento). Devolve [{ round: r | null (aquecimento), order }]
+ */
+export function roundPlan(warmupRounds, pairs) {
+  if (![warmupRounds, pairs].every(Number.isInteger) || warmupRounds < 0 || pairs < 1) {
+    throw new Error(`roundPlan: valor inválido (aquecimento ${warmupRounds}, rodadas ${pairs})`);
+  }
+  const warm = Array.from({ length: warmupRounds }, (_, j) => ({ round: null, order: crossOrder(warmupRounds - j) }));
+  return [...warm, ...Array.from({ length: pairs }, (_, r) => ({ round: r, order: crossOrder(r) }))];
+}
+
+/**
+ * executa `plan` (roundPlan) chamando `measure(build, layers, round)` (round null = aquecimento) na ordem de cada
+ * rodada e guarda só as rodadas com round ≠ null: { pr: { A, B }, main: { A, B } } (ms por quadro; mesmo índice =
+ * mesma rodada). `stop()` verdadeiro depois de uma medida interrompe tudo (exceção do lado de main em compare.mjs) e
+ * devolve { stopped: true }
+ */
+export async function runRounds(plan, measure, stop = () => false) {
+  const ms = { pr: { A: [], B: [] }, main: { A: [], B: [] } };
+  for (const { round, order } of plan) {
+    for (const [build, layers] of order) {
+      const t = await measure(build, layers, round);
+      if (stop()) return { stopped: true, ms };
+      if (round !== null) ms[build][layers].push(t);
+    }
+  }
+  return { stopped: false, ms };
+}
+
+/**
+ * confere as amostras de um build ({ A, B }): `pairs` tempos finitos e > 0 em cada camada; senão lança (no lado do
+ * PR a exceção reprova; no lado de main compare.mjs a converte em aviso)
+ */
+export function checkSamples(xs, pairs, who) {
+  for (const l of ["A", "B"]) {
+    const v = xs[l];
+    if (v.length !== pairs || !v.every(t => Number.isFinite(t) && t > 0)) {
+      throw new Error(`amostras de ${who} (${l}): ${v.length} de ${pairs}, alguma não finita ou ≤ 0`);
+    }
+  }
+}
+
+/**
  * decisão de UMA medida contra main sobre o IC: "fail" se lo > delta (regressão certa em relação a main, medida na
  * mesma máquina); "warn" se a mediana > delta; senão "pass". Era o portão de D-49 (diferença de razão); com D-51 o
  * portão é judgeDual, que combina as duas medidas. Valor não finito ou delta negativo é erro (nunca "pass" silencioso)

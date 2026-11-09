@@ -41,7 +41,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng, encodePng } from "./png.mjs";
 import { startServer } from "../lib/server.mjs";
-import { COST_TITLE, costGateOutcome, costInfo, costVerdict, costVsMain, crossOrder, d2, ghaWarning, median, p1, x2 } from "./cost-stats.mjs";
+import { COST_TITLE, costGateOutcome, costInfo, costVerdict, costVsMain, checkSamples, d2, ghaWarning, median, p1, roundPlan, runRounds, x2 } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -407,31 +407,21 @@ try {
           await onMain(() => place(games.main), `build de main falhou ao posicionar o caçador (vista ${v.name})`);
           if (mainError) break;
         }
-        const ms = { pr: { A: [], B: [] }, main: { A: [], B: [] } };
-        // D-51 (investigação do viés): as primeiras cost_check.warmup_rounds rodadas de crossOrder são medidas e
-        // descartadas, para os dois builds chegarem às medidas com o mesmo aquecimento (a aba do PR abre antes e o PR
-        // já desenhou as capturas neste navegador); depois seguem pairs rodadas, ainda alternando a ordem PR/main
-        for (let i = 0; i < CC.warmup_rounds + CC.pairs && !mainError; i++) {
-          const keep = i >= CC.warmup_rounds, r = i - CC.warmup_rounds;
-          for (const [g, l] of crossOrder(i)) {
-            if (g === "pr") { const t = await run(games.pr, LAYERS[l], v.view); if (keep) ms.pr[l].push(t); continue; }
-            const t = await onMain(() => run(games.main, LAYERS[l], v.view), `build de main falhou no meio da medida (vista ${v.name}, ${keep ? `rodada ${r}` : "aquecimento"})`);
-            if (mainError) break;
-            if (keep) ms.main[l].push(t);
-          }
-        }
+        // D-51 (investigação do viés): cost_check.warmup_rounds rodadas medidas e descartadas nos dois builds (a aba do
+        // PR abre antes e o PR já desenhou as capturas neste navegador), depois pairs rodadas guardadas, com a ordem
+        // PR/main alternando (roundPlan: rodada guardada 0 com o PR primeiro)
+        const { ms } = await runRounds(roundPlan(CC.warmup_rounds, CC.pairs), (g, l, r) => g === "pr"
+          ? run(games.pr, LAYERS[l], v.view)
+          : onMain(() => run(games.main, LAYERS[l], v.view), `build de main falhou no meio da medida (vista ${v.name}, ${r === null ? "aquecimento" : `rodada ${r}`})`),
+        () => mainError !== null);
         if (mainError) break;
-        // lado do PR: tempo inválido é erro e reprova (costVerdict lança)
+        // lado do PR: contagem errada ou tempo inválido lança e reprova (fora de onMain)
+        checkSamples(ms.pr, CC.pairs, "PR");
         const c = costVerdict(ms.pr.A, ms.pr.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
         console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); orçamento ${x2(c.budget)}, teto da CI ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict} (informativo, D-51)`);
-        // só as amostras de main são conferidas como "lado de main"; costVsMain roda fora de onMain, então um bug
-        // do próprio PR nessa conta (ou cost_check inválido) reprova em vez de virar aviso
-        await onMain(async () => {
-          for (const l of ["A", "B"]) {
-            const xs = ms.main[l];
-            if (xs.length !== ms.pr[l].length || !xs.every((t) => Number.isFinite(t) && t > 0)) throw new Error(`amostras ${l}: ${xs.length} de ${ms.pr[l].length}, alguma não finita ou ≤ 0`);
-          }
-        }, `medida de main inválida (vista ${v.name})`);
+        // só as amostras de main são conferidas como "lado de main" (aviso); costVsMain roda fora de onMain, então um
+        // bug do próprio PR nessa conta (ou cost_check inválido) reprova em vez de virar aviso
+        await onMain(async () => checkSamples(ms.main, CC.pairs, "main"), `medida de main inválida (vista ${v.name})`);
         if (mainError) break;
         const rel = costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC);
         const ctx = { view: v.name, ciLevel: CC.ci };

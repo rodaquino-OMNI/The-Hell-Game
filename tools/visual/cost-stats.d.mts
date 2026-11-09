@@ -17,6 +17,13 @@ export function ghaWarning(title: string, msg: string): string;
 /** issue #59 (D-49): comparação com o build de main no mesmo job */
 export type Build = "pr" | "main";
 export function crossOrder(i: number): [Build, "A" | "B"][];
+/** D-51: plano das rodadas (aquecimento com round null) e laço com o descarte do aquecimento */
+export interface PlannedRound { round: number | null; order: [Build, "A" | "B"][] }
+export function roundPlan(warmupRounds: number, pairs: number): PlannedRound[];
+export interface Samples { A: number[]; B: number[] }
+export function runRounds(plan: PlannedRound[], measure: (build: Build, layers: "A" | "B", round: number | null) => number | undefined | Promise<number | undefined>,
+  stop?: () => boolean): Promise<{ stopped: boolean; ms: { pr: Samples; main: Samples } }>;
+export function checkSamples(xs: Samples, pairs: number, who: string): void;
 export function judgeVsMain(ci: { median: number; lo: number }, delta: number): Verdict;
 /** D-51 (critério duplo): rels = rel_AB = PR_AB / main_AB − 1 por rodada; ratio = Δrazão A+B ÷ sem camadas; base = rel_A (informativo) */
 export interface Ci { median: number; lo: number; hi: number }
