@@ -44,7 +44,7 @@ export interface DirectorMusic {
 }
 export type DirectorCfg = Pick<Balance, "audio" | "prototype_extras" | "survivor" | "generator">;
 /** o pedaço do barramento de legendas que o diretor usa */
-export type DirectorCaptions = Pick<CaptionBus, "emit" | "tick">;
+export type DirectorCaptions = Pick<CaptionBus, "emit" | "tick" | "clear">;
 
 export interface DirectorDeps {
   play?: PlayFn;
@@ -146,7 +146,9 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
     lastPlayer = playerId;
     try { bus().tick(dt); } catch { /* idem */ }
     music.update(g, playerId);
-    if (prev && g.t < prev.t) reset(); // partida nova (o laço troca o estado; o relógio volta a 0)
+    // partida nova (o laço troca o estado; o relógio volta a 0): zera o estado e limpa as legendas da partida anterior,
+    // que senão ficariam na tela até o ttl acabar
+    if (prev && g.t < prev.t) { reset(); try { bus().clear(); } catch { /* legenda nunca derruba o som */ } }
     if (g.over) { prev = snap(g); telegraph = null; return; }
     const p0 = prev, H = g.hunter;
     const P = g.survivors.find(s => s.id === playerId);
