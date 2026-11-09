@@ -40,7 +40,7 @@ const TELEGRAPH_CAPTION_KEYS = Object.entries(audio.captions.effects).filter(([n
 const INITIAL_MAX_BYTES = 15e6;
 
 /** esperas máximas (ms; ferramenta, não jogo): folga para máquina carregada */
-const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500;
+const SERVER_WAIT_MS = 5000, STEMS_WAIT_MS = 15000, STATE_WAIT_MS = 8000, TELEGRAPH_WAIT_MS = 10000, IDLE_MS = 1500, MODELS_WAIT_MS = 15000;
 /** fração do alcance do golpe (hunter.melee.range) em que o caçador é posto ao lado do jogador */
 const MELEE_FRACTION = 0.5;
 /** fração do raio de tensão (audio.music.tension_radius) para a 1ª aproximação */
@@ -163,6 +163,16 @@ try {
   }
   const h1 = await hook();
   if (!h1.music.playing) await fail("música não começou a tocar: " + JSON.stringify(h1.music));
+
+  // os personagens entram na cena quando o .glb termina de carregar (render/characters/runtime.ts `createCharacter`,
+  // pedido no clique); antes disso o caçador não tem modelo nem olhos e states().telegraph é false com windup
+  // presente. Com rede lenta (espectro.glb, ~470 kB, junto com os stems) o .glb chegava depois do 1º preparo e o
+  // teste acusava falso "som sem visual": o teste de mesmo quadro só vale com o caçador desenhável. Mesmo gancho
+  // das capturas de arte (tools/visual/compare.mjs)
+  const ready = await page.evaluate(ms => (typeof window.__thehellCharactersReady === "function"
+    ? Promise.race([window.__thehellCharactersReady(), new Promise(ok => setTimeout(() => ok("timeout"), ms))])
+    : "sem gancho"), MODELS_WAIT_MS);
+  if (ready !== true) await fail("modelos dos personagens não carregaram: " + ready);
 
   // amostrador por quadro (rAF registrado depois do laço do jogo: roda depois do draw() do mesmo quadro)
   await page.evaluate(() => {
