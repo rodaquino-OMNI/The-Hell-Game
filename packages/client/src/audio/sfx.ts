@@ -11,7 +11,7 @@ import { balance } from "../data.ts";
 import { getEngine } from "./engine.ts";
 import { getSpatial, type PlayOpts, type SourcePos, type SpatialVoice } from "./spatial.ts";
 
-export type SfxCfg = Pick<Balance["audio"], "sfx" | "sfx_floor_gain" | "noise_seconds" | "noise_seed">;
+export type SfxCfg = Pick<Balance["audio"], "sfx" | "sfx_floor_gain" | "noise_seconds" | "noise_seed" | "sfx_cancel_ramp">;
 export type SfxEntry = Balance["audio"]["sfx"][string];
 export type SfxLayer = SfxEntry["recipe"][number];
 
@@ -32,9 +32,18 @@ export interface SfxDeps {
   cfg?: SfxCfg;
 }
 
+/** voz de um efeito: a do espacial mais o corte com rampa */
+export interface SfxVoice extends SpatialVoice {
+  /** corta o efeito com rampa linear de `audio.sfx_cancel_ramp` s até o silêncio e para as fontes no fim dela
+   *  (telegraph cancelado); idempotente, no-op depois do fim natural */
+  cancel(): void;
+  /** já foi cortado por cancel() */
+  readonly cancelled: boolean;
+}
+
 export interface SfxPlayer {
   /** toca o efeito `name`; null sem contexto ou sem vaga de voz. Nome fora do catálogo lança erro */
-  play(name: string, opts?: SfxOpts): SpatialVoice | null;
+  play(name: string, opts?: SfxOpts): SfxVoice | null;
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -145,16 +154,30 @@ export function createSfx(deps: SfxDeps = {}): SfxPlayer {
       } catch { sv = null; }
       if (!sv) { teardown(); return null; }
       // a última fonte a parar devolve a vaga e solta o grafo
+      let done = false, cancelled = false;
       const last = sources.reduce((a, s) => (s.stop > a.stop ? s : a));
-      last.node.addEventListener?.("ended", () => { sv?.release(); teardown(); });
+      last.node.addEventListener?.("ended", () => { done = true; sv?.release(); teardown(); });
       for (const s of sources) quiet(() => { s.node.start(s.start); s.node.stop(s.stop); });
-      return sv;
+      const voice = sv;
+      const cancel = () => {
+        if (done || cancelled || !voice.voice.active) return;
+        cancelled = true;
+        const t = ctx.currentTime, end = t + cfg.sfx_cancel_ramp, g = out.gain;
+        quiet(() => { g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, end); });
+        // stop repetido vale o último (Web Audio); a fonte que já pararia antes mantém o próprio fim
+        for (const s of sources) quiet(() => s.node.stop(Math.min(s.stop, end)));
+      };
+      // a voz do espacial por protótipo (campos vivos como `occluded` continuam valendo) + cancel/cancelled
+      return Object.create(voice, {
+        cancel: { value: cancel },
+        cancelled: { get: () => cancelled },
+      }) as SfxVoice;
     },
   };
 }
 
 let player: SfxPlayer | null = null;
 /** toca um efeito do catálogo pelo motor (A-1) e espacial (A-4) reais; sem contexto = no-op (null) */
-export function playSfx(name: string, opts?: SfxOpts): SpatialVoice | null {
+export function playSfx(name: string, opts?: SfxOpts): SfxVoice | null {
   return (player ??= createSfx()).play(name, opts);
 }

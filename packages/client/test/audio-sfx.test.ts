@@ -136,6 +136,32 @@ describe("audio/sfx: síntese no contexto falso (A-5)", () => {
     expect(sfx.play("step_walk")).toBeNull(); // passo não derruba telegraph
   });
 
+  it("cancel(): rampa linear de audio.sfx_cancel_ramp até 0 e fontes param no fim dela; idempotente", () => {
+    const { ctx, voices, sfx } = rig();
+    ctx.currentTime = 1;
+    const from = ctx.created.length;
+    const v = sfx.play("telegraph_melee", { pos: { x: 0, z: 5 } })!;
+    const made = ctx.created.slice(from);
+    const out = made.find((n): n is FakeGain => n instanceof FakeGain)!; // 1º nó do buildSfx: a soma das camadas
+    const srcs = made.filter((n): n is FakeScheduled => n instanceof FakeScheduled);
+    ctx.currentTime = 1.1;
+    expect(v.cancelled).toBe(false);
+    v.cancel();
+    expect(v.cancelled).toBe(true);
+    const end = 1.1 + A.sfx_cancel_ramp;
+    expect(out.gain.calls).toEqual([["cancel", 0, 1.1], ["set", 1, 1.1], ["lin", 0, end]]);
+    for (const s of srcs) expect(s.stopAt!).toBeCloseTo(end, 9);
+    v.cancel();
+    expect(out.gain.calls.length).toBe(3);
+    ctx.advance(end);
+    expect(voices.count).toBe(0);
+    // depois do fim natural, no-op
+    const w = sfx.play("telegraph_dash", { pos: { x: 0, z: 5 } })!;
+    ctx.advance(ctx.currentTime + recipeDuration(A.sfx.telegraph_dash) + 1); // bem depois do fim natural
+    w.cancel();
+    expect(w.cancelled).toBe(false);
+  });
+
   it("o ruído é determinístico (mesma semente, mesmo buffer) e fica em [−1, 1)", () => {
     const a = buildSfx(new FakeContext() as unknown as BaseAudioContext, A.sfx.step_walk, 0, 1, A);
     const b = buildSfx(new FakeContext() as unknown as BaseAudioContext, A.sfx.step_walk, 0, 1, A);

@@ -517,6 +517,9 @@ audio:
   # (mulberry32 de packages/sim/src/rng.ts; semente fixa = mesmo ruído em toda sessão e nos testes). Proposta: 1 s, 1.
   noise_seconds: 1
   noise_seed: 1
+  # LACUNA (o GDD não define): rampa linear (s) até o silêncio quando um telegraph é cancelado (atordoamento, preparo
+  # que some sem efeito). Proposta: 0,03 s, curta para o corte soar imediato e longa o bastante para não estalar.
+  sfx_cancel_ramp: 0.03
   # Catálogo de efeitos. Por efeito: kind (chave de voice_priority), bus (barramento do A-1), spatial (true = toca
   # na posição da fonte com HRTF e oclusão; false = som do próprio jogador/HUD, pos null), recipe (camadas somadas) e,
   # opcional, mod: intensidade 0–1 do chamador → multiplicador de ganho e de altura (freq e filtro), interpolados
@@ -539,6 +542,8 @@ audio:
       recipe:
         - {type: osc, wave: sine, freq: 90, attack: 0, decay: 0.2, gain: 0.4}
         - {type: noise, filter: lowpass, filter_freq: 300, q: 0.7, attack: 0, decay: 0.08, gain: 0.15}
+    # pontos do jogador local (GameEvent "points" com who = jogador; GDD-v0.2 §7.1): bipe curto de UI
+    points: {kind: ui, bus: ui, spatial: false, recipe: [{type: osc, wave: sine, freq: 880, attack: 0, decay: 0.06, gain: 0.12}]}
     stun: {kind: hunter, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 200, attack: 0, decay: 0.15, gain: 0.3}]}
     bolt: {kind: event, bus: sfx, spatial: false, recipe: [{type: osc, wave: sine, freq: 300, attack: 0, decay: 0.12, gain: 0.3}]}
     # batimento: o duplo bipe do HUD (hud/hud.ts, beep(55, 0,12, 0,35) e 160 ms depois beep(48, 0,12, 0,25)).
@@ -643,6 +648,11 @@ audio:
     # Proposta: caçador 2,0 m (altura 2,5 m: 1,55 passo/s a 3,1 m/s de patrulha, 2,15 a 4,3 em perseguição, 5,5 no
     # dash); jogador 1,6 m andando (2,5 passos/s a 4,0 m/s) e 1,9 m correndo (2,8 passos/s a 5,4 m/s).
     hunter_stride: 2.0
+    # D-37 (docs/plano-construcao.md §7): além deste raio (m, do personagem visto) os sons posicionais do caçador
+    # (step_hunter e telegraph_*) não tocam, para não virarem bússola (GDD-v0.3 §11: "sem enviar a posição do
+    # caçador"). 30 m: logo além da camada de tensão (audio.music.tension_radius 25, GDD-v0.3 §11) e cobre todo
+    # alcance de telegraph (hunter.dash.max 11, hunter.projectile.max 16, hunter.melee.range 1,8).
+    hunter_audible_radius: 30
     walk_stride: 1.6
     run_stride: 1.9
     # LACUNA: deslocamento (m) num só quadro acima do qual é salto (gaiola, resgate a prototype_extras.rescued_offset

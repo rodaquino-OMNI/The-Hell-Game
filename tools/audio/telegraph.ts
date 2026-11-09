@@ -1,7 +1,8 @@
 // Relatório do telegraph sonoro (A-5; GDD-v0.3 §11 "≥ 0,4 s antes do efeito"): roda partidas headless do ruleset v1
 // com o diretor de áudio real (sem Web Audio: o efeito só é registrado) e mede, por tipo de habilidade, quantos efeitos
-// houve, a menor antecedência entre o telegraph e o efeito e quantos efeitos saíram sem telegraph. A prova que roda na
-// CI é packages/client/test/audio-telegraph.test.ts; este script serve para comparar cérebros e mais sementes.
+// houve, quantos tiveram o preparo dentro do raio audível (D-37), quantos saíram sem telegraph e, como informação, a
+// antecedência entre o início do preparo e o efeito. Pela D-36 a garantia ≥ telegraph_min é teste da simulação
+// (Frente R); a prova do áudio na CI é packages/client/test/audio-telegraph.test.ts.
 //
 // Uso: pnpm exec tsx tools/audio/telegraph.ts [--n=20] [--seed=1] [--difficulty=normal|…|all] [--brain=utility|basic]
 import { fileURLToPath } from "node:url";
@@ -29,10 +30,10 @@ const music = { update: () => undefined, duckFor: () => undefined };
 console.log(`telegraph — ruleset v1, hunter_brain ${brain}, ${n} partidas por dificuldade; telegraph_min ${min} s, passo ${STEP.toFixed(4)} s`);
 for (const difficulty of diffs) {
   const cfg = makeConfig(balance, map, { ruleset: "v1", hunterBrain: brain, difficulty });
-  const rep = measureTelegraph(cfg, seeds, play => createAudioDirector({ play: (nm, o) => { play(nm, o); return null; }, music, cfg: balance, enabled: true }), () => true);
+  const rep = measureTelegraph(cfg, seeds, balance.audio.director.hunter_audible_radius, play => createAudioDirector({ play: (nm, o) => { play(nm, o); return null; }, music, cfg: balance, enabled: true }), () => true);
   const cols = ABILITY_KINDS.map(k => {
     const s = rep.byKind[k];
-    return `${k} ${s.n} (mín ${Number.isFinite(s.min) ? s.min.toFixed(4) : "—"} s, sem telegraph ${s.missing})`;
+    return `${k} ${s.n} (audíveis ${s.audible}, sem telegraph ${s.missing}, antecedência mín ${Number.isFinite(s.minLead) ? s.minLead.toFixed(4) : "—"} s)`;
   });
-  console.log(`${difficulty.padEnd(10)} ${cols.join(" | ")}`);
+  console.log(`${difficulty.padEnd(10)} ${cols.join(" | ")}${rep.mismatches.length ? ` | divergências ${rep.mismatches.length}` : ""}`);
 }

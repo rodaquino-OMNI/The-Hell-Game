@@ -97,12 +97,12 @@ const AudioSchema = z.object({
   /** A-5: diretor de áudio atrás de flag (D-32) */
   director_enabled: z.boolean(),
   sfx_floor_gain: num.positive().max(1),
-  noise_seconds: pos.positive(), noise_seed: int,
+  noise_seconds: pos.positive(), noise_seed: int, sfx_cancel_ramp: pos.positive(),
   /** A-5: catálogo de efeitos sintetizados (decisão do Rodrigo, 09/11/2026: síntese PS1 pura) */
   sfx: z.record(z.string().regex(/^[a-z_]+$/), SfxSchema).refine(r => Object.keys(r).length > 0, "sfx vazio"),
   director: z.object({
     duck_time: pos.positive(), hunter_stride: pos.positive(), walk_stride: pos.positive(), run_stride: pos.positive(),
-    teleport_dist: pos.positive(),
+    teleport_dist: pos.positive(), hunter_audible_radius: pos.positive(),
     breath: z.object({ stamina_below: num.positive().max(1), period: z.tuple([pos.positive(), pos.positive()]) }).strict(),
     hum: z.object({ radius: pos.positive(), period: pos.positive() }).strict(),
   }).strict(),

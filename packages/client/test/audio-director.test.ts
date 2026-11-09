@@ -20,12 +20,16 @@ function rig(enabled = true) {
   const calls: Call[] = [], ducks: number[] = [], music: GameState[] = [];
   let now = 0;
   const moved: { x: number; z: number }[] = [];
+  const cancels: string[] = [];
   const dir = createAudioDirector({
     enabled, cfg: bal,
-    play: (name, opts) => { calls.push({ name, opts, t: now }); return { setPosition: p => moved.push({ x: p.x, z: p.z }) }; },
+    play: (name, opts) => {
+      calls.push({ name, opts, t: now });
+      return { setPosition: p => moved.push({ x: p.x, z: p.z }), cancel: () => cancels.push(name) };
+    },
     music: { update: s => { music.push(s); }, duckFor: s => { ducks.push(s); } },
   });
-  return { dir, calls, ducks, music, moved, setNow: (t: number) => { now = t; } };
+  return { dir, calls, ducks, music, moved, cancels, setNow: (t: number) => { now = t; } };
 }
 
 /** estado parado: jogador 0 na origem, caçador longe, geradores sem progresso */
@@ -72,6 +76,21 @@ describe("audio/director: flag e eventos (A-5)", () => {
     expect(list).toEqual(copy); // recebe o array já drenado e não o altera
   });
 
+  it("points: bipe de UI só quando `who` é o jogador local (explícito ou o do último update)", () => {
+    const pts = (who: number): GameEvent => ({ type: "points", who, event: "puzzle", value: 10, category: "objectives" });
+    const r = rig();
+    r.dir.events([pts(0)]);
+    expect(r.calls).toEqual([]); // ainda não se sabe quem é o local
+    r.dir.events([pts(0), pts(1), pts(-1)], 0);
+    expect(r.calls.map(c => [c.name, c.opts])).toEqual([["points", { pos: null }]]);
+    const g = state();
+    r.dir.update(g, 2, STEP);
+    r.calls.length = 0;
+    r.dir.events([pts(0), pts(2)]);
+    expect(r.calls.map(c => c.name)).toEqual(["points"]);
+    expect(bal.audio.sfx.points.bus).toBe("ui");
+  });
+
   it("updateMusic do A-2 a cada quadro", () => {
     const r = rig(), g = state();
     run(r, g, 10 * STEP);
@@ -101,6 +120,7 @@ describe("audio/director: telegraph e transições (A-5)", () => {
 
   it("troca de preparo sem quadro nulo (vários passos por quadro) também toca", () => {
     const r = rig(), g = state();
+    g.hunter.x = 5; g.hunter.z = 0;
     g.hunter.windup = { kind: "trap", t: 0.01, total: 0.4 }; run(r, g, STEP);
     g.hunter.windup = { kind: "melee", t: 0.4, total: 0.4 }; run(r, g, STEP);
     g.hunter.windup = { kind: "melee", t: 0.39, total: 0.4 }; run(r, g, STEP);
@@ -124,6 +144,52 @@ describe("audio/director: telegraph e transições (A-5)", () => {
     const h = state(); h.gens[0].done = true; h.survivors[1].st = "cage";
     r.calls.length = 0; r.setNow(0); r.dir.update(h, 0, STEP);
     expect(r.calls.filter(c => ["generator_done", "cage", "rescue"].includes(c.name))).toEqual([]);
+  });
+
+  it("D-37: além de hunter_audible_radius do personagem visto, telegraph e passos do caçador não tocam", () => {
+    const tel = (hx: number, viewed?: { x: number; z: number }) => {
+      const r = rig(), g = state();
+      g.hunter.x = hx; g.hunter.z = 0;
+      r.dir.update(g, 0, STEP, viewed);
+      g.t += STEP; g.hunter.windup = { kind: "dash", t: 0.4, total: 0.4 };
+      r.dir.update(g, 0, STEP, viewed);
+      return named(r.calls, "telegraph_dash").length;
+    };
+    expect(tel(D.hunter_audible_radius)).toBe(1);
+    expect(tel(D.hunter_audible_radius + 0.5)).toBe(0);
+    // a distância é do personagem visto, não do jogador
+    expect(tel(D.hunter_audible_radius + 10, { x: 15, z: 0 })).toBe(1);
+    expect(tel(5, { x: 5 + D.hunter_audible_radius + 1, z: 0 })).toBe(0);
+    const steps = (x0: number) => {
+      const r = rig(), g = state();
+      g.hunter.x = x0; g.hunter.z = 0;
+      run(r, g, 2, q => { q.hunter.z += bal.hunter.patrol_speed * STEP; });
+      return named(r.calls, "step_hunter").length;
+    };
+    expect(steps(D.hunter_audible_radius - 5)).toBeGreaterThan(0);
+    expect(steps(D.hunter_audible_radius + 5)).toBe(0);
+  });
+
+  it("telegraph cancelado (atordoamento ou preparo que some sem efeito) corta o som; com efeito, não", () => {
+    const go = (finish: (g: GameState) => void) => {
+      const r = rig(), g = state();
+      g.hunter.x = 5; g.hunter.z = 0;
+      r.dir.update(g, 0, STEP);
+      g.t += STEP; g.hunter.windup = { kind: "melee", t: 0.4, total: 0.4 }; r.setNow(g.t); r.dir.update(g, 0, STEP);
+      g.t += STEP; g.hunter.windup = null; finish(g); r.setNow(g.t); r.dir.update(g, 0, STEP);
+      return r.cancels;
+    };
+    expect(go(g => { g.hunter.stun = 1; })).toEqual(["telegraph_melee"]);
+    expect(go(() => undefined)).toEqual(["telegraph_melee"]);
+    expect(go(g => { g.hunter.atk = bal.hunter.melee.cooldown; })).toEqual([]); // golpe saiu
+    // troca de kind sem quadro nulo: o anterior sem efeito é cortado
+    const r = rig(), g = state();
+    g.hunter.x = 5; g.hunter.z = 0;
+    g.hunter.windup = { kind: "trap", t: 0.2, total: 0.4 }; r.dir.update(g, 0, STEP);
+    g.t += STEP; g.hunter.windup = { kind: "melee", t: 0.4, total: 0.4 }; r.dir.update(g, 0, STEP);
+    expect(r.cancels).toEqual(["telegraph_trap"]);
+    g.t += STEP; g.hunter.windup = null; g.traps.push({ id: 99, x: 5, z: 0 }); r.dir.update(g, 0, STEP);
+    expect(r.cancels).toEqual(["telegraph_trap", "telegraph_melee"]); // armadilha nova não é efeito de golpe
   });
 
   it("partida encerrada: silêncio", () => {
@@ -190,6 +256,7 @@ describe("audio/director: contínuos (A-5)", () => {
   it("passos do caçador: espaciais, um a cada hunter_stride metros (cadência pela velocidade); salto não conta", () => {
     const steps = (speed: number, secs = 4) => {
       const r = rig(), g = state();
+      g.hunter.x = -20; g.hunter.z = 0; // anda até 44 m em 4 s de dash: fica dentro do raio audível
       run(r, g, secs, s => { s.hunter.x += speed * STEP; });
       return named(r.calls, "step_hunter");
     };
@@ -198,6 +265,7 @@ describe("audio/director: contínuos (A-5)", () => {
     expect(dash.length).toBeGreaterThan(patrol.length * 3);
     expect(patrol[0].opts!.pos).not.toBeNull();
     const r = rig(), g = state();
+    g.hunter.x = 0; g.hunter.z = 0;
     run(r, g, STEP); g.hunter.x += D.teleport_dist + 1; run(r, g, STEP);
     expect(named(r.calls, "step_hunter")).toEqual([]);
   });
@@ -217,10 +285,30 @@ describe("audio/director: contínuos (A-5)", () => {
     expect(go(0, false).filter(c => c.name.startsWith("step_"))).toEqual([]);
   });
 
-  it("jogador fora de jogo (preso): sem passos, respiração nem batimento dele", () => {
+  it("jogador preso: sem passos nem respiração; batimento continua, como no HUD (fora do modo espectador)", () => {
     const r = rig(), g = state();
     g.survivors[0].st = "cage"; g.survivors[0].stamina = 0; g.hunter.x = 2; g.hunter.z = 0;
     run(r, g, 3, s => { s.survivors[0].x += 0.05; });
-    expect(r.calls.filter(c => ["heartbeat", "breath", "step_walk", "step_run"].includes(c.name))).toEqual([]);
+    expect(r.calls.filter(c => ["breath", "step_walk", "step_run"].includes(c.name))).toEqual([]);
+    expect(named(r.calls, "heartbeat").length).toBeGreaterThan(0);
+    // morto ou escapado (modo espectador): nada do jogador, nem batimento
+    for (const st of ["dead", "out"] as const) {
+      const q = rig(), h = state();
+      h.survivors[0].st = st; h.hunter.x = 2; h.hunter.z = 0;
+      run(q, h, 3);
+      expect(named(q.calls, "heartbeat"), st).toEqual([]);
+    }
+  });
+
+  it("zumbido no modo espectador: pelo personagem visto (`at`), não pelo jogador", () => {
+    const r = rig(), g = state();
+    g.survivors[0].st = "dead";
+    const x = g.gens[0]; x.n = 2; x.x = 60; x.z = 0;
+    for (const o of g.gens.slice(1)) { o.x = 200; o.z = 200; }
+    const ally = { x: 58, z: 0 };
+    for (let i = 0; i < 60; i++) { g.t += STEP; r.setNow(g.t); r.dir.update(g, 0, STEP); }
+    expect(named(r.calls, "generator_hum")).toEqual([]); // longe do jogador (origem)
+    for (let i = 0; i < 60; i++) { g.t += STEP; r.setNow(g.t); r.dir.update(g, 0, STEP, ally); }
+    expect(named(r.calls, "generator_hum").length).toBeGreaterThan(0);
   });
 });
