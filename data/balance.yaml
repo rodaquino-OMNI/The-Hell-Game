@@ -323,11 +323,9 @@ maps:
     fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5); inerte com 3 sobreviventes
     # D-25 b: ligada depois que o cliente passou a desenhar o portão lateral pela arena da partida (PR #79,
     # render/scene.ts gatePose/addGate/placeCage; revisão do R7-mapas, B-1).
-    # D-23 b: o cliente já desenha cfg.map.walls (#79), mas segue desligada: com os pilares ligados, a mediana de
-    # perseguição do Difícil cai de 29,9 s para 2,2 s na linha de base (50 partidas, 20 episódios), com ou sem a D-50.
-    # Os episódios curtos começavam numa troca de alvo (`chaseEpisodes`): vaivém do caçador, corrigido pela histerese
-    # contra o alvo lembrado e pela D-52 (plano §7); com elas, 33,7 s em 1.000 partidas do Difícil com os pilares.
-    short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
+    # D-23 b: ligada depois de corrigido o vaivém de alvo do caçador (histerese contra o alvo lembrado, D-52 e D-53,
+    # plano §7), que encurtava as perseguições perto dos pilares; o cliente desenha cfg.map.walls desde o #79.
+    short_loop_pillars: true        # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
     side_exit: true                 # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
     # LACUNA (revisão do R7-mapas), RESOLVIDA pela D-50 (docs/plano-construcao.md §7): o pilar de 1 × 1 m deixava o
     # caçador acertar sem linha de visão pela quina (alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre
