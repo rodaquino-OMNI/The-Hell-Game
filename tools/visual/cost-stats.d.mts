@@ -1,6 +1,6 @@
 // Tipos de tools/visual/cost-stats.mjs (usado por packages/client/test/cost-stats.test.ts)
 export type CiMode = "warn" | "fail";
-export interface CostCheck { pairs: number; frames: number; warmup: number; bootstrap_resamples: number; ci: number; seed: number; ci_runner_margin: number; ci_mode: CiMode }
+export interface CostCheck { pairs: number; frames: number; warmup: number; bootstrap_resamples: number; ci: number; seed: number; ci_runner_margin: number; ci_mode: CiMode; main_delta: number }
 export type Verdict = "fail" | "warn" | "pass";
 export interface CostResult { ratios: number[]; median: number; lo: number; hi: number; budget: number; fail: number; verdict: Verdict }
 export function mulberry32(seed: number): () => number;
@@ -14,3 +14,11 @@ export function costVerdict(a: number[], b: number[], cfg: CostCheck, factor: nu
 export function costOutcome(c: CostResult, mode: CiMode | string, ctx: { view: string; baseMs: number; ciLevel: number }):
   { failing: boolean; warning: string | null };
 export function ghaWarning(title: string, msg: string): string;
+/** issue #59 (D-49): comparação com o build de main no mesmo job */
+export type Build = "pr" | "main";
+export function crossOrder(i: number): [Build, "A" | "B"][];
+export function judgeVsMain(ci: { median: number; lo: number }, delta: number): Verdict;
+export interface VsMainResult { diffs: number[]; median: number; lo: number; hi: number; delta: number; prMedian: number; mainMedian: number; verdict: Verdict }
+export function costVsMain(pr: { a: number[]; b: number[] }, main: { a: number[]; b: number[] }, cfg: CostCheck): VsMainResult;
+export function vsMainOutcome(rel: VsMainResult, abs: CostResult, mode: CiMode | string,
+  ctx: { view: string; baseMs: number; mainBaseMs: number; ciLevel: number }): { failing: boolean; warnings: string[] };

@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-17)
+        # 2: HEAD^1 (base do PR ou main anterior) para o build de main do custo das camadas (issue #59)
+        with: { fetch-depth: 2 }
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (03/11/2026): exceção à quarentena de 2 semanas, decidida pela supervisão (PR #23 já em main)
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0 (2026-10-08)
         with: { node-version: 22, cache: pnpm }
@@ -65,8 +67,19 @@ jobs:
         run: pnpm a11y
       - name: Fumaça do protótipo original
         run: pnpm smoke:prototype
+      # issue #59 (D-49): build de main para medir o custo das camadas no mesmo job. HEAD^1 = a base do merge do PR
+      # (em push para main, o main anterior); precisa do checkout com fetch-depth 2. Se este passo falhar,
+      # compare.mjs anota o aviso e volta ao portão absoluto de D-44
+      - name: "Build de main para o custo das camadas (issue #59)"
+        continue-on-error: true
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/main" HEAD^1
+          cd "$RUNNER_TEMP/main"
+          pnpm install --frozen-lockfile
+          pnpm data
+          pnpm --filter @thehell/client build
       - name: Capturas de referência do material PS1 (V1) e das camadas A, B e C por preset (V4)
-        run: node tools/visual/compare.mjs --out "$RUNNER_TEMP/visual"
+        run: node tools/visual/compare.mjs --out "$RUNNER_TEMP/visual" --baseline "$RUNNER_TEMP/main"
       # na falha, publica as capturas atuais e os mapas de diferença (*.diff.png) para revisão
       - name: Publicar capturas e diferenças
         if: failure()
