@@ -1,6 +1,6 @@
 # THE HELL — Game Design Document v0.3
 
-**Delta sobre o v0.2 · 08/11/2026 · revisão 2: decisões D-01 a D-12 aplicadas**
+**Delta sobre o v0.2 · 08/11/2026 · revisão 2: decisões D-01 a D-12 aplicadas; decisões de 09/11/2026 registradas na tabela do fim**
 
 O v0.3 fecha as seções 8 a 13 (IA, mapas, gráficos, áudio, UI e arquitetura) e resolve as contradições do v0.2. Ele não repete o v0.2: toda seção não citada aqui continua valendo como está em [`GDD-v0.2.md`](GDD-v0.2.md). Onde houver conflito, vale o v0.3.
 
@@ -313,7 +313,7 @@ Sem mudança de regra. Números: o servidor descarta entrada que exceda 1,1× a 
 
 ## Decisões
 
-Todas tomadas em 08/11/2026 pelo Rodrigo e pelo filho. Registro completo no [plano de construção](plano-construcao.md#7-decisões).
+D-01 a D-09 tomadas em 08/11/2026 pelo Rodrigo e pelo filho; D-16 e D-20 a D-25 em 09/11/2026 pelo Rodrigo. Registro completo no [plano de construção](plano-construcao.md#7-decisões).
 
 | ID | Decisão | Escolha |
 | --- | --- | --- |
