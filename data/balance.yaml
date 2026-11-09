@@ -877,7 +877,8 @@ net:
 # pessoas (D-05). Métricas fora daqui só são medidas: survivor_escape (D-16 a) e duration_median. Travas (T-03),
 # exceções, partidas sem fim e transições fora do grafo do §8.2 reprovam sempre. Tolerância null = "a medir".
 # Exceção à regra "só piora relativa": `floor` (só em `worse: lower`) é um PISO ABSOLUTO de aceite, que reprova pelo
-# valor atual mesmo sem linha de base ou com tolerância a medir, sempre que o grupo tiver ≥ min_samples (marco MJ-B).
+# valor atual mesmo sem linha de base ou com tolerância a medir, só nos grupos das dificuldades de `floor_groups` (o
+# agregado "mapa/all" não entra) e quando o grupo tiver ≥ min_samples (marco MJ-B).
 # Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
 # para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado); chase_median só usa lotes
 # com ≥ min_samples episódios. Medição refeita no marco MJ-B (09/11/2026, `pnpm sim --check --noise=10 --workers=2`,
@@ -889,8 +890,10 @@ net:
 # dificuldade, 4% no agregado) fica a menos de 1 tolerância do 0 em todos os grupos, então só reprova se passar do
 # outro lado da banda (porta inativa até o R8); capturas e perseguições perto de 0 saturam em Fácil e Normal e vigiam
 # em Difícil, Pesadelo e no agregado; duration_mean e short_match_rate vigiam em todos. chase_median: por dificuldade
-# a tolerância (39 s) passa da base, então só o piso de 15 s vigia (Difícil e Pesadelo, ≥ 10 episódios; Normal tem 3
-# e Fácil 0); no agregado vigiam a tolerância e o piso.
+# a tolerância (39 s) passa da base (não vigia); no agregado vigia a tolerância (10 s). O piso de 15 s só vale no
+# Normal (GDD-v0.3 §8.5: "contra o caçador Normal"; Fácil fica abaixo, ex.: 4,1 s com 13 episódios no noturno, e não
+# reprova). O check de 200 partidas NÃO ativa o piso no Normal (3 episódios < min_samples): só o noturno vigia
+# (2.500 partidas por dificuldade; ~64 episódios a cada 1.000 partidas no Normal, mediana 18,5 s).
 # Ao regravar a linha de base com outro comportamento (R7-mapas, R8), medir de novo e revisar estes valores no mesmo PR.
 sim:
   short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
@@ -901,8 +904,8 @@ sim:
     duration_mean:      {worse: band, band: [360, 480], max_worsening: 51, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
     captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.46, pooled_max_worsening: 0.20}     # §7.6
     short_match_rate:   {worse: higher, max_worsening: 0.19, pooled_max_worsening: 0.07}                     # §7.6: < 5%
-    # GDD-v0.3 §8.5 (aceite: mediana ≥ 15 s): piso absoluto de 15 s; com < 10 episódios a mediana oscila > 12 s
-    # entre lotes, então nem a tolerância nem o piso comparam o grupo.
-    chase_median:       {worse: lower, floor: 15, max_worsening: 39, pooled_max_worsening: 10, min_samples: 10}
+    # GDD-v0.3 §8.5 (aceite: mediana ≥ 15 s "contra o caçador Normal"): piso absoluto de 15 s só no Normal; com < 10
+    # episódios a mediana oscila > 12 s entre lotes, então nem a tolerância nem o piso comparam o grupo.
+    chase_median:       {worse: lower, floor: 15, floor_groups: [normal], max_worsening: 39, pooled_max_worsening: 10, min_samples: 10}
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
     chases_per_match:   {worse: lower, max_worsening: 0.47, pooled_max_worsening: 0.20}

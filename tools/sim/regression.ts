@@ -2,8 +2,9 @@
 // base versionada (data/sim/baseline.json) e reprova se alguma PIORAR mais que a tolerância de `sim.regression`
 // (data/balance.yaml). As bandas do GDD-v0.2 §7.6 só definem a DIREÇÃO de "piora" das métricas `worse: band`
 // (afastar-se da banda); elas não reprovam sozinhas até o beta (D-05). Exceção: `floor` é um PISO ABSOLUTO de aceite
-// que reprova independente da linha de base (chase_median ≥ 15 s, GDD-v0.3 §8.5; marco MJ-B), sempre que a amostra
-// do grupo atual tiver ≥ min_samples. Lógica pura, testada em packages/sim/test/sim-regression.test.ts.
+// que reprova independente da linha de base (chase_median ≥ 15 s, GDD-v0.3 §8.5; marco MJ-B), só nos grupos das
+// dificuldades de `floor_groups` (o aceite do §8.5 é contra o caçador Normal) e quando a amostra do grupo atual tiver
+// ≥ min_samples. Lógica pura, testada em packages/sim/test/sim-regression.test.ts.
 import { METRIC_BOUNDS, type GroupMetrics, type MetricName } from "./metrics.ts";
 
 /** regra de uma métrica (`sim.regression.<métrica>` em data/balance.yaml) */
@@ -17,8 +18,11 @@ interface RuleBase {
 }
 export type Rule = RuleBase & (
   | { worse: "higher" }
-  /** floor: piso absoluto (valor abaixo dele reprova com amostra ≥ min_samples, mesmo sem base ou com tolerância a medir) */
-  | { worse: "lower"; floor?: number }
+  /**
+   * floor: piso absoluto (valor abaixo dele reprova com amostra ≥ min_samples, mesmo sem base ou com tolerância a
+   * medir), só nos grupos "mapa/<dificuldade>" com a dificuldade em `floor_groups` (o agregado "mapa/all" não entra)
+   */
+  | { worse: "lower"; floor?: number; floor_groups?: readonly string[] }
   | { worse: "band"; band: readonly [number, number] }
 );
 export type Rules = Partial<Record<MetricName, Rule>>;
@@ -99,8 +103,12 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 /** sufixo do grupo agregado de todas as dificuldades de um mapa (tools/sim/run.ts) */
 export const POOLED = "/all";
 
-/** piso absoluto da regra (só `worse: lower`) */
-export const floorOf = (rule: Rule): number | null => rule.worse === "lower" && rule.floor !== undefined ? rule.floor : null;
+/** piso absoluto da regra no grupo (só `worse: lower`, só nas dificuldades de `floor_groups`); null = sem piso */
+export function floorOf(rule: Rule, group: string): number | null {
+  if (rule.worse !== "lower" || rule.floor === undefined) return null;
+  const difficulty = group.slice(group.lastIndexOf("/") + 1);
+  return rule.floor_groups?.includes(difficulty) ? rule.floor : null;
+}
 
 /** tolerância da regra para o grupo */
 export function toleranceFor(group: string, rule: Rule): number | null {
@@ -110,7 +118,7 @@ export function toleranceFor(group: string, rule: Rule): number | null {
 /** compara uma métrica de um grupo */
 export function compareMetric(group: string, metric: MetricName, rule: Rule, base: Partial<GroupMetrics> | undefined, cur: Partial<GroupMetrics> | undefined): Comparison {
   const b = base?.[metric], c = cur?.[metric], tol = toleranceFor(group, rule);
-  const min = rule.min_samples ?? 1, floor = floorOf(rule);
+  const min = rule.min_samples ?? 1, floor = floorOf(rule, group);
   const floorActive = floor !== null && !!cur && isNum(c) && samples(metric, cur) >= min;
   const row = (status: Status, worse: number | null = null): Comparison => ({
     group, metric, before: isNum(b) ? b : null, after: isNum(c) ? c : null, worsening: worse, tolerance: tol, status,

@@ -51,7 +51,7 @@ const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/ba
 const SEED = 1234;
 // As referências foram capturadas no layout 0 com `ruleset: prototype` (padrão dos dados até o marco MJ-B). Desde o
 // MJ-B o padrão é v1 (layout pela semente, IA do caçador): a captura fixa o protótipo pela via que o cliente já
-// oferece (`?ruleset=`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
+// oferece (`?ruleset=`, só com `?debug=1`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
 const RULES = "ruleset=prototype";
 /** vista das capturas: 3ª pessoa, olhando a jaula, um muro próximo, dois aliados e três feixes */
 const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };

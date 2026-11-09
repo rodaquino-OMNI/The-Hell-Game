@@ -22,17 +22,22 @@ const UiSchema = z.object({
 /** simulador e porta de regressão (GDD v0.3 C-15, D-05 a, D-16 a; GDD v0.2 §7.6; item R5) */
 /** tolerância null = "a medir" (ruído ainda não medível; a métrica não é comparada) */
 const simTol = { max_worsening: pos.nullable(), pooled_max_worsening: pos.nullable().optional(), min_samples: z.number().int().positive().optional() };
-/** `floor` (só `worse: lower`): piso absoluto de aceite que reprova sem depender da linha de base (marco MJ-B) */
+/**
+ * `floor` (só `worse: lower`): piso absoluto de aceite que reprova sem depender da linha de base (marco MJ-B), só nas
+ * dificuldades de `floor_groups` (obrigatório com `floor`; chase_median: [normal], GDD-v0.3 §8.5)
+ */
+const difficultyName = z.enum(["easy", "normal", "hard", "nightmare"]);
 const simMetric = z.discriminatedUnion("worse", [
   z.object({ worse: z.literal("higher"), ...simTol }).strict(),
-  z.object({ worse: z.literal("lower"), floor: pos.optional(), ...simTol }).strict(),
+  z.object({ worse: z.literal("lower"), floor: pos.optional(), floor_groups: z.array(difficultyName).min(1).optional(), ...simTol }).strict()
+    .refine(r => (r.floor === undefined) === (r.floor_groups === undefined), "floor e floor_groups andam juntos"),
   z.object({ worse: z.literal("band"), band: range.refine(r => r[1] >= r[0], "banda: máx deve ser ≥ mín"), ...simTol }).strict(),
 ]);
 const SimSchema = z.object({
   short_match_seconds: pos.positive(),
   check: z.object({
     matches_per_group: z.number().int().positive(), seed: z.number().int(),
-    difficulties: z.array(z.enum(["easy", "normal", "hard", "nightmare"])).min(1),
+    difficulties: z.array(difficultyName).min(1),
   }).strict(),
   nightly: z.object({ matches_per_group: z.number().int().positive() }).strict(),
   /** métricas de tools/sim/metrics.ts (METRICS); as ausentes aqui só são medidas */
