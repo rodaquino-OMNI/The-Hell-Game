@@ -478,7 +478,14 @@ render:
   # 1,2 = 1,99 / 0,926, 2,84 / 0,904, 3,34 / 0,895; power 1,5 × 1,2 = 2,54 / 0,908; power 2 × 1,2 = 2,12 / 0,911;
   # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
   # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
-  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
+  # retro_scale (issue #48, resposta 3b do filho do Rodrigo, 09/11/2026: na 1ª pessoa do modo Retro (?retro=1) o
+  # caçador continua parecendo ele, mas o contorno fica claro demais; respostas 1a e 2a: manter o contorno forte na
+  # 3ª pessoa): fator sobre a intensidade escolhida (opção do jogador, V8) só no Retro em 1ª pessoa; a 3ª pessoa fica
+  # igual. Escolha: o menor fator (passo 0,05) que mantém o corpo fora do cone ≥ legibility.min_contrast (Art Bible
+  # §5.3) no Retro em 1ª pessoa nos três presets, na cena LEG com a máscara chapada de tools/visual/compare.mjs.
+  # Contraste fora do cone com o fator 1 / 0,7 / 0,4: low 4,70 / 3,84 / 2,96; medium 4,76 / 3,91 / 3,02;
+  # high 3,61 / 3,06 / 2,45 (o high limita: 0,65 dá 2,95). Conferido em tools/visual/compare.mjs (legibilidade Retro)
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7}
   models:
     survivor_tris: [300, 600]
     hunter_tris: [800, 1200]
@@ -510,12 +517,13 @@ render:
     # o lampejo, como o feixe, não usa vertex snapping)
     eyes_flare: [0.7, 0.07, 0.35, 2]
     lock: {size: 0.5, above: 0.5}                    # cadeado sobre o aliado preso: lado (m) e altura acima da cabeça (m)
-  # D-13, D-14, D-15 (docs/plano-construcao.md §7; item V9 em docs/handoff/plano-fases-1-2.md §5): MOCKUP do modo
-  # "Retro FPS" para o mini marco de arte A2b. Só liga com o parâmetro de depuração ?retro=1 (sem opção de menu; a 3ª
-  # pessoa continua padrão). Medidas de arte a calibrar depois da aprovação do filho (D-14), não regra de jogo.
+  # D-13, D-14, D-15 (docs/plano-construcao.md §7; item V9 em docs/handoff/plano-fases-1-2.md §5): modo "Retro FPS",
+  # mockup aprovado pelo filho no A2b (issue #27: 1b ferramenta menor e mais no canto, 2c luneta do Batedor, 3b barra
+  # fina só com vida, fôlego e habilidade, 4a Pátio industrial). Liga pela opção do menu (Opções > Visual PS1, desligada
+  # por padrão: a 3ª pessoa continua padrão) ou, só com ?debug=1, por ?retro=1. Medidas de arte, não regra de jogo.
   retro:
     # balanço da ferramenta ao andar (D-13: "balanço com intensidade 0–1"; o V8 "reduzir balanço de câmera",
-    # GDD-v0.3 §12.4, vai multiplicar `bob`). Amplitude (m: lado, vertical) com bob = 1 na velocidade de corrida
+    # GDD-v0.3 §12.4, multiplica `bob` por ui.options.reduced_bob = 0). Amplitude (m: lado, vertical) com bob = 1 na velocidade de corrida
     # (survivor.run); um ciclo a cada `bob_stride` m andados; `bob_return` = fração por quadro de volta ao repouso
     bob: 0.5
     bob_amplitude: [0.03, 0.022]
@@ -530,6 +538,13 @@ render:
       far: 10                       # m; plano distante da câmera da ferramenta (a ferramenta está a menos de 1 m)
       light: {ambient: light.ambiente, ambient_intensity: 1.4, key: light.jogador, key_intensity: 1.1, key_pos: [0.6, 0.5, 0.3]}
       hand: {size: [0.075, 0.07, 0.11], forearm: [0.05, 0.045], forearm_sides: 6}   # forearm: raio no punho e no fim; lados do prisma
+      # resposta 1b do A2b (issue #27): ferramenta menor e mais no canto. Cada grupo e cada mão (já postos por `pos`)
+      # encolhe por `scale` em direção a `anchor` (m, espaço da câmera; x espelhado para o que está à esquerda), um
+      # ponto pouco além do canto inferior da tela a 0,6 m do olho: o objeto diminui e escorrega para o canto
+      corner: {scale: 0.68, anchor: [0.62, -0.4, -0.6]}
+      # teto de triângulos da ferramenta + mãos de cada classe: o do sobrevivente (Art Bible §7, GDD-v0.2 §10.3:
+      # 300 a 600); conferido por packages/client/test/retro-mode.test.ts
+      max_triangles: 600
       classes:
         curandeiro:
           grupos: [{osso: hand_r, origem: [0, 0, 0], pos: [0.28, -0.24, -0.62], rot: [-48, -54, 60], escala: 0.32}]
@@ -548,12 +563,25 @@ render:
           grupos: [{osso: lowerarm_l, origem: [0.14, 0.09, 0.026], pos: [-0.36, -0.2, -0.66], rot: [-40, 0, -50], escala: 0.55}]
           maos: [{pos: [-0.24, -0.29, -0.58], rot: [-8, 0, -6], antebraco: [-0.2, -0.3, 0.45]}]
         batedor:
-          # LACUNA: a Art Bible §3 e a ficha não dão ferramenta de mão ao Batedor (o acessório é o cachecol); o mockup
-          # mostra as mãos livres e a ponta do cachecol entrando pela esquerda (pergunta ao filho no A2b)
-          grupos: [{osso: spine_03, cores: [char.cachecol], origem: [0.12, -0.06, -0.3], pos: [-0.42, -0.2, -0.55], rot: [20, 30, -60], escala: 0.55}]
+          # resposta 2c do A2b (issue #27): o Batedor leva uma luneta, não arma. Feita em código (sem asset externo):
+          # 6 cilindros de 6 lados (20 triângulos cada) nas cores da paleta já presentes no atlas 64×64 (Art Bible §7),
+          # do ocular (z+, perto do olho) à objetiva (z−); `pecas` no formato das peças da ficha, em m, com o punho na
+          # origem. A ponta do cachecol (forma-chave da classe, Art Bible §3) continua entrando pela esquerda
+          grupos:
+            - pecas:
+                - {forma: cilindro, de: [0, 0, 0.19], ate: [0, 0, 0.17], r: [0.02, 0.02], lados: 6, cor: char.metal}
+                - {forma: cilindro, de: [0, 0, 0.17], ate: [0, 0, 0.08], r: [0.016, 0.016], lados: 6, cor: char.metal}
+                - {forma: cilindro, de: [0, 0, 0.08], ate: [0, 0, -0.02], r: [0.021, 0.021], lados: 6, cor: char.couro}
+                - {forma: cilindro, de: [0, 0, -0.02], ate: [0, 0, -0.035], r: [0.03, 0.03], lados: 6, cor: char.metal}
+                - {forma: cilindro, de: [0, 0, -0.035], ate: [0, 0, -0.2], r: [0.027, 0.027], lados: 6, cor: class.batedor}
+                - {forma: cilindro, de: [0, 0, -0.2], ate: [0, 0, -0.225], r: [0.032, 0.032], lados: 6, cor: char.metal}
+              origem: [0, 0, 0]
+              pos: [0.28, -0.2, -0.58]
+              rot: [18, 22, 0]
+              escala: 1
+            - {osso: spine_03, cores: [char.cachecol], origem: [0.12, -0.06, -0.3], pos: [-0.42, -0.2, -0.55], rot: [20, 30, -60], escala: 0.55}
           maos:
-            - {pos: [0.26, -0.22, -0.58], rot: [-20, 0, 12], antebraco: [0.2, -0.3, 0.45]}
-            - {pos: [-0.22, -0.23, -0.6], rot: [-20, 0, -12], antebraco: [-0.2, -0.3, 0.45]}
+            - {pos: [0.28, -0.22, -0.56], rot: [-20, 0, 12], antebraco: [0.2, -0.3, 0.45]}
     # D-15: variante industrial do Pátio (texturas e iluminação, sem layout novo; catálogo de mapas da v1.0 inalterado,
     # D-06). Texturas procedurais de `texture` px com o PRNG com semente do cliente (render/options.ts); cores só por
     # token world.industrial.* de data/art/palette.json (secundárias, sem mudar tokens aprovados)
@@ -957,6 +985,12 @@ ui:
     font_default: normal
     # "redução de balanço de câmera" (GDD-v0.3 §12.4): multiplicador de render.retro.bob com a opção ligada (0 = zera)
     reduced_bob: 0
+  # ---- R6 (issue #66): resumo de pontos no fim da partida (GDD-v0.2 §7.1, categorias; GDD-v0.3 §12.4) ----
+  # contagem dos pontos de 0 até o valor (resposta 3b da issue #66). LACUNA (GDD v0.2/v0.3 e Art Bible não definem a
+  # duração). Proposta: 1,2 s para as 4 categorias e o total juntos; Enter/A pula para os valores finais; com
+  # "reduzir balanço de câmera" ligado ou prefers-reduced-motion do sistema os valores aparecem na hora
+  results:
+    count_up_s: 1.2
   # GDD-v0.3 §12.2: remapeamento de todas as ações, sensibilidade e inversão do eixo Y
   controls:
     mouse_rad_per_px: 0.0025        # rad por pixel de mouse com sensibilidade 1 (prototype/the-hell.html L114)

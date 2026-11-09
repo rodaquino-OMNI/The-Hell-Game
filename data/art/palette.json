@@ -1,6 +1,6 @@
 {
   "$comment": "Paleta THE HELL — fonte única dos tokens de cor (Art Bible §2). Valores em 5 bits por canal (0–31) = cor de 15 bits do PS1 (GDD-v0.2 §10.1). O hex é derivado (round(v*255/31)). Verificação: node tools/art/palette-check.mjs",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "$comment_v3": "V3 (F2-03): tokens char.*, hunter.olhos_preparo, hunter.farrapos, world.gerador*, world.portao, world.gaiola, fx.armadilha e light.* são secundárias de personagem, mundo e luzes; nenhuma é cor dominante (as dominantes aprovadas no marco A1 não mudaram). skin.<id>.a = calça, skin.<id>.b = sapatos e acessório (GDD-v0.2 §10.3: 'Skins por troca de paleta e acessórios'; Art Bible §3 e §7).",
   "tokens": {
     "ui.bg":            { "rgb5": [2, 2, 3],    "uso": "fundo de menus" },
@@ -116,8 +116,8 @@
     }
   },
   "modos_daltonico": {
-    "protanopia":   { "$comment": "LACUNA (Art Bible §5.2 pede 3 paletas e não define os valores; decisão de design visual do filho do Rodrigo). Sem sobreposição = igual à paleta normal até a aprovação.", "tokens": {} },
-    "deuteranopia": { "$comment": "LACUNA (ver protanopia).", "tokens": {} },
-    "tritanopia":   { "$comment": "LACUNA (ver protanopia).", "tokens": {} }
+    "protanopia":   { "$comment": "Issue #57, opção (a) aprovada pelo filho do Rodrigo: as 3 paletas propostas no V8 (PR #53) entram como estão (GDD v0.3 §12.4: 'Modo daltônico com 3 paletas (troca de tokens, ver Art Bible §5)'; Art Bible §5.2). Protanopia: sem troca; a paleta normal já passa sob a simulação de protanopia (palette-check --mode protanopia).", "tokens": {} },
+    "deuteranopia": { "$comment": "Issue #57 (a): class.batedor [29,28,8] -> [31,31,18] (GDD v0.3 §12.4). Sob deuteranopia, o pior par do grupo classes sobe de 12,3 (Mecânico × Batedor) para 14,3 (Mecânico × Atacador, que não muda); Mecânico × Batedor vai a 18,5 ΔE00.", "tokens": { "class.batedor": [31, 31, 18] } },
+    "tritanopia":   { "$comment": "Issue #57 (a): gen.bonus [29,12,27] -> [24,8,31] (GDD v0.3 §12.4). Sob tritanopia, pendente × bônus sobe de 14,6 para 20,9 ΔE00 (continua o pior par do grupo geradores).", "tokens": { "gen.bonus": [24, 8, 31] } }
   }
 }

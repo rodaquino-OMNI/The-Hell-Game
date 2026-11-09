@@ -2,10 +2,11 @@
 //  ?seed=N        semente da partida e das texturas procedurais (capturas de referência reproduzíveis)
 //  ?preset=low|medium|high   preset de resolução interna (padrão: render.default_preset)
 //  ?ps1=0 | ?ps1=snap:0,dither:0.5   intensidades PS1 (padrão: render.ps1)
-//  ?retro=1       MOCKUP do modo "Retro FPS" (D-13, D-14, D-15; marco A2b): 1ª pessoa com a ferramenta na mão,
-//                 barra de estado inferior e Pátio industrial. Sem o parâmetro nada muda.
-//  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   ferramenta e classe mostradas no mockup (Protetor
-//                 e Batedor ainda não existem na simulação, fase 4: só a vista muda)
+//  ?retro=1       (só com ?debug=1, D-33) modo "Retro FPS" (V9; D-13, D-14, D-15) sem passar pelo menu: 1ª pessoa com
+//                 a ferramenta na mão, barra de estado fina e Pátio industrial. O caminho do jogador é a opção do menu
+//                 (Opções > Visual PS1; render/retro/mode.ts). Sem o parâmetro nada muda.
+//  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   (só com ?debug=1) ferramenta e classe mostradas no
+//                 modo (Protetor e Batedor ainda não existem na simulação, fase 4: só a vista muda)
 //  ?stress=1      cena de pior caso dos orçamentos de render (V7, GDD-v0.3 §10.6; render/stress.ts): 6 personagens
 //                 das 5 classes, mapa inteiro visível, camadas do preset. A simulação fica parada; combina com
 //                 ?preset e ?retro=1
@@ -13,6 +14,7 @@
 // Sem `?seed`, a partida e as texturas continuam aleatórias como na fase 0.
 import { nextRandom } from "@thehell/sim";
 import { balance } from "../data.ts";
+import { debugEnabled } from "../debug-hooks.ts";
 import type { PresetName } from "./present.ts";
 import { parsePs1Param, type Ps1Intensity } from "./ps1.ts";
 
@@ -39,14 +41,23 @@ export function clientRandom(salt: number): () => number {
   return () => nextRandom(state);
 }
 
-/** mockup do modo "Retro FPS" ligado (`?retro=1`; D-13, D-14) */
-export const urlRetro: boolean = params.get("retro") === "1";
-
 export const RETRO_CLASSES = ["curandeiro", "mecanico", "atacador", "protetor", "batedor"] as const;
 export type RetroClass = (typeof RETRO_CLASSES)[number];
-const retroClassRaw = params.get("retro_class");
-/** classe da vista do mockup pedida na URL, ou indefinida (= classe da partida) */
-export const urlRetroClass: RetroClass | undefined = (RETRO_CLASSES as readonly string[]).includes(retroClassRaw ?? "") ? (retroClassRaw as RetroClass) : undefined;
+
+/**
+ * parâmetros de depuração do modo Retro FPS na query dada: `?retro=1` e `?retro_class=` só valem com `?debug=1`
+ * (D-33: o jogador liga o modo pelo menu). Exportada para o teste (packages/client/test/retro-mode.test.ts).
+ */
+export function parseRetroParams(search: string): { retro: boolean; cls: RetroClass | undefined } {
+  if (!debugEnabled(search)) return { retro: false, cls: undefined };
+  const q = new URLSearchParams(search), raw = q.get("retro_class");
+  return { retro: q.get("retro") === "1", cls: (RETRO_CLASSES as readonly string[]).includes(raw ?? "") ? (raw as RetroClass) : undefined };
+}
+const retroParams = parseRetroParams(typeof location === "undefined" ? "" : location.search);
+/** modo "Retro FPS" ligado pela URL de depuração (`?debug=1&retro=1`); o estado efetivo é `retroMode()` (retro/mode.ts) */
+export const urlRetro: boolean = retroParams.retro;
+/** classe da vista do modo pedida na URL de depuração, ou indefinida (= classe da partida) */
+export const urlRetroClass: RetroClass | undefined = retroParams.cls;
 
 /** cena de pior caso dos orçamentos de render (`?stress=1`; V7) */
 export const urlStress: boolean = params.get("stress") === "1";

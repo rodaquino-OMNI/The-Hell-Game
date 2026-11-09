@@ -1,7 +1,7 @@
 // Faixa de legendas de som no HUD (V8b; GDD-v0.3 §12.4 "legendas de sons" e §11 L218 "ícone direcional"). Dados do
 // barramento do áudio (audio/captions.ts, A-6): texto, categoria, setor, ×N e ttl. Aqui só o desenho:
 //  - faixa no centro embaixo, na mesma coluna do painel de espectador e da dica de interação (#bot no index.html: as
-//    três empilham sem se sobrepor em qualquer tamanho de fonte; no ?retro=1 a coluna fica acima da barra de estado);
+//    três empilham sem se sobrepor em qualquer tamanho de fonte; no modo Retro FPS a coluna fica acima da barra de estado, `--sb-h` em hud/layout.ts);
 //  - cada legenda: seta na direção do som (o mesmo setor da seta de ameaça) ou ponto sem direção, texto e ×N; a
 //    direção também vai em texto para leitor de tela, e as categorias do caçador levam borda de perigo (a informação
 //    não depende só de cor nem só do ícone; WCAG 2.2, 1.3.3 e 1.4.1);

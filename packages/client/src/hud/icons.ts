@@ -13,7 +13,7 @@ export const CLASS_ICON: Record<ClassName, string> = {
 };
 
 /**
- * mockup do modo Retro FPS (D-13): ícones das classes da fase 4, só para as vistas de Protetor e Batedor do A2b
+ * modo Retro FPS (V9, D-13): ícones das classes da fase 4, só para as vistas de depuração de Protetor e Batedor
  * (Art Bible §3: escudo redondo; capuz com ponta e cachecol)
  */
 export const PREVIEW_CLASS_ICON = {
@@ -28,6 +28,18 @@ export const STATE_ICON = {
   caged: svg(`<rect x="3" y="7" width="10" height="7"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/><path d="M8 10v2"/>`),
   dead: svg(`<path d="M3 3l10 10M13 3L3 13"/>`),
   escaped: svg(`<path d="M2 8h9"/><path d="M8 5l3 3-3 3"/><path d="M13 2v12"/>`),
+} as const;
+
+/**
+ * ícones das categorias do resumo de fim de partida (R6, issue #66 resposta 2b; GDD v0.2 §7.1): formas simples no
+ * mesmo traço 16×16 dos ícones do HUD, sempre ao lado do nome da categoria (aria-hidden: o leitor de tela lê só o
+ * nome). Objetivos: caixa marcada; Altruísmo: cruz de socorro; Sobrevivência: ampulheta; Audácia: raio
+ */
+export const SCORE_ICON = {
+  objectives: svg(`<rect x="2" y="2" width="12" height="12"/><path d="M5 8l2 2 4-5"/>`),
+  altruism: svg(`<path d="M6 2h4v4h4v4h-4v4H6v-4H2V6h4z"/>`),
+  survival: svg(`<path d="M4 2h8L4 14h8z"/>`),
+  boldness: svg(`<path d="M9 1L3 9h4l-1 6 6-8H8z"/>`),
 } as const;
 
 /** seta da ameaça, apontando para cima (girada pelo setor) */

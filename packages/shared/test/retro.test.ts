@@ -10,7 +10,7 @@ const yaml = readFileSync(root + "data/balance.yaml", "utf8");
 const palette = JSON.parse(readFileSync(root + "data/art/palette.json", "utf8")) as { tokens: Record<string, unknown> };
 const sheet = JSON.parse(readFileSync(root + "data/art/personagens.json", "utf8")) as { personagens: { id: string; pecas: { forma: string; osso?: string; cor: string }[] }[] };
 
-describe("modo Retro FPS (mockup A2b)", () => {
+describe("modo Retro FPS (V9; mockup A2b aprovado na issue #27)", () => {
   const r = parseBalance(yaml).render.retro;
 
   it("toda cor de render.retro é token da paleta; os do preset industrial são world.industrial.*", () => {
@@ -26,10 +26,23 @@ describe("modo Retro FPS (mockup A2b)", () => {
       expect(spec, id).toBeDefined();
       expect(ch, id).toBeDefined();
       for (const g of spec!.grupos) {
+        // peças feitas em código (luneta do Batedor, A2b 2c): cores da paleta
+        if ("pecas" in g) { for (const p of g.pecas) expect(palette.tokens[p.cor], `${id}: ${p.cor}`).toBeDefined(); continue; }
         const n = ch!.pecas.filter(p => p.forma !== "seg" && p.osso === g.osso && (!g.cores || g.cores.includes(p.cor))).length;
         expect(n, `${id}: ${g.osso}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("A2b 2c: o Batedor leva a luneta (peças em código), não arma", () => {
+    const g = r.viewmodel.classes.batedor!.grupos.find(x => "pecas" in x);
+    expect(g).toBeDefined();
+    expect(g && "pecas" in g ? g.pecas.every(p => p.cor !== "char.lamina") : false).toBe(true);
+  });
+
+  it("A2b 1b: a ferramenta encolhe para o canto (escala < 1)", () => {
+    expect(r.viewmodel.corner.scale).toBeLessThan(1);
+    expect(r.viewmodel.corner.scale).toBeGreaterThan(0);
   });
 
   it("balanço com intensidade de 0 a 1 (D-13)", () => {
