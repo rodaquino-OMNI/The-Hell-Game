@@ -478,6 +478,7 @@ export const BalanceSchema = z.object({
     target_weights: z.object({ proximity: num, generator_progress: num, injured: num, isolated: num, protected: num }).strict(), // §8.3
     target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     protected_hold: pos,                                         // §8.3 (D-52; LACUNA)
+    target_switch_min_interval: pos,                             // §8.3 (D-53: aceite "1 troca por segundo")
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
     search_samples: z.number().int().positive(), chase_projection: pos, memory_investigate_time: pos,      // técnicos (§8.1; D-35)
     dash_reacquire_dist: pos.positive(),                                                                   // §8.4, §9.1 (R8 passo 1; LACUNA)

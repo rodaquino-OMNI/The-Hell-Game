@@ -221,6 +221,9 @@ ai:
   hearing_investigate_time: 8
   target_weights: {proximity: 0.35, generator_progress: 0.25, injured: 0.20, isolated: 0.15, protected: -0.25}
   target_switch_margin: 0.15
+  # D-53 (§8.3, aceite: "não alterna de alvo mais de 1 vez por segundo"): intervalo mínimo entre trocas de alvo do
+  # caçador utility. Exceções: alvo capturado, preso, morto ou que escapou; alvo que deixou de ser candidato e lembrado.
+  target_switch_min_interval: 1.0
   isolated_radius: 8
   protected_radius: 4
   # D-52 (§8.3, valor LACUNA): histerese do termo "protegido" por tempo mínimo no estado. A leitura instantânea

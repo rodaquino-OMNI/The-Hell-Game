@@ -14,7 +14,7 @@ import { lineOfSight } from "../perception.ts";
 import { nextRandom } from "../rng.ts";
 import type { GameState, Hunter, HunterAi, HunterMode, Percept, SeenSurvivor, Survivor, Vec } from "../types.ts";
 import { perceive } from "./percept.ts";
-import { chooseTarget, nearAttacker } from "./utility.ts";
+import { chooseTarget, nearAttacker, utilityScore, utilityTerms } from "./utility.ts";
 
 /** grafo de transições válidas (GDD-v0.3 §8.2). Aceite: nenhuma transição fora dele em 1.000 partidas. */
 export const HUNTER_TRANSITIONS: Readonly<Record<HunterMode, readonly HunterMode[]>> = {
@@ -258,14 +258,23 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   // §8.3 (histerese) com a D-35: o alvo perseguido pela memória (fora de vista) continua sendo o atual; outro só
   // toma o lugar com placar acima do último placar dele mais a margem (correção do aceite "não alterna de alvo mais
   // de 1 vez por segundo")
-  // alvo que saiu do jogo sem passar pelo golpe (projétil, armadilha, morte, fuga pelo portão; estado público em
-  // p.gone): a memória dele não vale mais e ele não segura a histerese; o caçador escolhe outro na hora
-  const goneBefore = pursuedBefore >= 0 && p.gone.includes(pursuedBefore);
+  // alvo que saiu do jogo sem passar pelo golpe (projétil, morte, fuga pelo portão; estado público em p.gone) ou
+  // capturado pelo último golpe: a memória dele não vale mais e ele não segura a histerese; troca na hora
+  const gone = ai.captured || (pursuedBefore >= 0 && p.gone.includes(pursuedBefore));
   if (ai.memory && p.gone.includes(ai.memory.id)) ai.memory = null;
-  const remembered = pursuedBefore >= 0 && CHASE_MODES.includes(ai.mode) && !ai.captured && !goneBefore ? { id: pursuedBefore, score: ai.score } : undefined;
-  const choice = chooseTarget(cfg, p, candidates, pursuedBefore, remembered, held);
+  const remembered = pursuedBefore >= 0 && CHASE_MODES.includes(ai.mode) && !gone ? { id: pursuedBefore, score: ai.score } : undefined;
+  let choice = chooseTarget(cfg, p, candidates, pursuedBefore, remembered, held);
+  // D-53 (§8.3, "não alterna de alvo mais de 1 vez por segundo"): até `ai.target_switch_min_interval` depois da última
+  // troca, o caçador fica com o alvo perseguido se ele ainda é candidato (visto, passado o tempo de reação, fora do
+  // anti-tunnel) ou lembrado em perseguição. Exceções (troca na hora): alvo capturado, preso, morto ou que escapou
+  // (`gone`); alvo que deixou de ser candidato e não é lembrado (memória expirou, anti-tunnel, fora de Perseguir)
+  if (choice && pursuedBefore >= 0 && choice.id !== pursuedBefore && !gone && t - ai.switchedAt + EPS < b.ai.target_switch_min_interval) {
+    const keep = candidates.find(s => s.id === pursuedBefore);
+    if (keep) choice = { id: keep.id, score: utilityScore(cfg, utilityTerms(cfg, p, keep, held)) };
+    else if (remembered) choice = null;
+  }
   if (choice) {
-    if (choice.id !== ai.target) ai.switchedAt = t;
+    if (choice.id !== pursuedBefore) ai.switchedAt = t;
     ai.target = choice.id; ai.score = choice.score;
   } else { ai.target = -1; if (!remembered) ai.score = 0; ai.intercept = null; trackLoopMemory(cfg, ai, p.self, t); }
   const tgt = choice ? p.survivors.find(s => s.id === choice.id)! : null;
