@@ -209,6 +209,21 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-14 | a) mockup antes de construir (Rodrigo, 08/11/2026) | mini marco de arte A2b: capturas das ferramentas na mão e da barra de estado + até 4 perguntas ao filho em issue; construção só depois da aprovação |
 | D-15 | c) variante industrial do Pátio (Rodrigo, 08/11/2026) | catálogo de mapas da v1.0 inalterado (D-06); o visual industrial é variante de texturas e iluminação do Pátio, sem layout novo |
 | D-16 | a) meta pela vitória do caçador por partida (Rodrigo, 09/11/2026) | com D-01 b, a banda de 45–55% do GDD-v0.2 §7.6 vale para a vitória do caçador; a fuga por sobrevivente fica livre e é só medida (R8) |
+| D-17 | a) anunciar o MJ-A ao fechar o A2 (Rodrigo, 09/11/2026) | o A2 fecha com o cajado de mago variante (a), sem caduceu (escolha do aprovador, issue #24) |
+| D-18 | b) contorno sutil no caçador (Rodrigo, 09/11/2026) | legibilidade do caçador fora da lanterna (1,43:1 contra 3:1 da Art Bible §5.3) resolvida com contorno/borda de luz discreto, sem clarear a cena; entra na preparação do marco A3 |
+| D-19 | a) produção só no MJ-B (Rodrigo, 09/11/2026) | o MJ-A fica no staging; o deploy de produção acontece quando as regras v1 entrarem (MJ-B), com pedido explícito do Rodrigo |
+| D-20 | b) bônus de vitória para todos os vivos do time vencedor (Rodrigo, 09/11/2026) | mantém o comportamento do R1 (`endV1` em `packages/sim/src/game.ts`); diverge da leitura literal do GDD v0.3 §3.3 item 1; fica atrás de flag em `economy.win_coins_to` (pendente: entra com o R6) |
+| D-21 | b) revelação do gerador completo ao caçador em qualquer ponto do mapa (Rodrigo, 09/11/2026; corrigiu a resposta inicial a) | `generator.completed_reveal_global: true` |
+| D-22 | a) 5º gerador para equipes de 4–5 no ruleset v1 (Rodrigo, 09/11/2026) | pendente: item R7-mapas da Frente R (`docs/handoff/plano-frente-r.md`), sem mudar o layout 0 |
+| D-23 | b) 2–3 pilares para loops curtos de 8–12 m no ruleset v1 (Rodrigo, 09/11/2026) | pendente: R7-mapas; pilares como caixas em `walls` do layout resolvido; validador passa a exigir loop curto |
+| D-24 | a) 25 m só entre geradores obrigatórios (Rodrigo, 09/11/2026) | já implementado no validador do R2 |
+| D-25 | b) segunda saída na parede lateral (Rodrigo, 09/11/2026) | pendente: R7-mapas: `exit_x` no mapa e em `crossedExit` |
+| D-26 | a) stem "rescue" enquanto houver sobrevivente na gaiola (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | janela de decisão do resgate (GDD-v0.2 §3.2/§4.3); prioridade pressão final > perseguição > resgate > tensão > ambiente (`audio/musicState.ts`); medir em simulação: se o resgate passar de ~40% do tempo de partida, revisar |
+| D-27 | a) jogador escapado ou morto perde tensão e perseguição (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | pressão final e resgate continuam valendo; ele acompanha o time como espectador (`audio/musicState.ts`) |
+| D-28 | a) volume inicial 1,0 em todos os barramentos (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | mixagem masterizada a −16 LUFS (GDD-v0.3 §11); o jogador ajusta nos sliders (`data/balance.yaml` `audio.buses`) |
+| D-29 | gravação do volume com atraso de 0,25 s e rampa de 0,02 s (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `audio.volume_persist_delay` e `audio.volume_ramp_tc` em `data/balance.yaml` |
+| D-32 | produção antes do previsto, no MJ-B técnico completo (decisão do Rodrigo, 09/11/2026; substitui a D-19) | só a supervisão publica (workflow `Deploy produção`); gatilho: `ruleset: v1`, `hunter_brain: utility` e `bot_brain: competent` (se o R4 passou na prova) em `main`, `pnpm sim:check` ativo e verde na CI, 1.000 partidas por dificuldade sem trava, smoke verde contra o staging |
+| D-34 | modo tutorial na simulação exposto em dados (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | caçador passivo e etapas do GDD v0.3 §12.3 em `data/balance.yaml` seção `tutorial`; item da Frente R depois do MJ-B; UI e roteiro com a sessão Visual (V6) |
 
 ## 8. Riscos principais
 

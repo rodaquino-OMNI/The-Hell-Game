@@ -129,7 +129,7 @@ function finishGenerator(cfg: SimConfig, g: GameState, gen: Generator) {
   if (!cfg.v1) return;
   const gb = cfg.balance.generator, H = g.hunter;
   gen.revealed = gb.completed_reveal;
-  // LACUNA (GDD-v0.2 §3.4 × §6.2): a revelação alcança o caçador fora do raio de 25 m? Padrão conservador: não.
+  // GDD-v0.2 §3.4 × §6.2, D-21: com `completed_reveal_global` a revelação alcança o caçador fora do raio de 25 m.
   if (!noise(cfg, g, "generator_done", gen) && gb.completed_reveal_global) {
     H.alert = { x: gen.x, z: gen.z }; H.alertTime = gb.completed_reveal;
     if (H.ai) H.ai.heard = { x: gen.x, z: gen.z, at: g.t, dur: gb.completed_reveal };

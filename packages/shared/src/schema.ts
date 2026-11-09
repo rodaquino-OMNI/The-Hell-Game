@@ -1,6 +1,7 @@
 // Schema de data/balance.yaml (GDD v0.3; item G-01). Seções usadas pelo jogo são estritas;
-// as seções ainda não implementadas (audio, net) passam sem validação
-// detalhada até o agente dono implementá-las. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12).
+// a seção ainda não implementada (net) passa sem validação
+// detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
+// audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
 
 const num = z.number().finite();
@@ -16,6 +17,27 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+}).strict();
+
+/** ganho linear de barramento: 0 (mudo) a 1 (sem atenuação) */
+const gain01 = num.min(0).max(1);
+/** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
+const AudioSchema = z.object({
+  music: z.object({
+    // GDD-v0.2 §11: 3 a 5 stems; cada um é um estado musical do A-2 (GDD-v0.3 §11), sem repetição
+    stems: z.array(z.enum(["ambient", "tension", "chase", "final_pressure", "rescue"])).min(3).max(5)
+      .refine(a => new Set(a).size === a.length, "stems repetidos"),
+    tension_radius: pos.positive(), crossfade_bars: pos,
+    /** A-2: andamento e compasso (decisão do Rodrigo, 09/11/2026) e tom lido pelo A-3 */
+    bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
+    layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
+  }).strict(),
+  max_voices: z.number().int().positive(),
+  occlusion_lowpass_hz: pos.positive(),
+  loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
+  ducking_db: z.number().max(0),
+  buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
+  volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
 }).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
@@ -270,7 +292,7 @@ export const BalanceSchema = z.object({
   nav: NavSchema,
   maps: MapsSchema,
   render,
-  audio: z.record(z.string(), z.unknown()),
+  audio: AudioSchema,
   ui: UiSchema,
   net: z.record(z.string(), z.unknown()),
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
