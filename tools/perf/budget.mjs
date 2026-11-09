@@ -59,7 +59,7 @@ async function renderBudget(browser, preset, retro) {
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   // relógio parado: a cena só desenha quando o hook pede (um quadro por vista)
   await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?seed=${SEED}&preset=${preset}&stress=1${retro ? "&retro=1" : ""}`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&stress=1${retro ? "&retro=1" : ""}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
   await page.click("#go");
   const r = await page.evaluate(async (preset) => {
@@ -109,7 +109,7 @@ async function downloadBudget(browser) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   const t0 = performance.now();
-  await page.goto(`${url}/?seed=${SEED}`, { waitUntil: "commit" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "commit" });
   // "Jogar" clicável: botão visível e o módulo do jogo já rodou (menu ligado; gancho de render instalado)
   await page.waitForSelector("#go", { state: "visible" });
   await page.waitForFunction(() => typeof window.__thehellRender === "object");

@@ -1,8 +1,9 @@
 // Gancho de depuração da render para as capturas de referência (tools/visual/compare.mjs) e para medir
-// `renderer.info` (GDD-v0.3 §10.6). Só lê o estado; não altera a simulação.
+// `renderer.info` (GDD-v0.3 §10.6). Só lê o estado; não altera a simulação. Só existe com ?debug=1 (D-33).
 import type { GameState } from "@thehell/sim";
 import type * as THREE from "three";
 import { balance } from "../data.ts";
+import { exposeDebugHook } from "../debug-hooks.ts";
 import type { PresetName } from "./present.ts";
 import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
 import { getPs1, setPs1, type Ps1Intensity } from "./ps1.ts";
@@ -127,7 +128,8 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
       }
     },
   };
-  (window as unknown as { __thehellRender: RenderHook }).__thehellRender = hook;
+  // só com ?debug=1 (D-33)
+  exposeDebugHook("__thehellRender", hook);
 }
 
 /** pixels da tela (RGBA, linhas de cima para baixo) em base64, lidos no mesmo quadro (sem preserveDrawingBuffer) */

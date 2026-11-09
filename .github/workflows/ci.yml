@@ -28,6 +28,8 @@ jobs:
         run: pnpm check:palette
       - name: Validador de mapa (GDD v0.3 §9.1, todas as combinações de layout)
         run: pnpm maps:validate
+      - name: Porta de regressão do simulador (200 partidas contra data/sim/baseline.json; GDD v0.3 C-15, D-05)
+        run: pnpm sim:check --workers=2
       - name: Traduções pt-BR, en e es (GDD v0.3 §12.5)
         run: pnpm i18n:check
       - run: pnpm build

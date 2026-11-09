@@ -78,7 +78,7 @@ try {
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?seed=${SEED}&preset=${PRESET}`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${PRESET}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
@@ -130,7 +130,7 @@ try {
   const game = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
   game.on("pageerror", e => errors.push(e.message));
   await game.clock.install({ time: 0 });
-  await game.goto(`${url}/?seed=${SEED}`, { waitUntil: "load" });
+  await game.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
   await game.clock.pauseAt(1000);
   await game.click("#go");
   await game.evaluate(() => window.__thehellCharactersReady?.());

@@ -19,8 +19,7 @@ const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolv
 if (isMain) {
   const dir = process.env.PUBLIC_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
   // PORT=0: porta livre escolhida pelo sistema, anunciada na linha abaixo (scripts de teste: tools/lib/server.mjs)
-  const raw = process.env.PORT;
-  const port = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 8080;
+  const port = process.env.PORT === "0" ? 0 : Number(process.env.PORT) || 8080;
   const srv = createApp(dir).listen(port, () => {
     const addr = srv.address();
     console.log(`THE HELL ${VERSION} ouvindo na porta ${typeof addr === "object" && addr ? addr.port : port}`);

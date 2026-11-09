@@ -71,8 +71,8 @@ Metas do GDD v0.3 §10.6, limiares em `data/balance.yaml` `render.budgets`.
 
 1. Máquina com Intel UHD Graphics 620 (conferir em `chrome://gpu`: "GL_RENDERER" com "UHD Graphics 620"; aceleração por hardware ligada), carregador ligado, plano de energia equilibrado, outras abas e programas fechados.
 2. Chrome atual, janela de 1280×720 de área útil (ou tela cheia em monitor 720p). Zoom do navegador em 100%.
-3. Abrir `https://the-hell-staging.fly.dev/?stress=1&preset=high` e clicar em "Jogar". A partida fica parada; a tela mostra a vista de cima com o mapa inteiro, os 6 personagens e todas as camadas do preset.
-4. Esperar 10 s (shaders e modelos carregados). No console do DevTools (F12), rodar `await __thehellRender.fps(60)` sem mexer em nada: devolve quadros, segundos e FPS médio dos 60 s.
+3. Abrir `https://the-hell-staging.fly.dev/?debug=1&stress=1&preset=high` e clicar em "Jogar". A partida fica parada; a tela mostra a vista de cima com o mapa inteiro, os 6 personagens e todas as camadas do preset.
+4. Esperar 10 s (shaders e modelos carregados). Sem `?debug=1` o gancho não existe (D-33). No console do DevTools (F12), rodar `await __thehellRender.fps(60)` sem mexer em nada: devolve quadros, segundos e FPS médio dos 60 s.
 5. Repetir com `preset=medium` (padrão) e `preset=low`, e com `&retro=1` no preset padrão.
 6. Registrar na issue do V7: modelo da máquina, versão do Chrome, driver, resolução e o FPS de cada execução. Meta: `render.budgets.fps` (60) no preset padrão.
 
