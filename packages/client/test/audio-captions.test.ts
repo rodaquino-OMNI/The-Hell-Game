@@ -92,6 +92,17 @@ describe("audio/captions: emissão pelo diretor", () => {
     expect(c.intensity).toBeCloseTo(distanceGain(10, bal.audio.panner));
   });
 
+  it("partida nova (relógio volta) limpa as legendas da partida anterior", () => {
+    const r = rig(), g = state();
+    step(r, g);
+    g.survivors[1].st = "cage"; g.survivors[1].x = 0; g.survivors[1].z = -10;
+    step(r, g);
+    expect(keys(r.b.list())).toEqual(["caption.cage"]);
+    const h = state(); // relógio em 0, menor que o da partida anterior
+    r.dir.update(h, 0, STEP, undefined, 0);
+    expect(r.b.list()).toEqual([]);
+  });
+
   it("som recusado (play devolve null: sem vaga de voz ou sem contexto) não gera legenda", () => {
     const r = rig({ refuse: ["cage"] }), g = state();
     step(r, g);

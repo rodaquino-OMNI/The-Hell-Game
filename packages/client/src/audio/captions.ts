@@ -256,6 +256,8 @@ export const subscribeCaptions = (cb: (list: Caption[]) => void): (() => void) =
 export const getCaptions = (): Caption[] => getCaptionBus().list();
 /** avança `dt` s e expira (o diretor já chama a cada quadro em updateAudio; não chame de novo no HUD) */
 export const tickCaptions = (dt: number) => getCaptionBus().tick(dt);
+/** limpa todas as legendas na tela (o diretor já chama isso ao detectar partida nova) */
+export const clearCaptions = () => getCaptionBus().clear();
 /** liga/desliga as legendas (menu de opções) e grava no localStorage; desligar limpa a lista */
 export const setCaptionsEnabled = (on: boolean) => getCaptionBus().setEnabled(on);
 /** estado atual da opção (localStorage, ou `audio.captions.enabled_default`) */
