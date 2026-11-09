@@ -28,7 +28,8 @@
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
-//     contorno (D-38).
+//     contorno (D-38); issue #48: no modo Retro em 1ª pessoa (contorno × render.hunter_outline.retro_scale) o corpo
+//     fora do cone fica ≥ render.legibility.min_contrast em cada preset.
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [--baseline dir] [url]
 //   --baseline raiz de um checkout de main com `pnpm data` e o build do cliente (a CI usa um git worktree da base do
 //             PR, ou do main anterior ao push; ver .github/workflows/ci.yml). COST_MAIN_BUILD = desfecho do passo
@@ -516,6 +517,34 @@ try {
     if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
     if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
     if (cb.cr < lg.body_keep * cb0.cr) fail(`legibilidade: a camada A tira contraste do caçador sem o contorno (${cb.cr.toFixed(2)} < ${lg.body_keep} × ${cb0.cr.toFixed(2)})`);
+
+    // issue #48 (3b): no modo Retro em 1ª pessoa (`?retro=1`) o contorno leva render.hunter_outline.retro_scale; o
+    // corpo fora do cone continua ≥ render.legibility.min_contrast (Art Bible §5.3) em cada preset, com as camadas
+    // dele, na mesma cena LEG e na mesma máscara chapada. A 1ª pessoa passa pelo renderFrame do jogo (o fator entra lá)
+    const ho = balance.render.hunter_outline;
+    for (const preset of Object.keys(balance.render.presets)) {
+      const g = await openGame(browser, preset, undefined, url, "retro=1");
+      const shot = async (o) => {
+        const r = await g.page.evaluate(([LEG, o, outline0]) => {
+          const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
+          h.setHunterOutline(o.outline ?? outline0);
+          h.setOverrides({ damage: 0, time: null });
+          const a = LEG.view.yaw + LEG.angle * Math.PI / 180;
+          H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
+          H.a = Math.atan2(P.x - H.x, P.z - H.z);
+          H.windup = null;
+          return h.capture({ ...LEG.view, thirdPerson: false }, { hidden: o.hidden ?? [], flat: o.flat ?? [] });
+        }, [LEG, o, outlineDefault]);
+        return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")) };
+      };
+      const rbg = await shot({ hidden: ["hunter"] }), rflat = await shot({ flat: ["hunter"] });
+      const cr = contrast(rflat, rbg, await shot({}), rbg), cr0 = contrast(rflat, rbg, await shot({ outline: 0 }), rbg);
+      console.log(`legibilidade Retro 1ª pessoa (${preset}, contorno ${outlineDefault} × retro_scale ${ho.retro_scale}): fora do cone ${fmt(cr)}, sem contorno ${cr0.cr.toFixed(2)}:1`);
+      if (!cr.n) fail(`legibilidade Retro (${preset}): caçador fora da cena de prova`);
+      if (cr.cr < lg.min_contrast) fail(`legibilidade Retro (${preset}): corpo do caçador fora do cone em 1ª pessoa com contraste ${cr.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (issue #48, render.hunter_outline.retro_scale)`);
+      if (g.errors.length) fail(`erros no console (Retro ${preset}): ${g.errors.join(" | ")}`);
+      await g.page.close();
+    }
   }
 
   for (const { errors } of Object.values(pages)) if (errors.length) fail("erros no console: " + errors.join(" | "));

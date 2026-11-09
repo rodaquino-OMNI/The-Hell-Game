@@ -38,6 +38,7 @@ import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
 import { afterLoadIdle, startGate } from "./ui/start-gate.ts";
 import { charactersReady } from "./render/characters/runtime.ts";
 import { prefetchMatchCharacters } from "./render/characters/actors.ts";
+import { holdCount, resultsCount } from "./ui/results.ts";
 import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
@@ -102,6 +103,13 @@ exposeDebugHook("__thehellOptions", () => ({
 }));
 /** vista da câmera (yaw, pitch, 1ª/3ª pessoa) exposta às capturas (tools/art/a2b-capturas.mjs, v9-capturas.mjs); só com ?debug=1 */
 exposeDebugHook("__thehellView", view);
+/** contagem do resumo de fim (tools/ui/r6-e2e.mjs e tools/a11y/axe.mjs; só com ?debug=1): estado, congelar numa fração
+ *  (a em andamento ou a próxima: capturas e axe no meio da contagem) e pular */
+exposeDebugHook("__thehellResults", {
+  state: () => { const c = resultsCount(); return c ? { counting: c.counting, fraction: c.fraction } : null; },
+  hold: (p: number) => holdCount(p),
+  finish: () => resultsCount()?.finish(),
+});
 
 async function start() {
   if (gate.busy()) return;

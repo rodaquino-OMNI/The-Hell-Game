@@ -14,19 +14,19 @@ const cfgOf = (flags: Partial<typeof ALL>, ruleset: "v1" | "prototype" = "v1") =
 const extra = map.v1!;
 
 describe("flags de mapa do v1 (maps.v1)", () => {
-  it("os dados: 5º gerador (inerte com 3 sobreviventes) e saída lateral ligados (cliente do #79, B-1); pilares desligados (golpe pela quina)", () => {
-    expect(b.maps.v1).toEqual({ fifth_generator: true, short_loop_pillars: false, side_exit: true });
+  it("os dados: as três flags ligadas (5º gerador inerte com 3 sobreviventes; saída lateral e pilares desenhados pelo cliente desde o #79)", () => {
+    expect(b.maps.v1).toEqual(ALL);
   });
   it("makeConfig({ mapFlags }) sobrepõe só as flags dadas (capturas do cliente com ?debug=1)", () => {
     const c = makeConfig(b, map, { ruleset: "v1", mapFlags: { short_loop_pillars: true, side_exit: true } });
     expect(c.balance.maps.v1).toEqual(ALL);
-    const off = makeConfig(b, map, { ruleset: "v1", mapFlags: { side_exit: false } });
+    const off = makeConfig(b, map, { ruleset: "v1", mapFlags: { short_loop_pillars: false, side_exit: false } });
     expect(off.balance.maps.v1).toEqual({ ...ALL, short_loop_pillars: false, side_exit: false });
     expect(off.map.walls).toEqual(map.walls);
     expect(c.map.walls).toEqual([...map.walls, ...extra.pillars!]);
     expect(c.map.layouts!.exits[extra.side_exit!.replaces]).toEqual({ gate: extra.side_exit!.gate, exit_x: extra.side_exit!.exit_x });
     expect(makeConfig(b, map, { ruleset: "prototype", mapFlags: ALL }).map).toBe(map);
-    expect(b.maps.v1).toEqual({ ...ALL, short_loop_pillars: false }); // o balanço de origem não muda com as sobreposições
+    expect(b.maps.v1).toEqual(ALL); // o balanço de origem não muda com as sobreposições
   });
   it("protótipo: o mapa da config é o de topo, mesmo com as flags ligadas (paridade)", () => {
     const p = cfgOf(ALL, "prototype");

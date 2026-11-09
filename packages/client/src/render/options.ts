@@ -4,7 +4,7 @@
 //  ?ps1=0 | ?ps1=snap:0,dither:0.5   intensidades PS1 (padrão: render.ps1)
 //  ?retro=1       (só com ?debug=1, D-33) modo "Retro FPS" (V9; D-13, D-14, D-15) sem passar pelo menu: 1ª pessoa com
 //                 a ferramenta na mão, barra de estado fina e Pátio industrial. O caminho do jogador é a opção do menu
-//                 (Opções > Vídeo; render/retro/mode.ts). Sem o parâmetro nada muda.
+//                 (Opções > Visual PS1; render/retro/mode.ts). Sem o parâmetro nada muda.
 //  ?retro_class=curandeiro|mecanico|atacador|protetor|batedor   (só com ?debug=1) ferramenta e classe mostradas no
 //                 modo (Protetor e Batedor ainda não existem na simulação, fase 4: só a vista muda)
 //  ?stress=1      cena de pior caso dos orçamentos de render (V7, GDD-v0.3 §10.6; render/stress.ts): 6 personagens
