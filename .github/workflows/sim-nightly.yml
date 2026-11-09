@@ -1,0 +1,76 @@
+# Simulador noturno (item R5; GDD-v0.2 §15.2, GDD-v0.3 C-15 e D-05 a): 10.000 partidas (`sim.nightly` em
+# data/balance.yaml), comparadas com a linha de base data/sim/baseline.json pelas tolerâncias de `sim.regression`.
+# Relatório Markdown e JSON como artefato. Abre issue SÓ se o simulador detectar regressão (métrica pior que a
+# tolerância, trava, exceção, partida sem fim ou transição fora do grafo); falha da própria ferramenta não abre issue.
+name: Simulador noturno
+on:
+  schedule:
+    - cron: "17 6 * * *" # 03:17 em Brasília
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sim-nightly
+  cancel-in-progress: false
+jobs:
+  sim:
+    name: 10.000 partidas contra a linha de base
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      regression: ${{ steps.sim.outputs.regression }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.1.0 # v6.1.1 (03/11/2026) tem menos de 2 semanas
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm data
+      - name: Simulador (pnpm sim:nightly)
+        id: sim
+        run: |
+          out="$RUNNER_TEMP/sim"
+          mkdir -p "$out"
+          set +e
+          pnpm sim:nightly --workers=2 --json="$out/nightly.json" --md="$out/nightly.md" | tee "$out/console.txt"
+          code=${PIPESTATUS[0]}
+          set -e
+          # regressão = o simulador terminou e marcou `failed` no JSON; sem JSON (a ferramenta quebrou) não abre issue
+          if [ -f "$out/nightly.json" ] && [ "$(jq -r .failed "$out/nightly.json")" = "true" ]; then
+            echo "regression=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "regression=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f "$out/nightly.md" ]; then cat "$out/nightly.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$code"
+      - name: Publicar relatório
+        if: always()
+        uses: actions/upload-artifact@v7.0.2 # tag de 07/10/2026 (≥ 2 semanas)
+        with:
+          name: simulador-noturno
+          path: ${{ runner.temp }}/sim
+          if-no-files-found: ignore
+          retention-days: 30
+  issue:
+    name: Abrir issue de regressão
+    needs: sim
+    if: always() && needs.sim.outputs.regression == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: gh issue create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="O simulador noturno (10.000 partidas, \`pnpm sim:nightly\`) reprovou contra \`data/sim/baseline.json\` com as tolerâncias de \`sim.regression\` (data/balance.yaml; GDD-v0.3 C-15, D-05 a).
+
+          Commit: ${GITHUB_SHA}
+          Execução, resumo e artefato \`simulador-noturno\` (relatório Markdown e JSON): ${RUN_URL}
+
+          Se a mudança de comportamento for intencional, a linha de base se atualiza em PR explícito com o relatório antes/depois (cabeçalho de tools/sim/run.ts)."
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Simulador noturno: regressão detectada ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})" \
+            --body "$body"
