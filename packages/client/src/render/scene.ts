@@ -12,7 +12,7 @@ import { cameraFov } from "./motion.ts";
 import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
 import { clientRandom, urlPreset, urlRetro, urlRetroClass, type RetroClass } from "./options.ts";
 import { createPresenter, type Presenter } from "./present.ts";
-import { Ps1Material, ps1Uniforms } from "./ps1.ts";
+import { Ps1Material, ps1Uniforms, setHunterOutlineRetroView } from "./ps1.ts";
 import { createIndustrial, type Industrial } from "./retro/industrial.ts";
 import { createViewmodel, type Viewmodel } from "./retro/viewmodel.ts";
 import { createGenVisual, createLock, type GenVisual } from "./states.ts";
@@ -240,6 +240,8 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
 /** posiciona câmera e luz do jogador e desenha o quadro (alvo em baixa resolução → passe final) */
 export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; pitch: number; thirdPerson: boolean }) {
   placeCamera(ctx, G, view);
+  // issue #48: contorno do caçador mais fraco só no modo Retro em 1ª pessoa (render.hunter_outline.retro_scale)
+  setHunterOutlineRetroView(!!ctx.retro && !view.thirdPerson);
   drawFrame(ctx, G, !view.thirdPerson);
 }
 

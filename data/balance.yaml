@@ -478,7 +478,14 @@ render:
   # 1,2 = 1,99 / 0,926, 2,84 / 0,904, 3,34 / 0,895; power 1,5 × 1,2 = 2,54 / 0,908; power 2 × 1,2 = 2,12 / 0,911;
   # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
   # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
-  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
+  # retro_scale (issue #48, resposta 3b do filho do Rodrigo, 09/11/2026: na 1ª pessoa do modo Retro (?retro=1) o
+  # caçador continua parecendo ele, mas o contorno fica claro demais; respostas 1a e 2a: manter o contorno forte na
+  # 3ª pessoa): fator sobre a intensidade escolhida (opção do jogador, V8) só no Retro em 1ª pessoa; a 3ª pessoa fica
+  # igual. Escolha: o menor fator (passo 0,05) que mantém o corpo fora do cone ≥ legibility.min_contrast (Art Bible
+  # §5.3) no Retro em 1ª pessoa nos três presets, na cena LEG com a máscara chapada de tools/visual/compare.mjs.
+  # Contraste fora do cone com o fator 1 / 0,7 / 0,4: low 4,70 / 3,84 / 2,96; medium 4,76 / 3,91 / 3,02;
+  # high 3,61 / 3,06 / 2,45 (o high limita: 0,65 dá 2,95). Conferido em tools/visual/compare.mjs (legibilidade Retro)
+  hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7}
   models:
     survivor_tris: [300, 600]
     hunter_tris: [800, 1200]
