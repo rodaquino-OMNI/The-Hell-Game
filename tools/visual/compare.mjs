@@ -157,7 +157,7 @@ async function openGame(browser, preset, viewport) {
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
+  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
   await page.clock.pauseAt(1000);
   await page.click("#go");
   // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
@@ -363,7 +363,7 @@ try {
   if (shotsDir) {
     mkdirSync(shotsDir, { recursive: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
-    await page.goto(`${url}/?seed=${SEED}`, { waitUntil: "load" });
+    await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
     await page.click("#go");
     await page.waitForTimeout(1500);
     for (const [name, v] of [["ligado", 1], ["desligado", 0]]) {
@@ -379,7 +379,7 @@ try {
     for (const preset of Object.keys(balance.render.presets)) {
       const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
       await p.clock.install({ time: 0 });
-      await p.goto(`${url}/?seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
+      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
       await p.clock.pauseAt(1000);
       await p.click("#go");
       await p.evaluate(() => window.__thehellCharactersReady?.());

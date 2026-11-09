@@ -6,6 +6,7 @@
 // `audio.volume_ramp_tc` e `audio.volume_persist_delay`; taxa do contexto: `audio.compose.sample_rate` (a dos stems, A-3).
 import type { Balance } from "@thehell/shared";
 import { balance } from "../data.ts";
+import { exposeDebugHook } from "../debug-hooks.ts";
 
 /** barramentos de entrada: os sliders de música, efeitos, voz e UI (GDD-v0.3 §11, Mixagem) */
 export const BUSES = ["music", "sfx", "voice", "ui"] as const;
@@ -256,10 +257,11 @@ declare global {
   interface Window { __thehellAudio?: () => AudioHookState }
 }
 
-/** no navegador: desbloqueio no gesto, gravação ao sair da página e gancho só-leitura do e2e (tools/audio/e2e.mjs).
+/** no navegador: desbloqueio no gesto, gravação ao sair da página e gancho só-leitura do e2e (tools/audio/e2e.mjs, só com ?debug=1).
  *  Nada disso cria o AudioContext. */
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   getEngine().installUnlock(window);
   window.addEventListener("pagehide", () => getEngine().flushVolumes());
-  window.__thehellAudio = () => { const e = getEngine(); return { state: e.state(), buses: e.volumes(), plays: e.plays() }; };
+  // gancho só com ?debug=1 (D-33)
+  exposeDebugHook("__thehellAudio", (): AudioHookState => { const e = getEngine(); return { state: e.state(), buses: e.volumes(), plays: e.plays() }; });
 }
