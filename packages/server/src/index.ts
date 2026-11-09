@@ -22,6 +22,7 @@ if (isMain) {
   const port = process.env.PORT === "0" ? 0 : Number(process.env.PORT) || 8080;
   const srv = createApp(dir).listen(port, () => {
     const addr = srv.address();
+    // tools/lib/server.mjs lê a porta real desta linha (regex /ouvindo na porta (\d+)/): mantenha o texto em sincronia
     console.log(`THE HELL ${VERSION} ouvindo na porta ${typeof addr === "object" && addr ? addr.port : port}`);
   });
 }
