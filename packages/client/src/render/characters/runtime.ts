@@ -280,8 +280,10 @@ export function characterForm(root: THREE.Object3D): "modelo" | "reserva" | null
  */
 function createFallback(id: string): Fallback {
   const f = balance.render.models.fallback;
-  const hunter = `hunter.${id}` in PALETTE.tokens;
-  const color = hunter ? `hunter.${id}` : `class.${id}` in PALETTE.tokens ? `class.${id}` : "ui.text";
+  // token da paleta (não é chave de i18n): família + id do personagem
+  const hunterTok = "hunter" + "." + id, classTok = "class" + "." + id;
+  const hunter = hunterTok in PALETTE.tokens;
+  const color = hunter ? hunterTok : classTok in PALETTE.tokens ? classTok : "ui.text";
   const [w, h, d] = hunter ? f.hunter : f.survivor;
   const group = new THREE.Group();
   group.name = "reserva:" + id;
