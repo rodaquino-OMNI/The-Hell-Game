@@ -17,5 +17,5 @@ export {
 export { newBotAi, updateBotAi, type BotEffects } from "./ai/bots.ts";
 // modo tutorial (D-34, GDD-v0.3 §12.3); os tipos GameMode, GameOptions, TutorialState, TutorialStepName e
 // TutorialTarget saem de types.ts
-export { rescueAllowed, startTutorial, tutorialFrame, updateTutorial, type TutorialFrame } from "./tutorial.ts";
+export { rescueAllowed, skipTutorialStep, startTutorial, tutorialGoal, tutorialFrame, updateTutorial, type TutorialFrame } from "./tutorial.ts";
 export { TUTORIAL_STEPS } from "@thehell/shared";
