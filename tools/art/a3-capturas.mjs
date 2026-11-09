@@ -5,21 +5,22 @@
 //  - o mesmo no mockup `?retro=1` (1ª pessoa), fora do cone, antes e depois;
 //  - montagens por preset (recorte em volta do caçador: fora antes | fora depois | dentro antes | dentro depois) e do
 //    modo retro (antes | depois).
-// A cena é a de prova de legibilidade de tools/visual/compare.mjs (LEG e LEG_IN): vista para o noroeste a partir do
-// spawn, caçador a 8 m e 40° (fora) ou 8° (dentro) à esquerda da vista, de frente para o jogador.
+// A cena é a de prova de legibilidade de tools/visual/compare.mjs (LEG e LEG_IN de tools/lib/capture-page.mjs, com o
+// mesmo `?ruleset=prototype`, layout 0): vista para o noroeste a partir do spawn, caçador a 8 m e 40° (fora) ou 8°
+// (dentro) à esquerda da vista, de frente para o jogador.
 // Chromium do Playwright com SwiftShader, 1280×720 com deviceScaleFactor 2, semente fixa e relógio parado.
 // Uso: node tools/art/a3-capturas.mjs <pasta de saída> [url] [--forma potência,amount --sufixo nome] [--presets a,b]
 //   (sem url, sobe packages/server/dist/server.mjs). --forma troca só nesta captura a forma do contorno (o padrão é
 //   render.hunter_outline) para comparar opções de arte; --sufixo entra no nome dos arquivos do "depois"
 //   (ex.: --forma 1,1.05 --sufixo fraco → a3-contorno-medium-fraco.png, patio-medium-fora-do-cone-fraco.png)
 // Pré-requisito: pnpm build.
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { decodePng, encodePng } from "../visual/png.mjs";
+import { startServer } from "../lib/server.mjs";
+import { LEG, LEG_IN, RULES, SEED, gotoPaused } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -33,21 +34,17 @@ const out = argv[0];
 if (!out) { console.error("uso: node tools/art/a3-capturas.mjs <pasta de saída> [url]"); process.exit(2); }
 mkdirSync(out, { recursive: true });
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
-const SEED = 1234;
-/** cena de prova (a mesma de tools/visual/compare.mjs): vista, distância e ângulo do caçador fora e dentro do cone */
-const VIEW = { yaw: 0.52, pitch: -0.1 };
-const DISTANCE = 8, OUT = 40, IN = 8;
+/** cena de prova (a mesma de tools/visual/compare.mjs, tools/lib/capture-page.mjs): vista, distância e ângulo do
+ *  caçador fora e dentro do cone; a 1ª/3ª pessoa é escolhida em cada captura */
+const VIEW = { yaw: LEG.view.yaw, pitch: LEG.view.pitch };
+const DISTANCE = LEG.distance, OUT = LEG.angle, IN = LEG_IN.angle;
 /** recorte das montagens em px de tela (deviceScaleFactor 2), centrado no caçador */
 const CROP = [420, 640];
 const outline = balance.render.hunter_outline.intensity;
 
 let url = argv[1], server;
-if (!url) {
-  const port = process.env.A3_PORT ?? "18734";
-  url = `http://127.0.0.1:${port}`;
-  server = spawn(process.execPath, [join(root, "packages/server/dist/server.mjs")], { env: { ...process.env, PORT: port }, stdio: ["ignore", "ignore", "inherit"] });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs), como os outros scripts
+if (!url) ({ url, child: server } = await startServer());
 
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const errors = [], files = [];
@@ -56,10 +53,9 @@ async function open(query) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: "pt-BR" });
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.clock.install({ time: 0 });
-  // ganchos de depuração só com ?debug=1 (D-33)
-  await page.goto(`${url}/?debug=1&seed=${SEED}&${query}`, { waitUntil: "load" });
-  await page.clock.pauseAt(1000);
+  // ganchos de depuração só com ?debug=1 (D-33); relógio instalado e pausado antes de navegar, como em
+  // tools/visual/compare.mjs (tools/lib/capture-page.mjs)
+  await gotoPaused(page, `${url}/?debug=1&seed=${SEED}&${RULES}&${query}`);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
   await page.evaluate((f) => window.__thehellRender.setHunterOutlineShape(f), forma);
