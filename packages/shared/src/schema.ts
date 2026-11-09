@@ -294,8 +294,11 @@ const render = z.object({
     bootstrap_resamples: z.number().int().positive(), ci: num.positive().lt(1), seed: z.number().int(), ci_runner_margin: pos,
     /** D-48: "warn" = resultado de falha do custo vira aviso visível e não reprova a CI; "fail" = reprova (D-44) */
     ci_mode: z.enum(["warn", "fail"]),
-    /** D-49 (issue #59): diferença máxima de razão PR − main (mesmo job) no limite inferior do IC antes de reprovar */
-    main_delta: pos,
+    /**
+     * D-51 (substitui main_delta de D-49): diferença relativa máxima do ms/quadro com A+B, PR_AB / main_AB − 1 (mesmo
+     * job, pareada por rodada), no limite inferior do IC antes de reprovar
+     */
+    main_rel_delta: pos,
   }).strict(),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */

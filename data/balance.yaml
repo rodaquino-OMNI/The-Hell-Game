@@ -398,7 +398,10 @@ render:
   # Na CI (sem GPU; SwiftShader na CPU) a razão depende do tipo de runner: runners de ~34–49 ms/quadro sem camadas
   # dão 1,26–1,32×, runners de ~65 ms dão 1,39–1,43× (o PR #53 falhou com 1,43×). D-44 (supervisão por delegação do
   # Rodrigo, 09/11/2026; docs/plano-construcao.md §7): na CI a medida é proxy de regressão (render.cost_check abaixo);
-  # o teto de 1,4× vale para hardware real e a otimização de bloom/dither segue; subir o teto foi rejeitado
+  # o teto de 1,4× vale para hardware real e a otimização de bloom/dither segue; subir o teto foi rejeitado.
+  # D-51 (supervisão por delegação do Rodrigo, 09/11/2026): D-44 (a) encerrada com os ganhos bit a bit idênticos do
+  # PR #81; a folga até 1,3× deixa de ser meta. 1,4× segue como orçamento de hardware (procedimento manual da UHD 620
+  # em docs/runbook.md); na CI a razão só aparece no log e no resumo do job (portão em ms/quadro, main_rel_delta abaixo)
   layer_cost_factor: 1.4
   # D-44 (b): como tools/visual/compare.mjs mede o custo das camadas contra layer_cost_factor (tools/visual/cost-stats.mjs).
   # pairs pares intercalados ABBA (A = sem camadas, B = A+B), cada medida com warmup quadros descartados e frames
@@ -426,11 +429,19 @@ render:
   # razão num run (IC [1,28, 1,32] com a dispersão do PR #53; [1,52, 1,53] no PR #68); para código igual com ruído
   # independente nos dois builds o IC da diferença fica em [−0,04, +0,05] (packages/client/test/cost-stats.test.ts),
   # então lo > 0,05 só com regressão real, e uma alta de 0,10 na razão do PR já reprova (mesmo teste).
-  # Com o build de main, o teto absoluto (layer_cost_factor × (1 + ci_runner_margin))
-  # vira só aviso. Complemento de D-49 (supervisão por delegação do Rodrigo, 09/11/2026): sem build de main
+  # main_delta foi removido por D-51 (abaixo): a diferença de razão segue no log e no resumo do job, sem limite.
+  # Complemento de D-49 (supervisão por delegação do Rodrigo, 09/11/2026): sem build de main
   # utilizável (build ausente, main sem o gancho de custo, exceção do lado de main) a comparação não é feita e fica só
   # um aviso, sem portão absoluto (costGateOutcome em tools/visual/cost-stats.mjs)
-  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_delta: 0.05}
+  # main_rel_delta (D-51, supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7; substitui
+  # main_delta): o portão contra main usa o ms/quadro ABSOLUTO com A+B, PR × main no mesmo job. Por rodada de
+  # crossOrder, rel = PR_AB / main_AB − 1; a CI reprova só se o limite inferior do IC (nível ci) da mediana de rel
+  # passar de main_rel_delta = 0,05 (+5%); aviso se a mediana passar. Motivo: a razão A+B ÷ sem camadas penaliza
+  # otimizar a base (o denominador encolhe e a razão sobe sem nada ficar mais lento); a razão e a comparação dela com
+  # main ficam só no log e no resumo do job. 0,05: o valor de D-51, o mesmo de main_delta; ruído independente nos dois
+  # builds com a dispersão do PR #53 dá IC de rel dentro de [−3%, +4%] para código igual, uma alta de 10% em A+B
+  # reprova e uma de 2% passa (packages/client/test/cost-stats.test.ts)
+  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_rel_delta: 0.05}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,

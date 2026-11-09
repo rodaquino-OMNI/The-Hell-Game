@@ -10,9 +10,10 @@
 //     de layer_cost_factor (o orçamento de hardware); "pass" caso contrário;
 //   - costOutcome / ghaWarning (D-48): com cost_check.ci_mode "warn" o "fail" vira aviso que não reprova; o texto do
 //     aviso vai numa anotação ::warning do GitHub Actions e no resumo do job;
-//   - crossOrder / judgeVsMain / costVsMain / vsMainOutcome (issue #59, D-49): o PR e o build de main medidos no mesmo
-//     job, em rodadas intercaladas; reprova só se o limite inferior do IC de (razão do PR − razão de main) passar de
-//     cost_check.main_delta. Com o build de main o teto absoluto de D-44 vira só aviso;
+//   - crossOrder / judgeVsMain / costVsMain / vsMainOutcome / costInfo (issue #59, D-49; critério de D-51): o PR e o
+//     build de main medidos no mesmo job, em rodadas intercaladas; reprova só se o limite inferior do IC da diferença
+//     relativa do ms/quadro com A+B (PR_AB / main_AB − 1, pareada por rodada) passar de cost_check.main_rel_delta.
+//     A razão A+B ÷ sem camadas (e a comparação dela com main e com o teto de D-44) fica só no log e no resumo;
 //   - costGateOutcome (complemento de D-49, supervisão por delegação do Rodrigo, 09/11/2026): o desfecho do portão.
 //     Sem build de main utilizável (passo falhou, build ou render.layer_a ausentes, main sem o gancho de custo,
 //     servidor de main não subiu, exceção no meio da medida do lado de main) a comparação não é feita: só aviso
@@ -132,9 +133,10 @@ export function crossOrder(i) {
 }
 
 /**
- * decisão da issue #59 sobre o IC da diferença (razão do PR − razão de main): "fail" se lo > delta (regressão certa
- * em relação a main, medida na mesma máquina); "warn" se a mediana > delta; senão "pass". Valor não finito ou delta
- * negativo é erro (nunca "pass" silencioso)
+ * decisão do portão contra main sobre o IC: "fail" se lo > delta (regressão certa em relação a main, medida na mesma
+ * máquina); "warn" se a mediana > delta; senão "pass". Com D-51 o IC é o da diferença relativa do ms/quadro com A+B
+ * (PR_AB / main_AB − 1) e delta = cost_check.main_rel_delta. Valor não finito ou delta negativo é erro (nunca "pass"
+ * silencioso)
  */
 export function judgeVsMain({ median: med, lo }, delta) {
   if (![med, lo, delta].every(Number.isFinite) || delta < 0) {
@@ -146,9 +148,12 @@ export function judgeVsMain({ median: med, lo }, delta) {
 }
 
 /**
- * razões pareadas de cada build e diferença por rodada (PR − main), IC por bootstrap da mediana das diferenças e
- * decisão de judgeVsMain. `pr` e `main` = { a, b } (ms por quadro sem camadas e com A+B; mesmo índice = mesma rodada
- * de crossOrder); `cfg` = render.cost_check (main_delta, bootstrap_resamples, ci, seed)
+ * D-51 (supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): portão contra main no ms/quadro
+ * ABSOLUTO com A+B. `pr` e `main` = { a, b } (ms por quadro sem camadas e com A+B; mesmo índice = mesma rodada de
+ * crossOrder); `cfg` = render.cost_check (main_rel_delta, bootstrap_resamples, ci, seed). Por rodada, a diferença
+ * relativa rel = PR_AB / main_AB − 1; IC por bootstrap da mediana de rel e decisão de judgeVsMain contra
+ * main_rel_delta. A razão A+B ÷ sem camadas de cada build e a diferença (razão do PR − razão de main), com IC, saem
+ * em `ratio` só para informação: a razão penaliza otimizar a base (o denominador encolhe), por isso não reprova
  */
 export function costVsMain(pr, main, cfg) {
   const n = pr.a.length;
@@ -156,48 +161,63 @@ export function costVsMain(pr, main, cfg) {
   const all = [...pr.a, ...pr.b, ...main.a, ...main.b];
   const bad = all.findIndex(x => !(Number.isFinite(x) && x > 0));
   if (bad >= 0) throw new Error(`costVsMain: tempo inválido (${all[bad]} ms) na rodada ${bad % n}`);
+  const boot = { resamples: cfg.bootstrap_resamples, ci: cfg.ci, seed: cfg.seed };
+  const rels = pr.b.map((x, i) => x / main.b[i] - 1);
+  const ci = bootstrapCi(rels, boot);
   const prRatios = pr.a.map((x, i) => pr.b[i] / x), mainRatios = main.a.map((x, i) => main.b[i] / x);
   const diffs = prRatios.map((r, i) => r - mainRatios[i]);
-  const ci = bootstrapCi(diffs, { resamples: cfg.bootstrap_resamples, ci: cfg.ci, seed: cfg.seed });
-  if (![ci.median, ci.lo, ci.hi].every(Number.isFinite)) throw new Error("costVsMain: IC não finito");
+  const rci = bootstrapCi(diffs, boot);
+  if (![ci.median, ci.lo, ci.hi, rci.median, rci.lo, rci.hi].every(Number.isFinite)) throw new Error("costVsMain: IC não finito");
   return {
-    diffs, ...ci, delta: cfg.main_delta, prMedian: median(prRatios), mainMedian: median(mainRatios),
-    verdict: judgeVsMain(ci, cfg.main_delta),
+    rels, ...ci, delta: cfg.main_rel_delta,
+    prAbMs: median(pr.b), mainAbMs: median(main.b), prBaseMs: median(pr.a), mainBaseMs: median(main.a),
+    ratio: { diffs, ...rci, prMedian: median(prRatios), mainMedian: median(mainRatios) },
+    verdict: judgeVsMain(ci, cfg.main_rel_delta),
   };
 }
 
+const x2 = (n) => `${n.toFixed(2)}×`, d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
+const p1 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n * 100).toFixed(1)}%`;
+
 /**
- * o que a CI faz com a comparação com main (issue #59). `rel` = costVsMain; `abs` = costVerdict do PR (D-44), que
- * aqui só anota; `mode` = render.cost_check.ci_mode. Devolve { failing, warnings }: failing só com rel.verdict "fail"
- * e mode "fail"; warnings = textos de uma linha para a anotação e o resumo do job (rel "warn", rel "fail" em modo
- * warn, e o teto absoluto de D-44 passado, que nunca reprova quando há build de main).
- * `ctx` = { view, baseMs (ms/quadro sem camadas do PR), mainBaseMs (o mesmo em main), ciLevel }
+ * o que a CI faz com a comparação com main (D-51). `rel` = costVsMain; `mode` = render.cost_check.ci_mode. Devolve
+ * { failing, warnings }: failing só com rel.verdict "fail" e mode "fail"; warnings = textos de uma linha para a
+ * anotação e o resumo do job (rel "warn", rel "fail" em modo warn). A razão A+B ÷ sem camadas e o teto absoluto de
+ * D-44 não entram aqui (são informativos: costInfo). `ctx` = { view, ciLevel }
  */
-export function vsMainOutcome(rel, abs, mode, { view, baseMs, mainBaseMs, ciLevel }) {
+export function vsMainOutcome(rel, mode, { view, ciLevel }) {
   if (mode !== "warn" && mode !== "fail") throw new Error(`vsMainOutcome: ci_mode inválido (${mode})`);
-  const x2 = (n) => `${n.toFixed(2)}×`, d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
   const pct = Math.round(ciLevel * 100);
   const warnings = [];
   const failing = rel.verdict === "fail" && mode === "fail";
   if (rel.verdict !== "pass" && !failing) {
     const why = rel.verdict === "fail"
-      ? `limite inferior do IC acima de ${d2(rel.delta)}: reprovaria, mas ci_mode warn não reprova`
-      : `mediana da diferença acima de ${d2(rel.delta)}, limite inferior do IC ≤ ${d2(rel.delta)}: aviso, não reprova`;
-    warnings.push(`vista ${view}: PR ${x2(rel.prMedian)} × main ${x2(rel.mainMedian)} no mesmo job, diferença mediana ${d2(rel.median)}, IC ${pct}% [${d2(rel.lo)}, ${d2(rel.hi)}]; ${why}`);
-  }
-  if (abs.verdict !== "pass") {
-    const what = abs.verdict === "fail" ? `limite inferior do IC acima do teto da CI ${x2(abs.fail)}` : `mediana acima do orçamento ${x2(abs.budget)}`;
-    warnings.push(`vista ${view}: razão absoluta do PR ${x2(abs.median)}, IC ${pct}% [${x2(abs.lo)}, ${x2(abs.hi)}], base ${baseMs.toFixed(1)} ms/quadro sem camadas (main ${mainBaseMs.toFixed(1)}); ${what}: só aviso, o portão é a comparação com main (issue #59)`);
+      ? `limite inferior do IC acima de ${p1(rel.delta)}: reprovaria, mas ci_mode warn não reprova`
+      : `mediana acima de ${p1(rel.delta)}, limite inferior do IC ≤ ${p1(rel.delta)}: aviso, não reprova`;
+    warnings.push(`vista ${view}: A+B ${rel.prAbMs.toFixed(1)} ms/quadro no PR × ${rel.mainAbMs.toFixed(1)} em main no mesmo job, diferença relativa mediana ${p1(rel.median)}, IC ${pct}% [${p1(rel.lo)}, ${p1(rel.hi)}]; ${why}`);
   }
   return { failing, warnings };
 }
 
-/** título da anotação ::warning do portão de custo das camadas (D-49) */
+/**
+ * linha informativa para o log e o resumo do job (D-51): o portão (ms/quadro com A+B, PR × main) e, só para
+ * informação, a razão A+B ÷ sem camadas dos dois builds com a diferença e o IC, e a razão do PR contra o teto
+ * absoluto de D-44 (`abs` = costVerdict do PR). Nada daqui reprova nem vira anotação
+ */
+export function costInfo(rel, abs, { view, ciLevel }) {
+  const pct = Math.round(ciLevel * 100), r = rel.ratio;
+  const gate = `A+B ${rel.prAbMs.toFixed(1)} ms/quadro no PR × ${rel.mainAbMs.toFixed(1)} em main, diferença relativa ${p1(rel.median)} [${p1(rel.lo)}, ${p1(rel.hi)}], limite ${p1(rel.delta)} → ${rel.verdict}`;
+  const info = `informativo: sem camadas ${rel.prBaseMs.toFixed(1)} × ${rel.mainBaseMs.toFixed(1)} ms/quadro; razão A+B ÷ sem camadas PR ${x2(r.prMedian)} × main ${x2(r.mainMedian)}, diferença ${d2(r.median)} [${d2(r.lo)}, ${d2(r.hi)}]; razão do PR ${x2(abs.median)} [${x2(abs.lo)}, ${x2(abs.hi)}] contra o orçamento ${x2(abs.budget)} e o teto ${x2(abs.fail)} de D-44 → ${abs.verdict} (não reprova)`;
+  return `vista ${view}: ${gate} (IC ${pct}%, D-51); ${info}`;
+}
+
+/** título da anotação ::warning do portão de custo das camadas (D-49; critério de D-51) */
 export const COST_TITLE = "Custo das camadas (D-49)";
 
 /**
  * desfecho do portão de custo das camadas na CI (D-49 e complemento, docs/plano-construcao.md §7). `cmp`:
- *   - { rel, abs } com a comparação com main feita (rel = costVsMain, abs = costVerdict do PR): vsMainOutcome;
+ *   - { rel, abs? } com a comparação com main feita (rel = costVsMain; abs = costVerdict do PR, informativo e
+ *     ignorado aqui): vsMainOutcome (D-51: ms/quadro com A+B);
  *   - { reason, abs? } sem build de main utilizável (`reason` = o motivo, uma linha; `abs` = costVerdict do PR, se
  *     houver): não reprova, nem com o teto absoluto de D-44 passado; um aviso "sem build de main, comparação não
  *     feita (motivo)" para a anotação e o resumo do job.
@@ -206,7 +226,7 @@ export const COST_TITLE = "Custo das camadas (D-49)";
  */
 export function costGateOutcome(cmp, mode, ctx) {
   if (mode !== "warn" && mode !== "fail") throw new Error(`costGateOutcome: ci_mode inválido (${mode})`);
-  if (cmp?.rel) return vsMainOutcome(cmp.rel, cmp.abs, mode, ctx);
+  if (cmp?.rel) return vsMainOutcome(cmp.rel, mode, ctx);
   if (typeof cmp?.reason !== "string" || !cmp.reason.trim()) throw new Error("costGateOutcome: sem comparação com main e sem motivo");
   return { failing: false, warnings: [`sem build de main, comparação não feita (${cmp.reason.trim()})`] };
 }

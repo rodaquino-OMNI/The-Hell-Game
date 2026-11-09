@@ -1,6 +1,6 @@
 // Tipos de tools/visual/cost-stats.mjs (usado por packages/client/test/cost-stats.test.ts)
 export type CiMode = "warn" | "fail";
-export interface CostCheck { pairs: number; frames: number; warmup: number; bootstrap_resamples: number; ci: number; seed: number; ci_runner_margin: number; ci_mode: CiMode; main_delta: number }
+export interface CostCheck { pairs: number; frames: number; warmup: number; bootstrap_resamples: number; ci: number; seed: number; ci_runner_margin: number; ci_mode: CiMode; main_rel_delta: number }
 export type Verdict = "fail" | "warn" | "pass";
 export interface CostResult { ratios: number[]; median: number; lo: number; hi: number; budget: number; fail: number; verdict: Verdict }
 export function mulberry32(seed: number): () => number;
@@ -18,12 +18,17 @@ export function ghaWarning(title: string, msg: string): string;
 export type Build = "pr" | "main";
 export function crossOrder(i: number): [Build, "A" | "B"][];
 export function judgeVsMain(ci: { median: number; lo: number }, delta: number): Verdict;
-export interface VsMainResult { diffs: number[]; median: number; lo: number; hi: number; delta: number; prMedian: number; mainMedian: number; verdict: Verdict }
+/** D-51: rels = PR_AB / main_AB − 1 por rodada (portão); ratio = razão A+B ÷ sem camadas, só informativa */
+export interface VsMainResult {
+  rels: number[]; median: number; lo: number; hi: number; delta: number; verdict: Verdict;
+  prAbMs: number; mainAbMs: number; prBaseMs: number; mainBaseMs: number;
+  ratio: { diffs: number[]; median: number; lo: number; hi: number; prMedian: number; mainMedian: number };
+}
 export function costVsMain(pr: { a: number[]; b: number[] }, main: { a: number[]; b: number[] }, cfg: CostCheck): VsMainResult;
-export function vsMainOutcome(rel: VsMainResult, abs: CostResult, mode: CiMode | string,
-  ctx: { view: string; baseMs: number; mainBaseMs: number; ciLevel: number }): { failing: boolean; warnings: string[] };
+export function vsMainOutcome(rel: VsMainResult, mode: CiMode | string, ctx: { view: string; ciLevel: number }): { failing: boolean; warnings: string[] };
+/** D-51: linha informativa (portão em ms/quadro e razão A+B ÷ sem camadas) para o log e o resumo do job */
+export function costInfo(rel: VsMainResult, abs: CostResult, ctx: { view: string; ciLevel: number }): string;
 /** complemento de D-49: desfecho do portão; sem build de main utilizável (`reason`) só avisa, nunca reprova */
 export const COST_TITLE: string;
-export type CostGateInput = { rel: VsMainResult; abs: CostResult } | { reason: string; abs?: CostResult; rel?: undefined };
-export function costGateOutcome(cmp: CostGateInput, mode: CiMode | string,
-  ctx: { view: string; baseMs: number; mainBaseMs: number; ciLevel: number }): { failing: boolean; warnings: string[] };
+export type CostGateInput = { rel: VsMainResult; abs?: CostResult } | { reason: string; abs?: CostResult; rel?: undefined };
+export function costGateOutcome(cmp: CostGateInput, mode: CiMode | string, ctx: { view: string; ciLevel: number }): { failing: boolean; warnings: string[] };

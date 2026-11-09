@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
 import {
   abbaOrder, bootstrapCi, costOutcome, costThresholds, costVerdict, costVsMain, crossOrder, ghaWarning, judgeCost, judgeVsMain, median,
-  vsMainOutcome, costGateOutcome, COST_TITLE,
+  vsMainOutcome, costGateOutcome, costInfo, COST_TITLE,
 } from "../../../tools/visual/cost-stats.mjs";
 
 const balance = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
@@ -30,7 +30,7 @@ function pairs(center: number) {
 
 describe("cost-stats (D-44 b)", () => {
   it("dados: render.cost_check, teto de hardware 1,4× intocado e teto da CI 1,4 × 1,07", () => {
-    expect(CC).toEqual({ pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: "fail", main_delta: 0.05 });
+    expect(CC).toEqual({ pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: "fail", main_rel_delta: 0.05 });
     expect(K).toBe(1.4);
     const t = costThresholds(K, M);
     expect(t.budget).toBe(1.4);
@@ -162,11 +162,12 @@ describe("cost-stats (D-44 b)", () => {
   });
 });
 
-// issue #59 (D-49): PR e build de main medidos no mesmo job; reprova só se o limite inferior do IC de (razão do PR −
-// razão de main) passar de render.cost_check.main_delta. O build de main usa as razões REAL em outra ordem (ruído
-// independente do PR, o caso pessimista: na CI o ruído da mesma rodada é em parte comum aos dois builds)
-describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () => {
-  const D = CC.main_delta;
+// issue #59 (D-49) com o critério de D-51: PR e build de main medidos no mesmo job; reprova só se o limite inferior do
+// IC da diferença relativa do ms/quadro com A+B (PR_AB / main_AB − 1, pareada por rodada) passar de
+// render.cost_check.main_rel_delta. O build de main usa as razões REAL em outra ordem (ruído independente do PR, o
+// caso pessimista: na CI o ruído da mesma rodada é em parte comum aos dois builds)
+describe("cost-stats: comparação com main no mesmo job (D-49, critério de D-51)", () => {
+  const D = CC.main_rel_delta;
   /** rodadas de um build no runner de base `baseMs` com as razões REAL deslocadas para `center`, giradas `rot` */
   function build(center: number, baseMs: number, rot = 0) {
     const shift = center - median(REAL);
@@ -174,7 +175,9 @@ describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () 
     const a = r.map((_, i) => baseMs + (i % 5) - 2);
     return { a, b: a.map((x, i) => x * r[i]) };
   }
-  const ctx = { view: "capturas", baseMs: 36.3, mainBaseMs: 36.1, ciLevel: CC.ci };
+  /** o mesmo build com o ms/quadro sem camadas × `fa` e com A+B × `fb` */
+  const scale = (g: { a: number[]; b: number[] }, fa: number, fb: number) => ({ a: g.a.map(x => x * fa), b: g.b.map(x => x * fb) });
+  const ctx = { view: "capturas", ciLevel: CC.ci };
 
   it("ordem cruzada: rodada par PR→main com ABBA, ímpar invertida; em duas rodadas cada medida tem a mesma posição média", () => {
     expect(crossOrder(0)).toEqual([["pr", "A"], ["pr", "B"], ["main", "A"], ["main", "B"]]);
@@ -185,7 +188,7 @@ describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () 
     expect(pos).toEqual({ prA: 3, prB: 3, mainA: 3, mainB: 3 });
   });
 
-  it("decisão: falha só com o limite inferior acima de main_delta; aviso com a mediana acima", () => {
+  it("decisão: falha só com o limite inferior acima de main_rel_delta (+5%); aviso com a mediana acima", () => {
     expect(D).toBe(0.05);
     expect(judgeVsMain({ median: 0.12, lo: 0.06 }, D)).toBe("fail");
     expect(judgeVsMain({ median: 0.08, lo: 0.05 }, D)).toBe("warn");
@@ -195,68 +198,104 @@ describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () 
     expect(() => judgeVsMain({ median: 0, lo: 0 }, -0.01)).toThrow(/valor inválido/);
   });
 
-  it("o runner do PR #68 (1,52×, base 36,3 ms) com o mesmo código nos dois builds passa; o portão absoluto reprovaria", () => {
-    const pr = build(1.52, 36.3), main = build(1.52, 36.1, 7);
-    const abs = costVerdict(pr.a, pr.b, CC, K);
-    expect(abs.verdict).toBe("fail");
+  it("o portão é o ms/quadro com A+B: rels = PR_AB / main_AB − 1 por rodada; a razão sai só como informação", () => {
+    const pr = build(1.3, 65), main = build(1.3, 65, 7);
     const rel = costVsMain(pr, main, CC);
-    expect(rel.prMedian).toBeCloseTo(1.52, 9);
-    expect(rel.mainMedian).toBeCloseTo(1.52, 9);
-    expect(rel.lo).toBeLessThan(0);
-    expect(rel.hi).toBeLessThanOrEqual(D);
-    expect(rel.verdict).toBe("pass");
-    // e com o ruído girado de outros modos o IC da diferença fica em [−0,04, +0,05] (data/balance.yaml)
-    for (const rot of [3, 7, 10]) {
-      const r = costVsMain(build(1.3, 65), build(1.3, 65, rot), CC);
-      expect(r.lo).toBeGreaterThanOrEqual(-0.04 - 1e-9);
-      expect(r.hi).toBeLessThanOrEqual(0.05 + 1e-9);
-      expect(r.verdict).toBe("pass");
+    expect(rel.rels).toEqual(pr.b.map((x, i) => x / main.b[i] - 1));
+    expect(rel.median).toBeCloseTo(median(rel.rels), 12);
+    expect(rel.delta).toBe(D);
+    expect(rel.prAbMs).toBeCloseTo(median(pr.b), 12);
+    expect(rel.mainAbMs).toBeCloseTo(median(main.b), 12);
+    expect(rel.ratio.diffs).toEqual(pr.a.map((x, i) => pr.b[i] / x - main.b[i] / main.a[i]));
+    expect(rel.ratio.prMedian).toBeCloseTo(1.3, 9);
+  });
+
+  it("mesmo código nos dois builds passa em qualquer runner (o do PR #68 reprovaria no teto absoluto); IC de rel em [−4%, +4%]", () => {
+    for (const [center, baseMs] of [[1.3, 36.3], [1.3, 65], [1.43, 65], [1.52, 36.3]]) {
+      for (const rot of [3, 7, 10]) {
+        const r = costVsMain(build(center, baseMs), build(center, baseMs, rot), CC);
+        expect(r.lo).toBeGreaterThanOrEqual(-0.04);
+        expect(r.hi).toBeLessThanOrEqual(0.04);
+        expect(r.verdict).toBe("pass");
+      }
+    }
+    const pr = build(1.52, 36.3);
+    expect(costVerdict(pr.a, pr.b, CC, K).verdict).toBe("fail");
+    expect(costVsMain(pr, build(1.52, 36.3, 7), CC).verdict).toBe("pass");
+  });
+
+  it("otimização da base (sem camadas mais rápido no PR, A+B igual ou mais rápido) PASSA, embora a razão suba", () => {
+    for (const [center, baseMs] of [[1.3, 36.3], [1.3, 65], [1.52, 36.3]]) {
+      const same = build(center, baseMs), main = build(center, baseMs, 7);
+      for (const [fa, fb] of [[0.8, 1], [0.7, 0.95], [0.8, 0.9]]) {
+        const rel = costVsMain(scale(same, fa, fb), main, CC);
+        expect(rel.ratio.prMedian).toBeGreaterThan(rel.ratio.mainMedian + 0.05);
+        // pela regra antiga (D-49: limite inferior do IC de razão do PR − razão de main > 0,05) reprovaria
+        expect(rel.ratio.lo).toBeGreaterThan(0.05);
+        expect(rel.verdict).toBe("pass");
+        expect(costGateOutcome({ rel }, "fail", ctx)).toEqual({ failing: false, warnings: [] });
+      }
     }
   });
 
-  it("regressão deliberada: +0,10 na razão do PR reprova em qualquer runner; +0,02 passa", () => {
+  it("regressão de +10% no ms/quadro com A+B reprova em qualquer runner; +2% passa", () => {
     for (const [center, baseMs] of [[1.3, 36.3], [1.43, 65], [1.52, 36.3]]) {
-      const main = build(center, baseMs, 7);
-      expect(costVsMain(build(center + 0.1, baseMs), main, CC).verdict).toBe("fail");
-      expect(costVsMain(build(center + 0.02, baseMs), main, CC).verdict).toBe("pass");
+      const main = build(center, baseMs, 7), same = build(center, baseMs);
+      const r10 = costVsMain(scale(same, 1, 1.1), main, CC);
+      expect(r10.lo).toBeGreaterThan(D);
+      expect(r10.verdict).toBe("fail");
+      expect(costGateOutcome({ rel: r10 }, "fail", ctx).failing).toBe(true);
+      const r2 = costVsMain(scale(same, 1, 1.02), main, CC);
+      expect(r2.verdict).toBe("pass");
+      expect(costGateOutcome({ rel: r2 }, "fail", ctx)).toEqual({ failing: false, warnings: [] });
+      // +10% com a base também +10% (a razão não muda): reprova do mesmo jeito
+      expect(costVsMain(scale(same, 1.1, 1.1), main, CC).verdict).toBe("fail");
     }
     // a camada B 2× mais cara no PR: falha
     const main = build(1.3, 65, 7), pr = build(1.3, 65);
     const rel = costVsMain({ a: pr.a, b: pr.b.map(x => x * 2) }, main, CC);
-    expect(rel.median).toBeGreaterThan(1);
+    expect(rel.median).toBeGreaterThan(0.9);
     expect(rel.verdict).toBe("fail");
   });
 
-  it("main mais caro que o PR (otimização) passa", () => {
+  it("main mais caro que o PR (otimização das camadas) passa", () => {
     expect(costVsMain(build(1.3, 36.3), build(1.45, 36.3, 7), CC).verdict).toBe("pass");
   });
 
-  it("desfecho: falha da comparação reprova com ci_mode fail e só avisa com warn", () => {
-    const pr = build(1.62, 36.3), main = build(1.52, 36.1, 7);
+  it("desfecho: falha reprova com ci_mode fail e só avisa com warn; a razão e o teto de D-44 nunca viram aviso", () => {
+    const main = build(1.52, 36.1, 7), pr = scale(build(1.52, 36.3), 1, 1.1);
     const rel = costVsMain(pr, main, CC), abs = costVerdict(pr.a, pr.b, CC, K);
     expect(rel.verdict).toBe("fail");
-    const f = vsMainOutcome(rel, abs, "fail", ctx);
-    expect(f.failing).toBe(true);
-    // o teto absoluto passado é anotado, nunca reprova sozinho
-    expect(f.warnings).toHaveLength(1);
-    expect(f.warnings[0]).toMatch(/razão absoluta do PR 1\.62×.*base 36\.3 ms\/quadro sem camadas \(main 36\.1\).*só aviso/);
-    const w = vsMainOutcome(rel, abs, "warn", ctx);
+    expect(abs.verdict).toBe("fail");
+    expect(vsMainOutcome(rel, "fail", ctx)).toEqual({ failing: true, warnings: [] });
+    const w = vsMainOutcome(rel, "warn", ctx);
     expect(w.failing).toBe(false);
-    expect(w.warnings[0]).toMatch(/PR 1\.62× × main 1\.52× no mesmo job, diferença mediana \+0\.09, IC 95% \[\+0\.07, \+0\.14\]/);
+    expect(w.warnings).toHaveLength(1);
+    expect(w.warnings[0]).toMatch(/A\+B \d+\.\d ms\/quadro no PR × \d+\.\d em main no mesmo job, diferença relativa mediana \+\d+\.\d%, IC 95% \[\+\d+\.\d%, \+\d+\.\d%\]/);
     expect(w.warnings[0]).toMatch(/ci_mode warn não reprova/);
+    // o teto absoluto de D-44 passado com a comparação ok: nada (fica só em costInfo)
+    const same = build(1.52, 36.3), okRel = costVsMain(same, main, CC), okAbs = costVerdict(same.a, same.b, CC, K);
+    expect(okAbs.verdict).toBe("fail");
+    expect(costGateOutcome({ rel: okRel, abs: okAbs }, "fail", ctx)).toEqual({ failing: false, warnings: [] });
+    expect(() => vsMainOutcome(rel, "off", ctx)).toThrow(/ci_mode inválido/);
   });
 
-  it("desfecho: teto absoluto passado com a comparação ok é só aviso; tudo ok não produz nada", () => {
-    const pr = build(1.52, 36.3), main = build(1.52, 36.1, 7);
-    const rel = costVsMain(pr, main, CC), abs = costVerdict(pr.a, pr.b, CC, K);
-    expect(abs.verdict).toBe("fail");
-    const out = vsMainOutcome(rel, abs, "fail", ctx);
+  it("aviso: mediana de rel acima de +5% com o limite inferior abaixo não reprova", () => {
+    const main = build(1.3, 65, 7), same = build(1.3, 65);
+    const rel = [1.04, 1.05, 1.06, 1.07, 1.08].map(f => costVsMain(scale(same, 1, f), main, CC)).find(r => r.verdict === "warn");
+    expect(rel).toBeDefined();
+    const out = costGateOutcome({ rel: rel! }, "fail", ctx);
     expect(out.failing).toBe(false);
-    expect(out.warnings).toHaveLength(1);
-    expect(out.warnings[0]).toMatch(/teto da CI 1\.50×: só aviso, o portão é a comparação com main \(issue #59\)/);
-    const ok = build(1.3, 36.3), okMain = build(1.3, 36.1, 7);
-    expect(vsMainOutcome(costVsMain(ok, okMain, CC), costVerdict(ok.a, ok.b, CC, K), "fail", ctx)).toEqual({ failing: false, warnings: [] });
-    expect(() => vsMainOutcome(rel, abs, "off", ctx)).toThrow(/ci_mode inválido/);
+    expect(out.warnings[0]).toMatch(/mediana acima de \+5\.0%, limite inferior do IC ≤ \+5\.0%: aviso, não reprova/);
+  });
+
+  it("linha informativa: o portão em ms/quadro e a razão A+B ÷ sem camadas (PR × main e teto de D-44), sem reprovar", () => {
+    const main = build(1.3, 65, 7), pr = scale(build(1.3, 65), 0.8, 1);
+    const rel = costVsMain(pr, main, CC), abs = costVerdict(pr.a, pr.b, CC, K);
+    const line = costInfo(rel, abs, ctx);
+    expect(line).toMatch(/^vista capturas: A\+B \d+\.\d ms\/quadro no PR × \d+\.\d em main, diferença relativa [+−]\d+\.\d% \[.*\], limite \+5\.0% → pass \(IC 95%, D-51\)/);
+    expect(line).toMatch(/informativo: sem camadas 52\.\d × 65\.\d ms\/quadro; razão A\+B ÷ sem camadas PR 1\.6\d× × main 1\.30×, diferença \+0\.\d\d/);
+    expect(line).toMatch(/orçamento 1\.40× e o teto 1\.50× de D-44 → fail \(não reprova\)/);
   });
 
   it("medidas quebradas são erro, nunca pass", () => {
@@ -268,6 +307,7 @@ describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () 
       expect(() => costVsMain(pr, { a: main.a.map((x, i) => (i === 4 ? bad : x)), b: main.b }, CC)).toThrow(/tempo inválido/);
       expect(() => costVsMain({ a: pr.a, b: pr.b.map((x, i) => (i === 9 ? bad : x)) }, main, CC)).toThrow(/tempo inválido/);
     }
+    expect(() => costVsMain(pr, main, { ...CC, main_rel_delta: NaN })).toThrow(/valor inválido/);
   });
 });
 
@@ -279,7 +319,7 @@ describe("cost-stats: desfecho sem build de main (complemento de D-49)", () => {
     const a = r.map((_, i) => baseMs + (i % 5) - 2);
     return { a, b: a.map((x, i) => x * r[i]) };
   }
-  const ctx = { view: "capturas", baseMs: 36.3, mainBaseMs: 36.1, ciLevel: CC.ci };
+  const ctx = { view: "capturas", ciLevel: CC.ci };
 
   it("sem build de main: só aviso, nunca falha, mesmo com a razão do PR muito acima do teto absoluto de D-44", () => {
     expect(CC.ci_mode).toBe("fail");
@@ -306,15 +346,13 @@ describe("cost-stats: desfecho sem build de main (complemento de D-49)", () => {
 
   it("com build de main: regressão do PR reprova (ci_mode fail); mesmo código passa mesmo acima do teto absoluto", () => {
     const main = build(1.52, 36.1, 7);
-    const bad = build(1.62, 36.3);
+    const bad = build(1.72, 36.3); // A+B ≈ 13% acima de main
     const f = costGateOutcome({ rel: costVsMain(bad, main, CC), abs: costVerdict(bad.a, bad.b, CC, K) }, "fail", ctx);
     expect(f.failing).toBe(true);
     const same = build(1.52, 36.3), abs = costVerdict(same.a, same.b, CC, K);
     expect(abs.verdict).toBe("fail");
     const ok = costGateOutcome({ rel: costVsMain(same, main, CC), abs }, "fail", ctx);
-    expect(ok.failing).toBe(false);
-    expect(ok.warnings).toHaveLength(1);
-    expect(ok.warnings[0]).toMatch(/só aviso, o portão é a comparação com main/);
+    expect(ok).toEqual({ failing: false, warnings: [] }); // D-51: o teto de D-44 é só informativo (costInfo)
     // a camada B 2× mais cara no PR também reprova
     const pr = build(1.3, 65), m = build(1.3, 65, 7), b2 = { a: pr.a, b: pr.b.map(x => x * 2) };
     expect(costGateOutcome({ rel: costVsMain(b2, m, CC), abs: costVerdict(b2.a, b2.b, CC, K) }, "fail", ctx).failing).toBe(true);
