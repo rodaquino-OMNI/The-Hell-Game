@@ -299,8 +299,8 @@ describe("audio/spatial: ouvinte na câmera (A-4)", () => {
   });
 });
 
-// R7-mapas (D-22/23/25): a oclusão lê as paredes do mapa EFETIVO (`cfg.map` de makeConfig), a fonte única da sim e da
-// render; com `maps.v1.short_loop_pillars` ligada entram 3 pilares 1×1 m, um deles em (−10, 0), em cima da linha FREE
+// R7-mapas (D-22/23/25): a oclusão lê as paredes do mapa EFETIVO (`cfg.map` de makeConfig), a mesma fonte da simulação
+// (`SimConfig.map`); com `maps.v1.short_loop_pillars` ligada entram 3 pilares 1×1 m, um deles em (−10, 0), em cima da linha FREE
 describe("audio/spatial: mapa padrão = cfg.map efetivo (R7)", () => {
   const PILLAR: [number, number, number, number] = [-10, 0, 1, 1];
   const engineOnly = () => {

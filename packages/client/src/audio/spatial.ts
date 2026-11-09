@@ -157,7 +157,8 @@ const singletonEngine: SpatialEngine = {
 export function createSpatial(deps: SpatialDeps = {}): Spatial {
   const engine = deps.engine ?? singletonEngine;
   // paredes do mapa EFETIVO da partida (makeConfig: com as flags do v1, p.ex. os pilares de loop curto da D-23,
-  // `maps.v1.short_loop_pillars`), a mesma fonte única da simulação e da render, e não o mapa de topo de data/maps
+  // `maps.v1.short_loop_pillars`), a mesma fonte da simulação (`SimConfig.map`), e não o mapa de topo de data/maps.
+  // A render ainda lê o mapa de topo (render/scene.ts, environment.ts, retro/industrial.ts) e migra no R7
   const map = deps.map ?? simCfg.map;
   const cfg = deps.cfg ?? balance.audio;
   const voices = deps.voices ?? createVoiceManager();
