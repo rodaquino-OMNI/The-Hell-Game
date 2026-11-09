@@ -407,6 +407,10 @@ audio:
   # (chega a ~95% em 3 constantes = 60 ms), curta o bastante para o slider responder na hora e longa o bastante para
   # não estalar ("zipper noise") com o ganho mudando em degrau.
   volume_ramp_tc: 0.02
+  # LACUNA (GDD não define): atraso (s) para gravar os volumes no localStorage depois da última mudança (o slider
+  # arrastado não grava a cada quadro; o ganho muda na hora). Proposta: 0,25 s; também grava ao sair da página
+  # (pagehide).
+  volume_persist_delay: 0.25
 
 # ---------- 16. UI (GDD-v0.3 §12) ----------
 ui:
