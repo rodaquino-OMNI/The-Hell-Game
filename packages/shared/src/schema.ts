@@ -184,6 +184,11 @@ const aiDifficulty = z.object({
   memory: pos,
 }).strict();
 
+/** categorias do resumo de fim de partida (GDD-v0.2 §7.1): Objetivos, Altruísmo, Sobrevivência, Audácia */
+const SCORE_CATEGORIES = ["objectives", "altruism", "survival", "boldness"] as const;
+const pointEvent = z.object({ value: pos, category: z.enum(SCORE_CATEGORIES), enabled: z.boolean() }).strict();
+const hunterPointEvent = z.object({ value: pos, enabled: z.boolean() }).strict();
+
 export const BalanceSchema = z.object({
   version: z.string(),
   difficulty: z.enum(["easy", "normal", "hard", "nightmare"]),
@@ -225,8 +230,26 @@ export const BalanceSchema = z.object({
   }).strict(),
   // raios de ruído em metros (GDD-v0.2 §3.4; ruleset v1)
   noise: z.object({ walk: pos, run: pos, puzzle_fail: pos, rescue: pos, heal: pos, generator_done: pos }).strict(),
-  points: z.object({ puzzle: pos, generator: pos, bonus_puzzle: pos, bonus_generator: pos }).strict(),
-  economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos }).strict(),
+  // pontos por evento (GDD-v0.2 §7.1): valor, categoria do resumo e chave liga/desliga ([Proposta] desligadas)
+  points: z.object({
+    // LACUNA §7.1 × §7.3: arredondamento de valor × points_mult (o GDD não define)
+    rounding: z.enum(["round", "floor"]),
+    events: z.object({
+      puzzle: pointEvent, generator: pointEvent, bonus_puzzle: pointEvent, bonus_generator: pointEvent,
+      rescue: pointEvent,
+      heal: pointEvent.extend({ min_effective: pos }).strict(), // "curar aliado (efetivo ≥ 20)"
+      block_bolt: pointEvent, stun: pointEvent,
+      chase_escape: pointEvent.extend({ min_time: pos }).strict(), // "fugir de perseguição por mais de 15 s"
+      trap_disarm: pointEvent, escape: pointEvent,
+    }).strict(),
+    // pontos do caçador (§7.1, sem categoria no GDD)
+    hunter_events: z.object({
+      capture: hunterPointEvent, hit: hunterPointEvent, kill: hunterPointEvent,
+      long_chase: hunterPointEvent.extend({ min_time: pos }).strict(), reveal: hunterPointEvent, deny_rescue: hunterPointEvent,
+    }).strict(),
+  }).strict(),
+  // GDD-v0.2 §7.2 e GDD-v0.3 D-04; win_coins_to: quem leva o bônus de vitória (alive = decisão do Rodrigo 09/11/2026, pergunta 1 da sessão Visual; diverge da leitura literal do GDD v0.3 §3.3 item 1)
+  economy: z.object({ start_coins: pos, base_coins: pos, win_coins: pos, points_to_coins: pos, win_coins_to: z.enum(["alive", "escaped"]) }).strict(),
   skins: z.record(z.string(), pos),
   classes: z.object({
     healer: z.object({ pulse_heal: pos, pulse_radius: pos, cooldown: pos }).strict(),
