@@ -326,6 +326,7 @@ Todas tomadas em 08/11/2026 pelo Rodrigo e pelo filho. Registro completo no [pla
 | D-07 | Contas (§13.5) | a) convidado com código de recuperação |
 | D-08 | Moeda premium e passe (§14.2–14.3) | a) fora da v1.0, atrás de flag |
 | D-09 | Caçadores (C-17) | a) caçador humano na fase 3; os 3 caçadores na v1.0 |
+| D-16 | Metas de balanceamento com D-01 b (§7.6) | a) vale a vitória do caçador por partida em 45–55%; fuga por sobrevivente só medida |
 
 ## Fontes
 

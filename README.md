@@ -10,6 +10,9 @@ Jogo assimétrico de fuga e perseguição para o navegador: 1 caçador contra 1 
 | [`docs/GDD-v0.3.md`](docs/GDD-v0.3.md) | Delta sobre o v0.2: IA, mapas, gráficos, áudio, UI, arquitetura, contradições e decisões | aprovado (revisão 2) |
 | [`docs/art-bible.md`](docs/art-bible.md) | Direção de arte: paleta, silhuetas, testes de legibilidade, marcos de arte | marco A1 aprovado |
 | [`docs/prototipo-paridade.md`](docs/prototipo-paridade.md) | Protótipo × GDD: paridade linha a linha e comportamentos fora do GDD | referência da fase 0 |
+| [`docs/handoff/sessoes.md`](docs/handoff/sessoes.md) | Divisão em 3 sessões (Visual, Frente R, Áudio), propriedade de arquivos e convivência | em execução |
+| [`docs/handoff/plano-frente-r.md`](docs/handoff/plano-frente-r.md) | Plano da Frente R: bots, simulador na CI, pontuação, MJ-B, calibração | em execução |
+| [`docs/handoff/plano-audio-v5.md`](docs/handoff/plano-audio-v5.md) | Plano do áudio adaptativo e espacial (V5) | em execução |
 | [`docs/handoff/plano-fases-1-2.md`](docs/handoff/plano-fases-1-2.md) | Ordem de serviço das fases 1 e 2 em paralelo (visual primeiro) | em execução |
 | [`docs/plano-construcao.md`](docs/plano-construcao.md) | Fases, WBS, caminho crítico, orçamento, portões e decisões tomadas | aprovado |
 

@@ -1,5 +1,7 @@
 # THE HELL — Plano técnico das fases 1 e 2 em paralelo (handoff ao orquestrador)
 
+> **09/11/2026:** o trabalho foi dividido em 3 sessões. Esta sessão (Visual) segue com A2, A2b, A3, V6, V7, V8 e V9. R4, R5, R6, R8 e a troca do MJ-B passam para a [Frente R](plano-frente-r.md); V5 passa para o [Áudio](plano-audio-v5.md). Propriedade de arquivos e convivência: [`sessoes.md`](sessoes.md).
+
 **08/11/2026 · decisão do Rodrigo: fases 1 (regras e IA) e 2 (visual e áudio) em paralelo, com prioridade para o visual**
 
 Este documento é a ordem de serviço do orquestrador que assume o projeto a partir de `main` em `803ac01`. Ele resume o estado, fixa o escopo, divide o trabalho entre agentes e diz como provar cada entrega. Em conflito com outro documento, vale esta ordem: GDD v0.3 > GDD v0.2 > este plano > plano de construção (só para o que este plano não cobre).
