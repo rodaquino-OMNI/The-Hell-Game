@@ -318,10 +318,10 @@ maps:
     # Visual; revisão do R7-mapas, B-1). Ligar quando o cliente desenhar cfg.map.walls e o portão lateral.
     short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
     side_exit: false                # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
-    # LACUNA (revisão do R7-mapas): o pilar de 1 × 1 m deixa o caçador acertar sem linha de visão pela quina:
-    # alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre os centros de caçador e sobrevivente em lados
-    # opostos da quina (medido na revisão do R7-mapas); o golpe não confere linha de visão. Possível pilar de 1,6–2 m
-    # no R8 (a medir no simulador).
+    # LACUNA (revisão do R7-mapas), RESOLVIDA pela D-50 (docs/plano-construcao.md §7): o pilar de 1 × 1 m deixava o
+    # caçador acertar sem linha de visão pela quina (alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre
+    # os centros de caçador e sobrevivente em lados opostos da quina, medido na revisão do R7-mapas). Desde a D-50, no
+    # ruleset v1 o golpe exige linha de visão (a mesma função da percepção, GDD-v0.3 §8.1); o tamanho do pilar não muda.
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
