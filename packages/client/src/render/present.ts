@@ -123,7 +123,7 @@ void main() {
 /**
  * `uScanRow` das scanlines (BLIT_FRAGMENT) para a escala inteira k: (1/P, deslocamento), P = k com k ≥ 2 (linha
  * escura = índice múltiplo de k) ou 2 com escala 1 (linhas ímpares, deslocamento 1). Testado contra a fórmula anterior
- * mod( floor( y ), k ) em packages/client/test/scanlines.test.ts
+ * mod( floor( y ), k ) em packages/client/test/render-otimiza-camadas.test.ts
  */
 export function scanRow(k: number): [number, number] {
   return k >= 2 ? [1 / k, 0] : [1 / 2, 1];
