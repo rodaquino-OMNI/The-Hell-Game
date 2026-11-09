@@ -212,7 +212,7 @@
   "opt.color.protanopia": "Protanopia",
   "opt.color.deuteranopia": "Deuteranopia",
   "opt.color.tritanopia": "Tritanopia",
-  "opt.color_note": "The 3 palettes are awaiting art approval; until then they use the normal colors (shapes already tell classes and states apart).",
+  "opt.color_note": "Deuteranopia and tritanopia swap the colors that are hard to tell apart with that type of color blindness; with protanopia the normal colors already stand apart. Shapes also tell classes and states apart.",
   "opt.sensitivity": "Sensitivity (mouse and gamepad)",
   "opt.invert_y": "Invert Y axis",
   "opt.toggle_run": "Run: press to toggle (instead of hold)",

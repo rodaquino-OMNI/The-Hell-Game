@@ -212,7 +212,7 @@
   "opt.color.protanopia": "Protanopia",
   "opt.color.deuteranopia": "Deuteranopia",
   "opt.color.tritanopia": "Tritanopia",
-  "opt.color_note": "As 3 paletas aguardam a aprovação de arte; até lá, usam as cores normais (as formas já distinguem classes e estados).",
+  "opt.color_note": "Deuteranopia e tritanopia trocam as cores que se confundem com esse tipo de daltonismo; na protanopia as cores normais já se distinguem. As formas também distinguem classes e estados.",
   "opt.sensitivity": "Sensibilidade (mouse e controle)",
   "opt.invert_y": "Inverter eixo Y",
   "opt.toggle_run": "Correr: apertar alterna (em vez de segurar)",
