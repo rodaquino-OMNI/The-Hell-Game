@@ -7,6 +7,8 @@
   "menu.subtitle": "Offline with bots · {survivors} survivors against 1 hunter",
   "menu.choose_class": "Choose your class:",
   "menu.start": "START",
+  "menu.loading": "LOADING…",
+  "menu.loading_status": "Loading the characters…",
   "menu.shop": "SKIN SHOP",
   "menu.coins": "Coins: {coins}",
   "menu.controls": "WASD move · Shift run · mouse/arrows ← → look · E interact (hold to rescue) · Q ability · Click strike (Fighter) · V toggles 3rd/1st person camera · 1–4 pings",

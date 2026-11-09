@@ -20,6 +20,8 @@ const UiSchema = z.object({
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
   /** V8b: faixa de legendas de som (GDD v0.3 §12.4) */
   captions: z.object({ fade: pos, opacity_steps: z.number().int().positive() }).strict(),
+  /** D-45: teto da espera pelos personagens antes da partida (s) */
+  start_wait_s: pos.positive(),
   /** V8 (F2-08): menu de opções (GDD v0.3 §12.4) */
   options: z.object({
     intensity_step: num.positive().max(1), fov_step: num.positive(),
@@ -281,7 +283,14 @@ const render = z.object({
   hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive() }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
-  models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
+  models: z.object({
+    survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive(),
+    /** D-45: modelo de reserva (caixas em metros) enquanto o .glb não chega */
+    fallback: z.object({
+      survivor: z.tuple([pos.positive(), pos.positive(), pos.positive()]), hunter: z.tuple([pos.positive(), pos.positive(), pos.positive()]),
+      eyes: z.tuple([pos.positive(), pos.positive(), pos.positive()]), eyes_below: pos,
+    }).strict(),
+  }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
   states: z.object({
     beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
@@ -456,7 +465,11 @@ export const BalanceSchema = z.object({
   net: z.record(z.string(), z.unknown()),
   sim: SimSchema,
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
-  client: z.object({ max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive() }).strict(),
+  client: z.object({
+    max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive(),
+    /** px; mousemove com |movementX| ou |movementY| acima disso não gira a câmera (salto ao adquirir o pointer lock) */
+    mouse_max_delta: num.positive(),
+  }).strict(),
 }).strict();
 
 export type Balance = z.infer<typeof BalanceSchema>;

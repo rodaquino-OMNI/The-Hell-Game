@@ -30,10 +30,13 @@ import { messageText } from "./text.ts";
 import { matchConfig, selectedDifficulty } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
 import { applyOptions } from "./ui/apply.ts";
-import { hideMenu, refreshMenuText, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
+import { closeMenuDialogs, hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
 import { currentOptions, refreshVolumeSliders, setupOptions } from "./ui/options.ts";
 import { startPadLoop } from "./ui/padnav.ts";
 import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
+import { afterLoadIdle, startGate } from "./ui/start-gate.ts";
+import { charactersReady } from "./render/characters/runtime.ts";
+import { prefetchMatchCharacters } from "./render/characters/actors.ts";
 import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
@@ -47,10 +50,17 @@ let ctx: RenderCtx;
 let stress: StressScene | null = null;
 const clock = { acc: 0 };
 let last = 0;
+/** partida em curso (D-45): antes disso, na espera pelos personagens, a entrada não mexe na câmera nem na partida */
+// não volta a false no fim: a partida acabada é tratada por G.over em input.ts, e "jogar de novo" recarrega a página
+let playing = false;
 
 applyPalette(document.documentElement);
 initLocale();
 setupMenu(start);
+// D-45: .glb dos personagens pedidos em baixa prioridade com o menu aberto (depois do load, navegador ocioso)
+afterLoadIdle(() => void prefetchMatchCharacters());
+/** D-45: a partida só começa com os personagens na cena (teto ui.start_wait_s, depois o modelo de reserva) */
+const gate = startGate({ ready: charactersReady, timeoutS: balance.ui.start_wait_s, setBusy: setStartBusy });
 // opções do jogador (V8): gravadas no localStorage; aplicadas antes do primeiro quadro
 const saved = loadOptions();
 applyOptions(saved);
@@ -87,8 +97,9 @@ exposeDebugHook("__thehellOptions", () => ({
 /** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
 if (urlRetro) exposeDebugHook("__thehellView", view);
 
-function start() {
-  hideMenu();
+async function start() {
+  if (gate.busy()) return;
+  // áudio e pointer lock no gesto do clique (a espera abaixo pode passar da ativação transitória)
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
   // legendas (V8b): nada da partida anterior ou do menu passa para a nova, e o aria-live já fica "off" antes do
@@ -96,13 +107,18 @@ function start() {
   clearCaptions();
   captionsFrame(true);
   init();
+  // nenhum passo da simulação antes dos personagens (D-45): o botão fica em "carregando…" na espera
+  await gate.wait();
+  closeMenuDialogs();
+  hideMenu();
+  playing = true;
   clock.acc = 0;
   last = performance.now();
   // uma só cadeia de quadros: a partir da 2ª partida o laço já está rodando
   frames.start();
 }
 
-setupInput(() => G);
+setupInput(() => (playing ? G : undefined));
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
 setupCaptions();

@@ -413,7 +413,15 @@ render:
   # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
   # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
   hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
-  models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
+  models:
+    survivor_tris: [300, 600]
+    hunter_tris: [800, 1200]
+    atlas: 64
+    # D-45: modelo de reserva (caixa na cor da classe ou do caçador) enquanto o .glb não chega ou se ele falhar; o caçador
+    # tem olhos que acendem no preparo como os do modelo (telegraph, Art Bible §1.5 e §4). Medidas de arte em metros:
+    # altura do sobrevivente = altura do manifesto (1,75 m) e do Espectro 2,5 m (plano-fases-1-2 §5 V2); eyes = largura,
+    # altura e profundidade da faixa dos olhos, eyes_below = distância do topo da caixa ao centro dos olhos
+    fallback: {survivor: [0.6, 1.75, 0.4], hunter: [0.7, 2.5, 0.5], eyes: [0.4, 0.1, 0.05], eyes_below: 0.3}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
   states:
     # feixe do gerador: largura e altura (m); min_px = largura mínima na resolução interna (o feixe distante não vira
@@ -867,6 +875,9 @@ ui:
   # LACUNA (GDD e Art Bible não definem a saída da legenda). Proposta: esmaecer nos últimos 0,5 s em 5 degraus (no
   # máximo 5 escritas de estilo por legenda, nada por quadro); com "reduzir flicker" some sem esmaecer
   captions: {fade: 0.5, opacity_steps: 5}
+  # D-45: a partida só começa com os personagens carregados (charactersReady); teto da espera em s, depois do qual a
+  # partida começa com o modelo de reserva (render.models.fallback), para um download travado não prender o jogo
+  start_wait_s: 10
   # ---- V8 (F2-08): menu de opções, controles e acessibilidade (GDD-v0.3 §12.2 e §12.4) ----
   options:
     # passo dos sliders de intensidade (render.ps1.*, render.layer_a.*: 0 a 1, GDD-v0.3 §10.1 e §10.2) e de volume
@@ -940,6 +951,13 @@ ui:
 client:
   max_frame_dt: 0.25                # s (4 fps); padrão de "Fix Your Timestep!" (Glenn Fiedler, gafferongames.com)
   max_steps_per_frame: 15           # = 0,25 s × 60 Hz
+  # Mouse da câmera (packages/client/src/pointer-filter.ts). Bug: ao adquirir o pointer lock (clique em "#go") o
+  # Chromium pode emitir um mousemove com movementX espúrio (medido ≈ −568 px, o clientX do cursor) e a câmera saltava
+  # ≈ 1,4 rad. A primeira leitura de cada lock já é descartada; além disso, um evento isolado com |movementX| ou
+  # |movementY| acima deste limite é ignorado. D-47 (docs/plano-construcao.md §7; GDD v0.2/v0.3 não definem): 300 px por evento
+  # (o Chromium agrupa o mousemove por quadro, https://developer.chrome.com/blog/aligning-input-events: a 60 Hz
+  # equivale a 18.000 px/s, acima de um giro rápido real).
+  mouse_max_delta: 300              # px por evento
 
 # ---------- 17. Rede (GDD-v0.3 §13.4) ----------
 net:
