@@ -16,7 +16,10 @@
 //     do personagem visto (o mesmo ponto da oclusão, spatial.ts `updateSpatial(at)`);
 //   - transições: gerador concluído, prisão (ok → cage) e resgate (cage → ok);
 //   - eventos: os 5 GameEvent "sound" e o bipe de pontos (`points` com `who` = jogador local);
-//   - música: updateMusic do A-2 a cada quadro e ducking (duckFor) em golpe no jogador e prisão.
+//   - música: updateMusic do A-2 a cada quadro e ducking (duckFor) em golpe no jogador e prisão;
+//   - legendas (A-6, captions.ts; GDD-v0.3 §12.4): todo efeito de `audio.captions.effects` que tocou de verdade
+//     (play devolveu voz) publica a legenda no mesmo passo, com o setor da fonte relativo à câmera (`yaw`). Som
+//     cortado pelo raio da D-37 ou recusado pelo limite de vozes não publica nada.
 // LACUNA (paridade da fase 0): `hit`, `stun` e `bolt` chegam como GameEvent "sound" sem posição nem id
 // (packages/sim/src/types.ts), então tocam sem posição também quando o golpe/raio é de um bot longe, como no
 // protótipo. Pedido possível à Frente R (sessoes.md §2): `sound` com posição ou id do envolvido. Só anotado.
@@ -26,6 +29,7 @@
 import type { Balance } from "@thehell/shared";
 import type { GameEvent, GameState, Vec, Windup } from "@thehell/sim";
 import { balance } from "../data.ts";
+import { getCaptionBus, type CaptionBus } from "./captions.ts";
 import { duckMusic, updateMusic } from "./music.ts";
 import { playSfx, type SfxOpts } from "./sfx.ts";
 
@@ -37,6 +41,8 @@ export interface DirectorMusic {
   duckFor(s: number): void;
 }
 export type DirectorCfg = Pick<Balance, "audio" | "prototype_extras" | "survivor" | "generator">;
+/** o pedaço do barramento de legendas que o diretor usa */
+export type DirectorCaptions = Pick<CaptionBus, "emit" | "tick">;
 
 export interface DirectorDeps {
   play?: PlayFn;
@@ -44,12 +50,15 @@ export interface DirectorDeps {
   cfg?: DirectorCfg;
   /** padrão: cfg.audio.director_enabled */
   enabled?: boolean;
+  /** barramento de legendas (padrão: o único, captions.ts getCaptionBus) */
+  captions?: DirectorCaptions;
 }
 
 export interface AudioDirector {
   readonly enabled: boolean;
-  /** um quadro: `dt` = tempo de quadro (s); `at` = personagem visto (padrão: o próprio jogador) */
-  update(state: GameState, playerId: number, dt: number, at?: Vec): void;
+  /** um quadro: `dt` = tempo de quadro (s); `at` = personagem visto (padrão: o próprio jogador); `yaw` = yaw da
+   *  câmera (o mesmo da seta de ameaça), para o setor das legendas; sem ele as legendas saem sem direção */
+  update(state: GameState, playerId: number, dt: number, at?: Vec, yaw?: number): void;
   /** eventos do quadro, já drenados por main.ts (não toca na fila do estado). `playerId` (padrão: o do último
    *  update) decide de quem é o bipe de pontos; sem nenhum, o bipe não toca */
   events(events: readonly GameEvent[], playerId?: number): void;
@@ -116,28 +125,40 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
   let hunterAcc = 0, playerAcc = 0, heartT = 0, breathT = 0;
   let humT: number[] = [];
   let lastPlayer: number | undefined;
+  let captions: DirectorCaptions | null = deps.captions ?? null;
+  const bus = () => (captions ??= getCaptionBus());
+  let ear: Vec | null = null, camYaw: number | undefined;
 
   const reset = () => { prev = null; telegraph = null; hunterAcc = 0; playerAcc = 0; heartT = 0; breathT = 0; humT = []; };
   const safePlay = (name: string, opts?: SfxOpts): SfxHandle => { try { return play(name, opts) || null; } catch { return null; } };
+  /** toca e, só se tocou, publica a legenda do efeito (se houver) com o ouvinte e o yaw deste quadro */
+  const sound = (name: string, opts?: SfxOpts): SfxHandle => {
+    const h = safePlay(name, opts);
+    if (h) { try { bus().emit({ name, pos: opts?.pos ?? null, ear, yaw: camYaw, intensity: opts?.intensity }); } catch { /* legenda nunca derruba o som */ } }
+    return h;
+  };
   const cancelTelegraph = () => { try { telegraph?.cancel?.(); } catch { /* voz já solta */ } telegraph = null; };
 
-  function update(g: GameState, playerId: number, dt: number, viewed?: Vec) {
+  function update(g: GameState, playerId: number, dt: number, viewed?: Vec, yaw?: number) {
     if (!enabled) return;
     lastPlayer = playerId;
+    try { bus().tick(dt); } catch { /* idem */ }
     music.update(g, playerId);
     if (prev && g.t < prev.t) reset(); // partida nova (o laço troca o estado; o relógio volta a 0)
     if (g.over) { prev = snap(g); telegraph = null; return; }
     const p0 = prev, H = g.hunter;
     const P = g.survivors.find(s => s.id === playerId);
-    const ear: Vec | null = viewed ?? P ?? null;
-    const audible = ear !== null && dist(ear, H) <= d.hunter_audible_radius;
+    ear = viewed ? at(viewed) : P ? at(P) : null;
+    camYaw = yaw;
+    const here = ear;
+    const audible = here !== null && dist(here, H) <= d.hunter_audible_radius;
 
     // telegraph: preparo novo (nulo → presente, outro tipo, ou recomeçado com t maior)
     const w = H.windup, pw = p0?.windup ?? null;
     const fresh = !!w && (!pw || w.kind !== pw.kind || w.t > pw.t);
     // o preparo anterior acabou (sumiu ou foi trocado) sem o seu efeito: corta o som
     if (pw && (!w || fresh) && p0 && !effectHappened(pw.kind, p0, g)) cancelTelegraph();
-    if (fresh) telegraph = audible ? safePlay(telegraphSfx(w!.kind), { pos: at(H) }) : null;
+    if (fresh) telegraph = audible ? sound(telegraphSfx(w!.kind), { pos: at(H) }) : null;
     if (w) telegraph?.setPosition?.(at(H));
     else telegraph = null;
 
@@ -148,7 +169,7 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
         hunterAcc += m;
         if (hunterAcc >= d.hunter_stride) {
           hunterAcc %= d.hunter_stride;
-          if (audible) safePlay("step_hunter", { pos: at(H) });
+          if (audible) sound("step_hunter", { pos: at(H) });
         }
       }
     }
@@ -162,7 +183,7 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
           const run = P.stamina < pp.stamina;
           const stride = run ? d.run_stride : d.walk_stride;
           playerAcc += m;
-          if (playerAcc >= stride) { playerAcc %= stride; safePlay(run ? "step_run" : "step_walk", { pos: null }); }
+          if (playerAcc >= stride) { playerAcc %= stride; sound(run ? "step_run" : "step_walk", { pos: null }); }
         }
       }
       // respiração abaixo do limiar de stamina
@@ -171,7 +192,7 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
         const k = 1 - P.stamina / limit;
         breathT -= dt;
         if (breathT <= 0) {
-          safePlay("breath", { pos: null, intensity: k });
+          sound("breath", { pos: null, intensity: k });
           breathT = d.breath.period[0] + (d.breath.period[1] - d.breath.period[0]) * k;
         }
       } else breathT = 0;
@@ -182,18 +203,18 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
       const dh = dist(P, H);
       heartT -= dt;
       if (heartT <= 0) {
-        safePlay("heartbeat", { pos: null, intensity: 1 - dh / hb.radius });
+        sound("heartbeat", { pos: null, intensity: 1 - dh / hb.radius });
         heartT = hb.base_interval + (dh / hb.radius) * hb.range_interval;
       }
     } else heartT = 0;
 
     // geradores: zumbido pelo progresso (perto do personagem visto) e conclusão
     g.gens.forEach((x, i) => {
-      if (p0 && !p0.done[i] && x.done) safePlay("generator_done", { pos: at(x) });
-      if (ear && !x.done && x.n > 0 && dist(ear, x) < d.hum.radius) {
+      if (p0 && !p0.done[i] && x.done) sound("generator_done", { pos: at(x) });
+      if (here && !x.done && x.n > 0 && dist(here, x) < d.hum.radius) {
         humT[i] = (humT[i] ?? 0) - dt;
         if (humT[i] <= 0) {
-          safePlay("generator_hum", { pos: at(x), intensity: x.n / cfg.generator.puzzles_per_generator });
+          sound("generator_hum", { pos: at(x), intensity: x.n / cfg.generator.puzzles_per_generator });
           humT[i] = d.hum.period;
         }
       } else humT[i] = 0;
@@ -203,8 +224,8 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
     if (p0) {
       for (const s of g.survivors) {
         const was = p0.surv.get(s.id)?.st;
-        if (was === "ok" && s.st === "cage") { safePlay("cage", { pos: at(s) }); music.duckFor(d.duck_time); }
-        else if (was === "cage" && s.st === "ok") safePlay("rescue", { pos: at(s) });
+        if (was === "ok" && s.st === "cage") { sound("cage", { pos: at(s) }); music.duckFor(d.duck_time); }
+        else if (was === "cage" && s.st === "ok") sound("rescue", { pos: at(s) });
       }
     }
     prev = snap(g);
@@ -213,11 +234,11 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
   function events(list: readonly GameEvent[], playerId: number | undefined = lastPlayer) {
     if (!enabled) return;
     for (const e of list) {
-      if (e.type === "sound") safePlay(e.name, { pos: null });
+      if (e.type === "sound") sound(e.name, { pos: null });
       // "flash" só sai no golpe recebido pelo jogador (game.ts `hit`: `if (!s.bot) emit flash`): evento crítico
       else if (e.type === "flash") music.duckFor(d.duck_time);
       // pontos (só no v1; `who` = id do sobrevivente, −1 = caçador; packages/sim/src/types.ts): bipe só do local
-      else if (e.type === "points" && playerId !== undefined && e.who === playerId) safePlay("points", { pos: null });
+      else if (e.type === "points" && playerId !== undefined && e.who === playerId) sound("points", { pos: null });
     }
   }
 
@@ -228,10 +249,11 @@ export function createAudioDirector(deps: DirectorDeps = {}): AudioDirector {
 export const directorEnabled = () => balance.audio.director_enabled;
 
 let director: AudioDirector | null = null;
-/** um quadro do áudio (singleton; no-op com `audio.director_enabled: false`); `at` = personagem visto */
-export function updateAudio(state: GameState, playerId: number, dt: number, at?: Vec) {
+/** um quadro do áudio (singleton; no-op com `audio.director_enabled: false`); `at` = personagem visto; `yaw` = yaw
+ *  da câmera (setor das legendas). Também avança e expira as legendas (captions.ts) */
+export function updateAudio(state: GameState, playerId: number, dt: number, at?: Vec, yaw?: number) {
   if (!directorEnabled()) return;
-  (director ??= createAudioDirector()).update(state, playerId, dt, at);
+  (director ??= createAudioDirector()).update(state, playerId, dt, at, yaw);
 }
 /** eventos do quadro já drenados por main.ts (singleton; no-op com a flag false; não drena a fila) */
 export function audioEvents(events: readonly GameEvent[], playerId?: number) {
