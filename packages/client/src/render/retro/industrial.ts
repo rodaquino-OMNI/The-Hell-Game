@@ -86,11 +86,14 @@ export interface Industrial {
   fixtures: THREE.InstancedMesh;
 }
 
-/** luminárias ao longo das faces dos muros (posições derivadas das caixas do mapa: o layout não muda) */
-function lampPoints(): { x: number; z: number; rotY: number; fx: number; fz: number }[] {
+/**
+ * luminárias ao longo das faces dos muros (posições derivadas das caixas do mapa efetivo `cfg.map`, com as pilastras
+ * do v1 quando ligadas: o layout não muda)
+ */
+export function lampPoints(): { x: number; z: number; rotY: number; fx: number; fz: number }[] {
   const out: { x: number; z: number; rotY: number; fx: number; fz: number }[] = [];
   const [W, D] = map.size;
-  for (const [wx, wz, ww, wd] of map.walls) {
+  for (const [wx, wz, ww, wd] of cfg.map.walls) {
     const alongX = ww >= wd, len = alongX ? ww : wd, half = (alongX ? wd : ww) / 2;
     const count = Math.max(1, Math.floor(len / ind.lamp_spacing));
     for (let i = 0; i < count; i++) {
@@ -114,7 +117,7 @@ export function createIndustrial(rand: () => number): Industrial {
   const [sx, sy, sz] = ind.lamp_size;
   const fixtures = new THREE.InstancedMesh(new THREE.BoxGeometry(sx, sy, sz), new Ps1Material({ lit: false, fog: false, color: tok(ind.lamp_token) }), Math.max(1, pts.length));
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
-  pts.forEach((l, i) => fixtures.setMatrixAt(i, m.compose(p.set(l.fx, map.wall_height - sy, l.fz), q.setFromEuler(e.set(0, l.rotY, 0)), one)));
+  pts.forEach((l, i) => fixtures.setMatrixAt(i, m.compose(p.set(l.fx, cfg.map.wall_height - sy, l.fz), q.setFromEuler(e.set(0, l.rotY, 0)), one)));
   fixtures.count = pts.length;
   fixtures.name = "luminarias-industriais";
   return {

@@ -75,6 +75,23 @@ export function box(w: number, h: number, d: number, m: THREE.Material, x: numbe
 /** subdivisões de uma dimensão para o tamanho de célula `render.tessellate` (GDD-v0.3 §10.1 item 2) */
 const seg = (len: number) => Math.max(1, Math.ceil(len / rc.tessellate));
 /** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
+/**
+ * muros do mapa EFETIVO (`cfg.map`, de makeConfig: no v1 inclui as pilastras de `maps.v1.short_loop_pillars`,
+ * GDD-v0.3 D-22/23/25), não o `map` de topo; um material por caixa (`wallMat` recebe a largura em x). Devolve as malhas.
+ */
+export function addWalls(S: THREE.Object3D, baked: THREE.Mesh[], wallMat: (ww: number) => THREE.Material): THREE.Mesh[] {
+  const { walls, wall_height: h } = cfg.map;
+  const out: THREE.Mesh[] = [];
+  for (const [x, z, ww, wd] of walls) {
+    const g = new THREE.BoxGeometry(ww, h, wd, seg(ww), seg(h), seg(wd));
+    neutralBake(g);
+    const b = new THREE.Mesh(g, wallMat(ww));
+    b.name = "muro";
+    b.position.set(x, h / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b); out.push(b);
+  }
+  return out;
+}
+
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
   THREE.ColorManagement.enabled = false;
@@ -109,13 +126,7 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   neutralBake(floorGeo);
   const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.floor(18, 18) : tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.add(floor); baked.push(floor);
-  for (const [x, z, ww, wd] of map.walls) {
-    const m = new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.wall(Math.max(1, ww / 3), 1) : tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
-    const g = new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd));
-    neutralBake(g);
-    const b = new THREE.Mesh(g, m);
-    b.position.set(x, map.wall_height / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b);
-  }
+  addWalls(S, baked, (ww) => new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.wall(Math.max(1, ww / 3), 1) : tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) }));
   S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: tok(WORLD.cage), wireframe: true }), map.cage[0], 1.2, map.cage[1]));
   const lantern = createLantern();
   S.add(lantern, lantern.target);

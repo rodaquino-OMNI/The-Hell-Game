@@ -55,10 +55,10 @@ export function neutralBake(g: THREE.BufferGeometry) {
   g.setAttribute("ps1Bake", new THREE.BufferAttribute(a, 4));
 }
 
-/** distância no plano XZ de (x, z) até a caixa de muro mais próxima */
-function wallDistance(x: number, z: number): number {
+/** distância no plano XZ de (x, z) até a caixa de muro mais próxima do mapa efetivo (`cfg.map`, com as pilastras do v1) */
+export function wallDistance(x: number, z: number): number {
   let best = Infinity;
-  for (const [wx, wz, ww, wd] of map.walls) {
+  for (const [wx, wz, ww, wd] of cfg.map.walls) {
     const dx = Math.max(0, Math.abs(x - wx) - ww / 2), dz = Math.max(0, Math.abs(z - wz) - wd / 2);
     best = Math.min(best, Math.hypot(dx, dz));
   }
