@@ -4,6 +4,9 @@
 // V3: skin do jogador (troca de cor das secundárias no atlas + acessório pequeno no peito) e olhos do caçador que
 // acendem no preparo (telegraph, Art Bible §1.5 e §4).
 // D-18: o caçador leva o contorno (borda de luz por vértice do Ps1Material, render.hunter_outline) nas malhas iluminadas.
+// D-45: os .glb podem ser pedidos antes da partida (`prefetchCharacters`, com o menu aberto, baixa prioridade); os bytes
+// ficam em memória e o `createCharacter` os reusa (um só download por arquivo). Até o modelo chegar, ou se ele falhar, o
+// contêiner mostra o modelo de reserva (render.models.fallback), cujos olhos também acendem no preparo.
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -23,7 +26,9 @@ interface Asset { scene: THREE.Object3D; clips: THREE.AnimationClip[]; meta: Map
 interface Manifest { anim_fps: number; personagens: { id: string; arquivo: string; clipes: ClipMeta[]; acessorio?: Anchor }[] }
 
 /** olhos do caçador: material de repouso (atlas, hunter.olhos) e de preparo (hunter.olhos_preparo) e o lampejo */
-interface Telegraph { mesh: THREE.Mesh; rest: THREE.Material; hot: THREE.Material; flare: THREE.Mesh; on: boolean }
+interface Telegraph { mesh: THREE.Mesh; rest: THREE.Material; hot: THREE.Material; flare: THREE.Mesh | null; on: boolean }
+/** modelo de reserva (D-45): caixa na cor do personagem; olhos com telegraph só no caçador */
+interface Fallback { group: THREE.Group; telegraph: Telegraph | null }
 
 interface Instance {
   id: string;
@@ -39,6 +44,8 @@ interface Instance {
   telegraph?: Telegraph | null;
   /** último pedido de `setTelegraph` (null = nunca pedido: personagem sem telegraph) */
   wantTelegraph: boolean | null;
+  /** modelo de reserva enquanto `model` é null (D-45); removido quando o .glb entra */
+  fallback: Fallback | null;
 }
 
 const assets = new Map<string, Promise<Asset>>();
@@ -47,6 +54,33 @@ let fps = 0;
 let manifestP: Promise<Manifest> | null = null;
 
 const url = (p: string) => import.meta.env.BASE_URL + p;
+
+/** bytes de cada .glb (chave: `arquivo` do manifesto); uma falha sai do cache para o próximo pedido tentar de novo */
+const raw = new Map<string, Promise<ArrayBuffer>>();
+function fetchModel(file: string, priority: "low" | "auto"): Promise<ArrayBuffer> {
+  let p = raw.get(file);
+  if (!p) {
+    // `priority` (Fetch Priority, https://fetch.spec.whatwg.org/#request-priority): dica; navegador sem suporte ignora
+    p = fetch(url(file), { priority } as RequestInit).then(r => {
+      if (!r.ok) throw new Error(`${file}: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    });
+    raw.set(file, p);
+    p.catch(() => { if (raw.get(file) === p) raw.delete(file); });
+  }
+  return p;
+}
+
+/**
+ * pede os .glb dos personagens `ids` em baixa prioridade (D-45: com o menu aberto, fora do download crítico); o
+ * `createCharacter` seguinte reusa os bytes. Falha só avisa: o `createCharacter` pede de novo
+ */
+export function prefetchCharacters(ids: readonly string[]): Promise<void> {
+  return loadManifest().then(man => Promise.all(ids.map(id => {
+    const entry = man.personagens.find(e => e.id === id);
+    return entry ? fetchModel(entry.arquivo, "low") : undefined;
+  }))).then(() => undefined, e => console.warn("pré-carga dos personagens:", e));
+}
 
 /**
  * material do atlas: Ps1Material iluminado; emissivo (olhos, lanterna) chapado e sem névoa (Art Bible §3).
@@ -66,6 +100,8 @@ function loadManifest(): Promise<Manifest> {
     if (!r.ok) throw new Error(`personagens.json: HTTP ${r.status}`);
     return r.json() as Promise<Manifest>;
   });
+  // falha (rede): o próximo pedido tenta de novo
+  manifestP.catch(() => { manifestP = null; });
   return manifestP;
 }
 
@@ -78,7 +114,8 @@ function loadAsset(id: string, rim: boolean): Promise<Asset> {
       fps = man.anim_fps;
       const entry = man.personagens.find(e => e.id === id);
       if (!entry) throw new Error(`personagem '${id}' fora de personagens.json`);
-      const gltf = await new GLTFLoader().loadAsync(url(entry.arquivo));
+      const bytes = await fetchModel(entry.arquivo, "auto");
+      const gltf = await new GLTFLoader().parseAsync(bytes, url(entry.arquivo).replace(/[^/]*$/, ""));
       const cache = new Map<THREE.Material, THREE.Material>();
       gltf.scene.traverse(o => {
         const mesh = o as THREE.SkinnedMesh;
@@ -211,7 +248,7 @@ function applyTelegraph(t: Telegraph, on: boolean) {
   if (t.on === on) return;
   t.on = on;
   t.mesh.material = on ? t.hot : t.rest;
-  t.flare.visible = on;
+  if (t.flare) t.flare.visible = on;
 }
 
 /** acende (ou apaga) os olhos do caçador: chamado a cada quadro com `hunter.windup != null` */
@@ -219,12 +256,62 @@ export function setTelegraph(root: THREE.Object3D, on: boolean) {
   const inst = instances.get(root);
   if (!inst) return;
   inst.wantTelegraph = on;
-  if (inst.model && inst.telegraph === undefined) inst.telegraph = prepareTelegraph(inst.model);
+  if (!inst.model) { if (inst.fallback?.telegraph) applyTelegraph(inst.fallback.telegraph, on); return; }
+  if (inst.telegraph === undefined) inst.telegraph = prepareTelegraph(inst.model);
   if (inst.telegraph) applyTelegraph(inst.telegraph, on);
 }
 
-/** olhos acesos agora (para testes ponta a ponta e capturas) */
-export const telegraphOn = (root: THREE.Object3D) => instances.get(root)?.telegraph?.on ?? false;
+/** olhos acesos agora, no modelo ou no de reserva (para testes ponta a ponta e capturas) */
+export function telegraphOn(root: THREE.Object3D): boolean {
+  const inst = instances.get(root);
+  if (!inst) return false;
+  return (inst.model ? inst.telegraph?.on : inst.fallback?.telegraph?.on) ?? false;
+}
+
+/** o que o contêiner mostra: o modelo do .glb, o de reserva (D-45) ou nada (para testes ponta a ponta) */
+export function characterForm(root: THREE.Object3D): "modelo" | "reserva" | null {
+  const inst = instances.get(root);
+  return inst?.model ? "modelo" : inst?.fallback ? "reserva" : null;
+}
+
+/**
+ * modelo de reserva (D-45, render.models.fallback): caixa na cor da classe (`class.<id>`) ou do caçador
+ * (`hunter.<id>`); o caçador tem a faixa dos olhos (hunter.olhos, hunter.olhos_preparo no preparo) na frente (−Z)
+ */
+function createFallback(id: string): Fallback {
+  const f = balance.render.models.fallback;
+  // token da paleta (não é chave de i18n): família + id do personagem
+  const hunterTok = "hunter" + "." + id, classTok = "class" + "." + id;
+  const hunter = hunterTok in PALETTE.tokens;
+  const color = hunter ? hunterTok : classTok in PALETTE.tokens ? classTok : "ui.text";
+  const [w, h, d] = hunter ? f.hunter : f.survivor;
+  const group = new THREE.Group();
+  group.name = "reserva:" + id;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0), new Ps1Material({ lit: true, color: tok(color), rim: hunter }));
+  body.castShadow = body.receiveShadow = true;
+  group.add(body);
+  if (!hunter) return { group, telegraph: null };
+  const [ew, eh, ed] = f.eyes;
+  const rest = new Ps1Material({ lit: false, fog: false, color: tok(FX.eyes) });
+  const hot = new Ps1Material({ lit: false, fog: false, color: tok(FX.eyesWindup) });
+  const eyes = new THREE.Mesh(new THREE.BoxGeometry(ew, eh, ed), rest);
+  eyes.position.set(0, h - f.eyes_below, -d / 2 - ed / 2);
+  group.add(eyes);
+  return { group, telegraph: { mesh: eyes, rest, hot, flare: null, on: false } };
+}
+
+function disposeFallback(f: Fallback) {
+  f.group.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.geometry.dispose();
+    (m.material as THREE.Material).dispose();
+  });
+  // material de preparo dos olhos (fora da cena enquanto os olhos estão apagados)
+  f.telegraph?.hot.dispose();
+  f.telegraph?.rest.dispose();
+  f.group.removeFromParent();
+}
 
 /**
  * contêiner do personagem (posição e rumo vêm da simulação); o modelo entra quando o .glb termina de carregar.
@@ -233,7 +320,9 @@ export const telegraphOn = (root: THREE.Object3D) => instances.get(root)?.telegr
 export function createCharacter(id: string, skin?: SkinDef, o: { outline?: boolean } = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = "personagem:" + id;
-  const inst: Instance = { id, model: null, mixer: null, actions: new Map(), meta: new Map(), current: null, mem: null, step: -1, wantTelegraph: null };
+  const fallback = createFallback(id);
+  root.add(fallback.group);
+  const inst: Instance = { id, model: null, mixer: null, actions: new Map(), meta: new Map(), current: null, mem: null, step: -1, wantTelegraph: null, fallback };
   instances.set(root, inst);
   const p = loadAsset(id, o.outline ?? false).then(a => {
     const model = cloneSkinned(a.scene);
@@ -241,6 +330,8 @@ export function createCharacter(id: string, skin?: SkinDef, o: { outline?: boole
     model.rotation.y = Math.PI;
     // modo daltônico (V8): sem skin, o atlas também é repintado se o modo sobrepõe algum token
     if (skin || colorOverrides().length) applySkin(model, skin ?? { trocas: {} } as SkinDef, a.anchor);
+    disposeFallback(fallback);
+    inst.fallback = null;
     root.add(model);
     inst.model = model;
     if (inst.wantTelegraph !== null) setTelegraph(root, inst.wantTelegraph);
@@ -252,7 +343,7 @@ export function createCharacter(id: string, skin?: SkinDef, o: { outline?: boole
       if (meta && !meta.laco) { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
       inst.actions.set(clip.name as ClipName, act);
     }
-  }).catch(e => console.error(`modelo ${id}:`, e));
+  }).catch(e => console.error(`modelo ${id} (fica o modelo de reserva):`, e));
   pending.push(p);
   return root;
 }

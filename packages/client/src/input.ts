@@ -4,7 +4,10 @@
 // data/balance.yaml `ui.controls`.
 import type { Arrow, GameState, PlayerInput } from "@thehell/sim";
 import { balance } from "./data.ts";
-import { actionsOf, defaultBindings, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
+import { t } from "./i18n/index.ts";
+import { pointerFilter } from "./pointer-filter.ts";
+import { exposeDebugHook } from "./debug-hooks.ts";
+import { actionsOf, defaultBindings, keyLabel, held, holdOrToggle, PUZZLE_ARROW_KEYS, PUZZLE_EXIT_KEYS, type Bindings, type ControlAction } from "./bindings.ts";
 import { button, padSticks, type PadLike } from "./gamepad.ts";
 
 const ctl = balance.ui.controls;
@@ -12,9 +15,13 @@ const gp = ctl.gamepad;
 
 /** estado de câmera controlado pela entrada (lido pela render) */
 export const view = { yaw: 0, pitch: 0, thirdPerson: true };
+/** leitura da câmera logo depois de cada evento (tools/e2e/pointer-lock.mjs despacha mousemove sintético); só com ?debug=1 (D-33) */
+exposeDebugHook("__thehellInput", () => ({ yaw: view.yaw, pitch: view.pitch }));
 let drag = false;
 const keys: Record<string, boolean> = {};
 const pending: Partial<PlayerInput> = {};
+/** descarta o salto espúrio ao adquirir o pointer lock e eventos fora do limite (pointer-filter.ts) */
+const mouseFilter = pointerFilter(balance.client.mouse_max_delta);
 
 /** preferências de controle do menu de opções (V8) */
 export interface ControlPrefs { keys: Bindings; toggleRun: boolean; toggleInteract: boolean; sensitivity: number; invertY: boolean }
@@ -45,6 +52,8 @@ export function pingIndexOf(code: string): number {
 
 /** a tecla é a do mudo (ação `mute`, D-41; audio/mute.ts `installMuteKey`) */
 export const isMuteKey = (code: string) => prefs.keys.mute.includes(code);
+/** aviso do mudo com a tecla atual da ação `mute` (remapeável; padrão M) */
+export const muteMessage = (muted: boolean) => t(muted ? "caption.sound_muted" : "caption.sound_unmuted", { key: keyLabel(prefs.keys, "mute") });
 
 /** zera os estados alternados (nova partida) */
 export function resetInput() { hold.run = hold.interact = false; for (const k of Object.keys(keys)) keys[k] = false; }
@@ -56,7 +65,9 @@ export function setupInput(game: () => GameState | undefined) {
     if (G && keyDown(G, e.code, e.repeat)) e.preventDefault();
   };
   onkeyup = e => keyUp(e.code);
+  document.addEventListener("pointerlockchange", () => mouseFilter.lockChange(!!document.pointerLockElement));
   onmousemove = e => {
+    if (!mouseFilter.accept(!!document.pointerLockElement, e.movementX, e.movementY)) return;
     const G = game();
     if (!G || G.over) return;
     if (document.pointerLockElement || drag) look(e.movementX * ctl.mouse_rad_per_px * prefs.sensitivity, e.movementY * ctl.mouse_rad_per_px * prefs.sensitivity);
