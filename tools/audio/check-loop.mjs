@@ -4,9 +4,10 @@
 // 1. o comprimento em amostras tem de ser exatamente loop_bars × beats_per_bar × 60 / bpm × taxa (gapless: o Chromium
 //    tem de respeitar o atraso do encoder e o padding gravados no cabeçalho Xing/LAME, editados pelo compose.ts), num
 //    contexto na taxa do arquivo (audio.compose.sample_rate);
-// 2. a junção do loop (última amostra → primeira) não pode ter degrau maior que o percentil 99,9 dos degraus internos
-//    (|x[i+1] − x[i]|), nem curvatura (2ª diferença) maior que o percentil 99,9 das internas: é o "maior degrau interno
-//    típico"; um estalo de loop é um degrau isolado várias vezes acima disso.
+// 2. a junção do loop (última amostra → primeira) passa no critério local de tools/audio/junction.mjs (o mesmo do
+//    teste packages/client/test/audio-stems.test.ts): degrau e 2ª diferença ≤ audio.compose.junction_factor × o maior
+//    degrau / a maior 2ª diferença em ±audio.compose.junction_window amostras; e, como controle, a mesma junção com um
+//    estalo sintético de 0,02 (nos dois sentidos) tem de reprovar.
 // Contextos testados:
 // a. OfflineAudioContext na taxa do arquivo (audio.compose.sample_rate): reprova se falhar;
 // b. como o jogo cria (packages/client/src/audio/engine.ts, createAudioContext): AudioContext REAL com
@@ -18,6 +19,7 @@
 // Valores de data/balance.yaml (audio.music.*, audio.compose.*). Uso: node tools/audio/check-loop.mjs
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { fromNeighborhood, junctionOk, junctionStats, neighborhood } from "./junction.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -34,8 +36,10 @@ const CASES = [
   ["offline", "offline", 44100, false],
   ["dispositivo", "device", null, false],
 ];
-/** percentil dos degraus internos usado como limiar da junção (ver cabeçalho) */
-const QUANTILE = 0.999;
+const WIN = compose.junction_window, FACTOR = compose.junction_factor;
+/** estalo sintético de controle (igual ao do teste): degrau de 0,02 que decai linearmente em 100 ms */
+const CLICK = 0.02;
+const withClick = (head, amp, rate) => { const m = Math.round(0.1 * rate); return head.map((v, i) => v + (i < m ? amp * (1 - i / m) : 0)); };
 const loopSec = (compose.loop_bars * music.beats_per_bar * 60) / music.bpm;
 const dir = new URL("../../packages/client/public/audio/music/", import.meta.url);
 
@@ -48,7 +52,7 @@ try {
   for (const stem of music.stems) {
     const b64 = readFileSync(new URL(`${stem}.mp3`, dir)).toString("base64");
     for (const [label, kind, rate, strict] of CASES) {
-      const r = await page.evaluate(async ([b64, kind, rate, q]) => {
+      const r = await page.evaluate(async ([b64, kind, rate, nb]) => {
         const bin = atob(b64);
         const u8 = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
@@ -57,30 +61,31 @@ try {
         const buf = await ctx.decodeAudioData(u8.buffer);
         const ctxRate = ctx.sampleRate;
         if (kind !== "offline") await ctx.close();
-        const quant = (a, p) => { const s = Float32Array.from(a).sort(); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
         const ch = [];
         for (let c = 0; c < buf.numberOfChannels; c++) {
-          const x = buf.getChannelData(c), n = x.length;
-          const d1 = new Float32Array(n - 1), d2 = new Float32Array(n - 2);
-          for (let i = 0; i < n - 1; i++) d1[i] = Math.abs(x[i + 1] - x[i]);
-          for (let i = 1; i < n - 1; i++) d2[i - 1] = Math.abs(x[i + 1] - 2 * x[i] + x[i - 1]);
-          const j1 = Math.abs(x[0] - x[n - 1]);
-          const j2 = Math.max(Math.abs(x[1] - 2 * x[0] + x[n - 1]), Math.abs(x[0] - 2 * x[n - 1] + x[n - 2]));
-          ch.push({ first: x[0], last: x[n - 1], j1, q1: quant(d1, q), j2, q2: quant(d2, q), max1: quant(d1, 1) });
+          const x = buf.getChannelData(c);
+          ch.push({ tail: Array.from(x.subarray(x.length - nb)), head: Array.from(x.subarray(0, nb)) });
         }
         return { ctxRate, length: buf.length, sampleRate: buf.sampleRate, channels: buf.numberOfChannels, ch };
-      }, [b64, kind, rate, QUANTILE]);
+      }, [b64, kind, rate, neighborhood(WIN)]);
       const expected = Math.round(loopSec * r.ctxRate);
       const okRate = rate === null || r.ctxRate === rate;
       const okLen = r.length === expected && r.channels === 2 && r.sampleRate === r.ctxRate;
-      const okJ = r.ch.every(c => c.j1 <= c.q1 && c.j2 <= c.q2);
+      const js = r.ch.map(c => {
+        const j = junctionOk(junctionStats(fromNeighborhood(c.tail, c.head), WIN), FACTOR);
+        const clicks = [CLICK, -CLICK].map(a => junctionOk(junctionStats(fromNeighborhood(c.tail, withClick(c.head, a, r.ctxRate)), WIN), FACTOR).ok);
+        return { ...j, last: c.tail[c.tail.length - 1], first: c.head[0], clickCaught: clicks.every(ok => !ok) };
+      });
+      const okJ = js.every(j => j.ok);
+      const okCtl = js.every(j => j.clickCaught);
       const ok = okRate && okLen && okJ;
       if (!ok && strict) failed = true;
-      const f = (v) => v.toExponential(2);
+      if (!okCtl && strict) failed = true;
+      const f = (v) => v.toExponential(2), g = (v) => v.toFixed(2);
       const desc = kind === "game" ? `jogo: AudioContext({ sampleRate: ${rate} }) em dispositivo de ${deviceRate} Hz → contexto ${r.ctxRate} Hz`
         : kind === "device" ? `dispositivo: new AudioContext() → ${r.ctxRate} Hz` : `${label} ${r.ctxRate} Hz`;
       console.log(`${ok ? "ok   " : strict ? "FALHA" : "AVISO"} ${stem.padEnd(15)} ${desc}: ${r.length} amostras (esperado ${expected}), ${r.channels} canais`);
-      r.ch.forEach((c, i) => console.log(`        canal ${i}: última ${f(c.last)} → primeira ${f(c.first)}; degrau ${f(c.j1)} ${c.j1 <= c.q1 ? "≤" : ">"} p99,9 ${f(c.q1)} (máx interno ${f(c.max1)}); 2ª dif. ${f(c.j2)} ${c.j2 <= c.q2 ? "≤" : ">"} p99,9 ${f(c.q2)}`));
+      js.forEach((j, i) => console.log(`        canal ${i}: última ${f(j.last)} → primeira ${f(j.first)}; degrau/máx local ${g(j.stepRatio)}, 2ª dif./máx local ${g(j.curvRatio)} (limite ${FACTOR}); estalo de ±${CLICK} ${j.clickCaught ? "reprovado" : "NÃO DETECTADO"}`));
     }
   }
 } finally {

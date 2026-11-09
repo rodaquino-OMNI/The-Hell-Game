@@ -78,8 +78,8 @@ function measure(file: string): Loudness {
  */
 function limit(ch: Float32Array[], ceilLin: number): Float32Array[] {
   const n = ch[0].length;
-  const W = Math.round(0.004 * sr), H = W >> 1;
-  const rel = Math.exp(-1 / (0.12 * sr));
+  const W = Math.round(compose.limiter_lookahead_s * sr), H = W >> 1;
+  const rel = Math.exp(-1 / (compose.limiter_release_s * sr));
   const req = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     let a = 0;
@@ -132,10 +132,13 @@ const apply = (raw: Float32Array[], gainDb: number, limDb: number | null) => {
  * silêncio (atraso do LAME e padding com zeros), e o primeiro e o último quadro reconstroem mal a junção. Então o
  * MP3 recebe [últimas PRE amostras do loop | loop | primeiras POST amostras do loop] e o cabeçalho LAME é editado para
  * o decodificador descartar essas amostras a mais (atraso += PRE, padding += POST): o que sai é exatamente o loop,
- * codificado com contexto contínuo dos dois lados. 2 quadros de 1152 amostras cobrem a sobreposição do banco de
- * filtros híbrido (polifásico 512 + MDCT de 2 grânulos); o campo do cabeçalho tem 12 bits (atraso e padding ≤ 4095).
+ * codificado com contexto contínuo dos dois lados. 2 quadros de 1152 amostras (audio.compose.gapless_preroll e
+ * gapless_postroll) cobrem a sobreposição do banco de filtros híbrido (polifásico 512 + MDCT de 2 grânulos); o campo
+ * do cabeçalho tem 12 bits (atraso e padding ≤ 4095).
  */
-const PRE = 2 * 1152, POST = 2 * 1152;
+const PRE = compose.gapless_preroll, POST = compose.gapless_postroll;
+/** atraso que o decodificador soma ao campo de atraso do cabeçalho LAME (529 amostras, padrão do MP3) */
+const DECODER_DELAY = 529;
 const LAME_FIELD_MAX = 4095;
 
 /** CRC-16/ARC (polinômio 0xA001 refletido, início 0): o "CRC-16 of Info Tag" do cabeçalho LAME */
@@ -159,6 +162,8 @@ function patchLameTag(file: string, addStart: number, addEnd: number): { start: 
   const crcAt = lame + 34;
   if (crc16(b.subarray(f, crcAt)) !== b.readUInt16BE(crcAt)) throw new Error(`${file}: CRC da tag LAME não confere antes da edição`);
   const v = b.readUIntBE(lame + 21, 3);
+  // o music.ts usa audio.compose.mp3_lead para achar o loop se o navegador ignorar o cabeçalho: tem de bater
+  if ((v >> 12) + DECODER_DELAY !== compose.mp3_lead) throw new Error(`${file}: atraso do encoder ${(v >> 12) + DECODER_DELAY} ≠ audio.compose.mp3_lead ${compose.mp3_lead}`);
   const start = (v >> 12) + addStart, end = (v & 0xfff) + addEnd;
   if (start > LAME_FIELD_MAX || end > LAME_FIELD_MAX) throw new Error(`${file}: atraso/padding ${start}/${end} não cabe em 12 bits`);
   b.writeUIntBE((start << 12) | end, lame + 21, 3);
@@ -178,13 +183,13 @@ const encodeLoopMp3 = (name: string, pcm: Float32Array[], mp3: string) => {
 
 /**
  * Masteriza para o MP3 entregue: ajusta ganho (e limitador, se o pico real passar do teto) até o MP3 decodificado
- * medir audio.loudness_lufs (±0,05, a resolução do ebur128) com pico real ≤ audio.true_peak_dbtp e o WAV ≤ teto com
+ * medir audio.loudness_lufs (± audio.compose.loudness_match_lu) com pico real ≤ audio.true_peak_dbtp e o WAV ≤ teto com
  * folga (audio.compose.true_peak_margin_db).
  */
 function masterAndEncode(name: string, raw: Float32Array[], mp3: string) {
   let gainDb = 0, limDb: number | null = null;
   const tmp = join(wavDir, `${name}.wav`);
-  for (let it = 0; it < 16; it++) {
+  for (let it = 0; it < compose.master_max_iterations; it++) {
     const pcm = apply(raw, gainDb, limDb);
     const wav = wavBytes(pcm);
     writeFileSync(tmp, wav);
@@ -193,7 +198,7 @@ function masterAndEncode(name: string, raw: Float32Array[], mp3: string) {
     let m: Loudness | null = null, pads = null;
     if (okTPw && writeMp3) { pads = encodeLoopMp3(name, pcm, mp3); m = measure(mp3); }
     const ref = m ?? w;
-    const okI = Math.abs(ref.I - target) <= 0.05;
+    const okI = Math.abs(ref.I - target) <= compose.loudness_match_lu;
     const okTP = okTPw && (!m || m.TP <= bal.audio.true_peak_dbtp);
     if (okI && okTP) return { pcm, wav, w, m, pads, gainDb, limDb };
     if (!okTP) limDb = (limDb ?? ceiling) - Math.max(0.1, (m && m.TP > bal.audio.true_peak_dbtp ? m.TP - bal.audio.true_peak_dbtp : w.TP - ceiling));
@@ -224,8 +229,8 @@ try {
   for (const name of music.stems) {
     const r = await page.evaluate(([n, o]) => (globalThis as unknown as { renderStem: (n: string, o: unknown) => Promise<unknown> }).renderStem(n as string, o), [name, opts] as const) as Rendered;
     if (r.length !== loopSamples) throw new Error(`${name}: ${r.length} amostras, esperado ${loopSamples}`);
-    // o que sobra no fim da cauda seria cortado do wrap: tem de estar abaixo de −60 dB do pico
-    if (r.tailEndPeak > r.renderedPeak * 1e-3) throw new Error(`${name}: cauda não decaiu (${r.tailEndPeak} em ${r.tailAt} s vs pico ${r.renderedPeak})`);
+    // o que sobra no fim da cauda seria cortado do wrap: tem de estar abaixo de tail_floor_db do pico
+    if (r.tailEndPeak > r.renderedPeak * 10 ** (compose.tail_floor_db / 20)) throw new Error(`${name}: cauda não decaiu (${r.tailEndPeak} em ${r.tailAt} s vs pico ${r.renderedPeak})`);
     const raw = r.channels.map(fromB64);
     const mp3 = join(outDir, `${name}.mp3`);
     const m = masterAndEncode(name, raw, mp3);
@@ -239,6 +244,9 @@ try {
     shas.push(`  sha256 ${name}.wav ${sha(m.wav)}  (PCM bruto ${sha(wavBytes(raw))})`);
   }
   console.log(shas.join("\n"));
+  // versões que determinam os bytes (mesmas versões + mesma semente → mesmos sha256)
+  const lame = spawnSync("dpkg-query", ["-W", "-f", "${Version}", "libmp3lame0"], { encoding: "utf8" });
+  console.log(`versões: ${execFileSync("ffmpeg", ["-version"], { encoding: "utf8" }).split("\n")[0]}; libmp3lame ${lame.status === 0 ? lame.stdout : "(versão não encontrada pelo dpkg)"}; Chromium ${browser.version()}`);
 } finally {
   await browser.close();
 }

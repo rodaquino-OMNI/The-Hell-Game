@@ -1,20 +1,22 @@
 // Stems de música (item A-3 do V5; GDD-v0.3 §11, C-13): os 5 MP3 gerados por tools/audio/compose.ts existem, têm o
 // mesmo comprimento em número inteiro de compassos, loudness −16 LUFS ±1 com pico real ≤ −1 dBTP (ffmpeg ebur128) e
-// fecham o loop sem degrau. Usa ffmpeg/ffprobe do sistema; sem o binário o bloco é pulado com aviso.
+// fecham o loop sem degrau. Usa ffmpeg/ffprobe do sistema. Sem o binário: na CI (process.env.CI) o teste FALHA
+// (o passo "Áudio: ffmpeg para os testes de stems" do ci.yml instala); fora da CI o bloco é pulado com aviso.
 //
 // Comprimento: o exato vem da DECODIFICAÇÃO (ffmpeg respeita o atraso e o padding do cabeçalho Xing/LAME, como o
 // Chromium, conferido em tools/audio/check-loop.mjs). A duração que o ffprobe informa é quadros × 1152 amostras e inclui
 // atraso + padding (mais de 1 quadro aqui, porque o compose.ts codifica pré e pós-rolagem e as marca como padding);
 // por isso o ffprobe só confere formato (taxa, canais, bitrate) e que os 5 arquivos informam a mesma duração.
 //
-// Junção do loop: para cada canal, o degrau |x[0] − x[N−1]| não pode passar do percentil 99,9 dos degraus internos
-// |x[i+1] − x[i]|, nem a 2ª diferença na junção passar do percentil 99,9 das internas (|x[i+1] − 2x[i] + x[i−1]|).
-// O percentil 99,9 é o "maior degrau interno típico": ignora o 0,1 % de transientes mais fortes (ataques de
-// percussão), e um estalo de loop é um degrau isolado muitas vezes acima dele.
+// Junção do loop: critério LOCAL de tools/audio/junction.mjs (o mesmo do check-loop no Chromium): degrau e 2ª diferença
+// na junção ≤ audio.compose.junction_factor × o maior degrau / a maior 2ª diferença em ±junction_window amostras.
+// Teste negativo: um estalo sintético de 0,02 (degrau que decai em 100 ms), nos dois sentidos, em cada canal de cada
+// stem, tem de reprovar.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
+import { circular, junctionOk, junctionStats } from "../../../tools/audio/junction.mjs";
 
 const root = new URL("../../../", import.meta.url).pathname;
 const bal = loadBalanceFile(root + "data/balance.yaml");
@@ -24,13 +26,14 @@ const file = (stem: string) => `${dir}${stem}.mp3`;
 const SR = compose.sample_rate;
 const BAR = (music.beats_per_bar * 60) / music.bpm;
 const EXPECTED = Math.round(compose.loop_bars * BAR * SR);
-/** percentil dos degraus internos usado como limiar da junção (ver cabeçalho) */
-const QUANTILE = 0.999;
+/** estalo sintético do teste negativo: amplitude do degrau e duração (amostras) do decaimento linear até 0 */
+const CLICK = 0.02, CLICK_DECAY = Math.round(0.1 * SR);
 /** folga do teste: tempo de ffmpeg por arquivo em máquina carregada (ms) */
 const TIMEOUT = 120_000;
 
 const hasFfmpeg = ["ffmpeg", "ffprobe"].every(b => spawnSync(b, ["-version"]).status === 0);
-if (!hasFfmpeg) console.warn("audio-stems: ffmpeg/ffprobe ausente no PATH; testes de loudness e loop PULADOS");
+const inCI = !!process.env.CI;
+if (!hasFfmpeg && !inCI) console.warn("audio-stems: ffmpeg/ffprobe ausente no PATH; testes de loudness e loop PULADOS (fora da CI)");
 
 /** PCM float 32 estéreo decodificado pelo ffmpeg (com o descarte gapless do cabeçalho LAME) */
 function decode(path: string): Float32Array[] {
@@ -57,19 +60,13 @@ function probe(path: string) {
   return JSON.parse(r.stdout).streams[0] as { codec_name: string; sample_rate: string; channels: number; bit_rate: string; duration: string };
 }
 
-const quantile = (a: Float32Array, p: number) => { const s = Float32Array.from(a).sort(); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
-
-/** degrau e 2ª diferença na junção (N−1 → 0) e os percentis internos correspondentes */
-function junction(x: Float32Array) {
-  const n = x.length;
-  const d1 = new Float32Array(n - 1), d2 = new Float32Array(n - 2);
-  for (let i = 0; i < n - 1; i++) d1[i] = Math.abs(x[i + 1] - x[i]);
-  for (let i = 1; i < n - 1; i++) d2[i - 1] = Math.abs(x[i + 1] - 2 * x[i] + x[i - 1]);
-  return {
-    step: Math.abs(x[0] - x[n - 1]), stepRef: quantile(d1, QUANTILE),
-    curv: Math.max(Math.abs(x[1] - 2 * x[0] + x[n - 1]), Math.abs(x[0] - 2 * x[n - 1] + x[n - 2])), curvRef: quantile(d2, QUANTILE),
-  };
-}
+const judge = (x: Float32Array) => junctionOk(junctionStats(circular(x), compose.junction_window), compose.junction_factor);
+/** cópia com um degrau de `amp` na junção (soma em x[0] e decai linearmente até 0 em CLICK_DECAY amostras) */
+const withClick = (x: Float32Array, amp: number) => {
+  const y = x.slice();
+  for (let i = 0; i < CLICK_DECAY; i++) y[i] += amp * (1 - i / CLICK_DECAY);
+  return y;
+};
 
 describe("stems de música (A-3)", () => {
   it("os 5 stems do YAML existem e estão no creditos.csv", () => {
@@ -84,6 +81,10 @@ describe("stems de música (A-3)", () => {
   it("o loop tem número inteiro de amostras e de compassos", () => {
     expect(EXPECTED).toBe(compose.loop_bars * BAR * SR);
     expect(Number.isInteger(compose.loop_bars)).toBe(true);
+  });
+
+  it.runIf(!hasFfmpeg && inCI)("na CI o ffmpeg/ffprobe é obrigatório", () => {
+    expect.fail("ffmpeg/ffprobe ausente no PATH com CI definido: os testes de loudness e loop dos stems não podem ser pulados (instale com apt-get install ffmpeg)");
   });
 
   describe.skipIf(!hasFfmpeg)("com ffmpeg", () => {
@@ -121,12 +122,20 @@ describe("stems de música (A-3)", () => {
       }
     }, TIMEOUT);
 
-    it("loop sem estalo: junção dentro do degrau e da curvatura internos típicos (p99,9)", () => {
+    it("loop sem estalo: junção dentro do degrau e da curvatura locais (junction_window, junction_factor)", () => {
       for (const s of music.stems) {
         get(s).forEach((x, c) => {
-          const j = junction(x);
-          expect(j.step, `${s} canal ${c}: degrau`).toBeLessThanOrEqual(j.stepRef);
-          expect(j.curv, `${s} canal ${c}: 2ª diferença`).toBeLessThanOrEqual(j.curvRef);
+          const j = judge(x);
+          expect(j.stepRatio, `${s} canal ${c}: degrau`).toBeLessThanOrEqual(compose.junction_factor);
+          expect(j.curvRatio, `${s} canal ${c}: 2ª diferença`).toBeLessThanOrEqual(compose.junction_factor);
+        });
+      }
+    }, TIMEOUT);
+
+    it("teste negativo: estalo sintético de 0,02 na junção reprova (nos dois sentidos, em todo canal de todo stem)", () => {
+      for (const s of music.stems) {
+        get(s).forEach((x, c) => {
+          for (const sign of [1, -1]) expect(judge(withClick(x, sign * CLICK)).ok, `${s} canal ${c}, estalo ${sign * CLICK}`).toBe(false);
         });
       }
     }, TIMEOUT);

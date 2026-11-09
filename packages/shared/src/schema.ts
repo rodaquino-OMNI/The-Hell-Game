@@ -57,6 +57,10 @@ const AudioSchema = z.object({
   compose: z.object({
     loop_bars: int.positive(), tail_bars: int.positive(), seed: int.nonnegative(),
     sample_rate: int.positive(), bitrate_kbps: int.positive(), true_peak_margin_db: pos,
+    limiter_lookahead_s: pos.positive(), limiter_release_s: pos.positive(), loudness_match_lu: pos.positive(),
+    master_max_iterations: int.positive(), tail_floor_db: z.number().negative(),
+    gapless_preroll: int.nonnegative().max(4095), gapless_postroll: int.nonnegative().max(4095), mp3_lead: int.nonnegative(),
+    junction_window: int.positive(), junction_factor: pos.positive(),
   }).strict(),
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
