@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-17)
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (2026-11-03) — exceção decidida pela supervisão; completa 2 semanas em 17/11
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (03/11/2026): exceção à quarentena de 2 semanas, decidida pela supervisão (PR #23 já em main)
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0 (2026-10-08)
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
