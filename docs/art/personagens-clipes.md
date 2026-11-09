@@ -109,7 +109,7 @@ Proxy de silhueta (IoU entre máscaras pretas, `tools/art/a2-capturas.mjs`, `sil
 
 De perto o Curandeiro ficou mais distinto de Mecânico, Atacador e Batedor; na distância de jogo, de lado, subiu (0,58 → 0,65 contra o Mecânico) porque a haste agora fica de pé junto do corpo em vez de cruzar o quadro na diagonal. Todos os pares do Curandeiro seguem abaixo dos pares já aprovados no A2 (Mecânico × Atacador 0,867, Atacador × Protetor 0,757). Batedor (ponta na cabeça): 0,47 de perto e 0,42 no jogo, menor que antes de perto. Proxy apenas; o portão é o teste humano da Art Bible §5.1.
 
-Câmera em 3ª pessoa (ombro direito, o lado do cajado): `a2-capturas.mjs` grava `jogo-curandeiro-3a-pessoa-{reta,para-cima,para-baixo}.png`; o cajado fica ao lado do corpo e não cobre o centro da tela em nenhuma das três.
+Câmera em 3ª pessoa (ombro direito, o lado do cajado): `a2-capturas.mjs` grava `jogo-curandeiro-3a-pessoa-{reta,para-cima,para-baixo}.png`; o cajado fica ao lado do corpo e nunca chega perto da câmera (menor distância 2,44 m, revisão do PR #25); com a câmera reta, a haste e o cristal caem na linha vertical central da tela no `idle` e no `preso` (não há mira até a fase 3). Variante escolhida no A2: (a) `mago`, sem caduceu.
 
 Registro do marco em `docs/art/marcos/a2/` (capturas do build com V4):
 

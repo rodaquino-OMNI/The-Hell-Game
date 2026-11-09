@@ -15,6 +15,7 @@ export function beep(f: number, d: number, v: number) {
     const o = audio.createOscillator(), gn = audio.createGain();
     o.frequency.value = f; gn.gain.setValueAtTime(v, audio.currentTime); gn.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + d);
     o.connect(gn); gn.connect(out); o.start(); o.stop(audio.currentTime + d);
+    e.notePlay("sfx");
   } catch { /* áudio indisponível */ }
 }
 

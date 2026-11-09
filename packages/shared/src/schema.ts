@@ -37,7 +37,7 @@ const AudioSchema = z.object({
   loudness_lufs: z.number().max(0), loudness_tolerance: pos, true_peak_dbtp: z.number().max(0),
   ducking_db: z.number().max(0),
   buses: z.object({ master: gain01, music: gain01, sfx: gain01, voice: gain01, ui: gain01 }).strict(),
-  volume_ramp_tc: pos.positive(),
+  volume_ramp_tc: pos.positive(), volume_persist_delay: pos,
 }).strict();
 
 /** GDD v0.3 §8.6: parâmetros do navmesh (recast-navigation) e da grade A* de reserva */
