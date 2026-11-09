@@ -52,6 +52,73 @@ export interface Survivor extends Vec {
   antiTunnel: number;
   /** pontos que este sobrevivente fez, por categoria (GDD-v0.2 §7.1) */
   score: Score;
+  /** v1 com `ai.bot_brain: competent`: estado do cérebro do bot (R4); ausente no jogador humano e nos bots do protótipo */
+  ai?: BotAi;
+}
+
+/** modos do bot competente (GDD-v0.3 §8.1: máquina de estados com utilidade) */
+export type BotMode = "work" | "flee" | "rescue" | "escape" | "wait";
+
+/** caçador como o bot o viu pela última vez (snapshot filtrado: só com linha de visão até `ai.bots.sight_radius`) */
+export interface BotSeenHunter extends Vec {
+  /** instante da leitura */
+  at: number;
+  /** preparo visível (telegraph, GDD-v0.2 §4.1) */
+  windup: Windup["kind"] | null;
+  stunned: boolean;
+}
+
+/** evento que o bot percebeu e ainda não tratou (reage depois de um atraso de `ai.bots.ping_reaction`) */
+export interface BotPending { kind: "caged" | "danger"; id: number; x: number; z: number; at: number }
+
+/** estado do bot competente (R4). Dado puro e serializável: entra no hash de determinismo. */
+export interface BotAi {
+  /** chave em `ai.bots.personalities` (sorteada pelo PRNG da partida) */
+  personality: string;
+  mode: BotMode;
+  perceiveIn: number;
+  decideIn: number;
+  /** última vez que viu o caçador (null = nunca); `seen` = visto na leitura atual */
+  hunter: BotSeenHunter | null;
+  seen: boolean;
+  /** instante em que o bot reage ao caçador que acabou de aparecer (tempo de reação, `ai.bots.ping_reaction`) */
+  reactAt: number;
+  /** instante em que olha em volta depois de o batimento começar (`look_on_heartbeat`) */
+  lookAt: number;
+  /** próxima olhada em volta (360°) fora de interação (`ai.bots.glance_interval`) */
+  glanceAt: number;
+  /** no quebra-cabeça ou segurando o resgate: a câmera fica no alvo da interação */
+  busy: boolean;
+  /** batimento: caçador a menos de `prototype_extras.heartbeat.radius` (só a distância, sem direção; P-03) */
+  heartbeat: boolean;
+  lastHp: number;
+  /** instante do último dano recebido */
+  hitAt: number | null;
+  /** stamina esgotada: anda até `ai.bots.stamina_resume` */
+  exhausted: boolean;
+  /** correu no último passo */
+  running: boolean;
+  /** aliados que o bot sabe estarem presos (HUD) e eventos à espera do tempo de reação */
+  caged: number[];
+  pending: BotPending[];
+  /** perigos conhecidos (gerador revelado, falha ouvida) até `until` */
+  dangers: { x: number; z: number; until: number }[];
+  /** loop (id dos metadados do mapa) usado na fuga */
+  loop: string | null;
+  /** instante em que chegou à rota do loop atual (-1 = ainda a caminho) */
+  loopSince: number;
+  /** gerador escolhido (índice em `gens`, -1 = nenhum) e aliado a resgatar (-1) */
+  gen: number;
+  rescueId: number;
+  /** capturas na última atualização (detecta a volta da gaiola: caminho velho) */
+  captures: number;
+  // navegação (GDD-v0.3 §8.6), mesmo esquema do caçador
+  goal: Vec | null;
+  path: Vec[];
+  pathOk: boolean;
+  forceAstar: boolean;
+  stuck: { t: number; x: number; z: number; ex: number; ez: number };
+  replans: number;
 }
 
 /**
@@ -108,7 +175,13 @@ export interface HunterAi {
   /** instante da última troca de alvo */
   switchedAt: number;
   /** última posição conhecida do alvo (memória da dificuldade) */
-  memory: { id: number; x: number; z: number; until: number } | null;
+  memory: {
+    id: number; x: number; z: number; until: number;
+    /** velocidade percebida na última leitura (direção de fuga projetada ao chegar à última posição, D-35) */
+    vx: number; vz: number;
+    /** centro da vasculha quando não há projeção possível (última posição vista ou o fim da projeção) */
+    ax: number; az: number;
+  } | null;
   /** ponto investigado e prazo; `spot` = ponto atual da vasculha em volta dele */
   investigate: { x: number; z: number; until: number; spot: Vec | null } | null;
   /** ruído ouvido ainda não tratado (vira investigação depois do tempo de reação) */
