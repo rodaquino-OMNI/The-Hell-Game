@@ -559,3 +559,40 @@ net:
   warn_ping_ms: 200
   reconnect_s: 30
   max_clients_per_room: 6
+
+# ---------- 18. Simulador e porta de regressão (GDD-v0.3 C-15, D-05 a, D-16 a; GDD-v0.2 §7.6; item R5) ----------
+# Bots não representam pessoas (lição do Caçada Sombria, C-15): o simulador é PORTA DE REGRESSÃO, não de banda.
+# `pnpm sim:check` joga `check.matches_per_group` partidas por dificuldade em cada mapa, sementes `check.seed` em
+# diante (as mesmas da linha de base data/sim/baseline.json), e reprova se uma métrica piorar mais que a tolerância
+# (piora máxima ABSOLUTA, na unidade da métrica: fração 0..1, segundos ou capturas por partida). `max_worsening` vale
+# nos grupos de 1 dificuldade; `pooled_max_worsening`, no agregado "mapa/all" (4× mais partidas, ruído menor).
+# Direção de piora: `higher` = subir é piorar; `lower` = descer é piorar; `band` = afastar-se da banda do §7.6 é
+# piorar, e passar para o OUTRO lado da banda conta a distância nova inteira como piora (0% → 100% de vitória do
+# caçador numa banda de 45–55% = 45 p.p.). A banda só define a direção; ela vira porta só depois da calibração com
+# pessoas (D-05). Métricas fora daqui só são medidas: survivor_escape (D-16 a) e duration_median. Travas (T-03),
+# exceções, partidas sem fim e transições fora do grafo do §8.2 reprovam sempre. Tolerância null = "a medir".
+# Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
+# para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado); chase_median só usa lotes
+# com ≥ min_samples episódios. Medição de 09/11/2026 (`pnpm sim --check --noise=10`, bots do protótipo, hunter_brain
+# utility, grade A*, com a D-21 `generator.completed_reveal_global: true`). Desvio máx por dificuldade / no agregado:
+# hunter_win 0 / 0; duration_mean 9,75 s (easy) / 3,67 s; captures_per_match 0,062 (nightmare) / 0,0235;
+# short_match_rate 0,040 (easy) / 0,0164; chases_per_match 0,071 (nightmare) / 0,0277; chase_median: por dificuldade
+# só 1 lote válido (a medir) / 7,0 s (5 lotes válidos).
+# PORTA SATURADA HOJE (bots do protótipo; a tabela do check marca "saturada"): vitória do caçador 0%, capturas e
+# perseguições perto de 0 e partidas curtas perto de 100% ficam a menos de 1 tolerância do limite físico, então a
+# piora do lado de perto não reprova (a vitória do caçador ainda reprova se passar do outro lado da banda). Hoje só
+# duration_mean e as falhas duras vigiam de fato; chase_median não é comparada (amostra < min_samples). Ao regravar a
+# linha de base com outro comportamento (ex.: bots do R4), medir de novo e revisar estes valores no mesmo PR.
+sim:
+  short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
+  check: {matches_per_group: 50, seed: 1, difficulties: [easy, normal, hard, nightmare]}  # 200 partidas no Pátio
+  nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
+  regression:
+    hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.02, pooled_max_worsening: 0.005}  # §7.6 + D-16 a
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 42, pooled_max_worsening: 16}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.27, pooled_max_worsening: 0.1}      # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.17, pooled_max_worsening: 0.07}                     # §7.6: < 5%
+    # §8.5 (aceite: mediana ≥ 15 s). Com < 10 episódios a mediana oscila > 12 s entre lotes: não é comparada.
+    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: 30, min_samples: 10}  # null = a medir (R4)
+    # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
+    chases_per_match:   {worse: lower, max_worsening: 0.3, pooled_max_worsening: 0.12}
