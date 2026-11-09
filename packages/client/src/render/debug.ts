@@ -11,6 +11,7 @@ import { tok } from "../look.ts";
 import { genVisuals, meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
 import { telegraphOn } from "./characters/runtime.ts";
 import { portrait, type PortraitOptions } from "./characters/portrait.ts";
+import { renderStress, stressScene } from "./stress.ts";
 import { syncActors, syncDynamic } from "./sync.ts";
 
 export interface RenderHook {
@@ -50,6 +51,13 @@ export interface RenderHook {
    * (resolução interna do preset, material PS1, dither) e devolve os pixels como `capture`
    */
   portrait(o: PortraitOptions): Promise<{ width: number; height: number; rgba: string }>;
+  /**
+   * cena de pior caso (`?stress=1`, V7): desenha a vista `view` (0 = de cima, mapa inteiro; depois a varredura em 3ª
+   * e em 1ª pessoa) com o shadow map redesenhado e devolve `renderer.info` do quadro; null fora do `?stress=1`
+   */
+  stress(view: number): { calls: number; triangles: number; views: number } | null;
+  /** quadros desenhados (requestAnimationFrame) em `seconds` s de relógio real: contador de FPS da medição manual */
+  fps(seconds: number): Promise<{ frames: number; seconds: number; fps: number }>;
   /** estado visível da leitura (V3), após o último sync: olhos do caçador acesos e ids com cadeado à mostra */
   states(): { telegraph: boolean; locks: number[] };
 }
@@ -111,6 +119,22 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
       await portrait(ctx, o);
       return readScreen(ctx);
     },
+    stress: view => {
+      const sc = stressScene();
+      if (!sc) return null;
+      const { ctx } = need();
+      return { ...renderStress(ctx, sc, view), views: sc.views };
+    },
+    fps: seconds => new Promise(resolve => {
+      let frames = 0;
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        if (now - t0 >= seconds * 1000) { const s = (now - t0) / 1000; resolve({ frames, seconds: s, fps: frames / s }); return; }
+        frames++;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }),
     bench: (view, frames) => {
       const { ctx, G } = need();
       syncActors(G, view.thirdPerson);

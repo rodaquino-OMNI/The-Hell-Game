@@ -4,11 +4,10 @@
 // e /healthz. Grava uma captura. Partida com semente fixa (SEED), iniciada pelo teclado; a câmera tem de ficar em yaw 0.
 // Também confere o portão dos ganchos de depuração (D-33): sem `?debug=1` nenhum `window.__thehell*` existe; com ele,
 // os quatro ganchos das ferramentas existem.
-// Uso: node tools/smoke.mjs [saida.png] [url]   (sem url, sobe packages/server/dist/server.mjs na porta 18080)
-import { spawn } from "node:child_process";
+// Uso: node tools/smoke.mjs [saida.png] [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre)
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { setTimeout as sleep } from "node:timers/promises";
+import { startServer } from "./lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -60,11 +59,8 @@ function freeRun(x, z, dx, dz) {
 
 const shot = process.argv[2] ?? "/tmp/thehell-smoke.png";
 let url = process.argv[3], server;
-if (!url) {
-  url = "http://127.0.0.1:18080";
-  server = spawn(process.execPath, ["packages/server/dist/server.mjs"], { env: { ...process.env, PORT: "18080" }, stdio: "inherit" });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 const fail = (m) => { console.error("FALHA:", m); server?.kill(); process.exit(1); };
 try {
   const health = await (await fetch(url + "/healthz")).json();
