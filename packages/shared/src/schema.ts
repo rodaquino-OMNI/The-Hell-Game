@@ -34,7 +34,7 @@ const UiSchema = z.object({
     keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
     toggle_run: z.boolean(), toggle_interact: z.boolean(),
     gamepad: z.object({
-      deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1),
+      deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1), menu_stick: num.gt(0).max(1),
       axes: z.object({ move_x: int.min(0), move_y: int.min(0), look_x: int.min(0), look_y: int.min(0) }).strict(),
       buttons: z.object({
         interact: int.min(0), puzzle_exit: int.min(0), ability: int.min(0), attack: int.min(0), run: int.min(0), camera: int.min(0),

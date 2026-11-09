@@ -118,6 +118,15 @@ function bindToBone(mesh: THREE.SkinnedMesh, name: string): { bone: THREE.Bone; 
 }
 
 /**
+ * blocos do atlas a repintar (pixels, RGB 8 bits): primeiro os tokens que o modo daltônico sobrepõe (na cor do modo),
+ * depois as trocas da skin (cor de destino já com o modo). Vazio = o atlas assado serve como está. Puro (testes).
+ */
+export function atlasPaints(skin: Pick<SkinDef, "trocas">, size: number): { x: number; y: number; size: number; rgb: number[] }[] {
+  const swaps: [string, string][] = [...colorOverrides().map(k => [k, k] as [string, string]), ...Object.entries(skin.trocas)];
+  return swaps.map(([from, to]) => ({ ...atlasCell(PALETTE, size, from), rgb: rgb5(to).map(rgb5ToRgb8) }));
+}
+
+/**
  * atlas com as cores secundárias trocadas pelas da skin e os tokens sobrepostos pelo modo daltônico (V8, look.ts
  * `setColorMode`; mesmo layout do bake: atlas.ts). Cores sempre via `rgb5`, que já aplica o modo.
  */
@@ -126,11 +135,9 @@ function skinAtlas(src: THREE.Texture, skin: SkinDef): THREE.Texture {
   const k = document.createElement("canvas"); k.width = k.height = size;
   const x = k.getContext("2d")!;
   x.drawImage(src.image as CanvasImageSource, 0, 0, size, size);
-  const swaps: [string, string][] = [...colorOverrides().map(k => [k, k] as [string, string]), ...Object.entries(skin.trocas)];
-  for (const [from, to] of swaps) {
-    const c = atlasCell(PALETTE, size, from), [r, g, b] = rgb5(to).map(rgb5ToRgb8);
-    x.fillStyle = `rgb(${r},${g},${b})`;
-    x.fillRect(c.x, c.y, c.size, c.size);
+  for (const p of atlasPaints(skin, size)) {
+    x.fillStyle = `rgb(${p.rgb.join(",")})`;
+    x.fillRect(p.x, p.y, p.size, p.size);
   }
   const t = new THREE.CanvasTexture(k);
   t.flipY = src.flipY; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false;
@@ -141,7 +148,7 @@ function skinAtlas(src: THREE.Texture, skin: SkinDef): THREE.Texture {
 /** veste a skin no modelo: material do atlas trocado (só nesta instância) e acessório preso ao osso do ponto `anchor` */
 function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefined) {
   const meshes = skinnedMeshes(model);
-  if (Object.keys(skin.trocas).length || colorOverrides().length) {
+  if (atlasPaints(skin, balance.render.models.atlas).length) {
     const cache = new Map<THREE.Texture, THREE.Material>();
     for (const mesh of meshes) {
       const m = mesh.material as Ps1Material, map = m.uniforms.tMap.value as THREE.Texture | null;

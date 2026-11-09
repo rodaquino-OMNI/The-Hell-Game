@@ -892,6 +892,7 @@ ui:
       deadzone: 0.25                # fração do curso do analógico ignorada (LACUNA; proposta)
       look_speed: 2.5               # rad/s com o analógico direito no fim do curso (LACUNA; proposta)
       trigger_threshold: 0.5        # gatilho analógico conta como apertado a partir desta fração (LACUNA; proposta)
+      menu_stick: 0.5               # analógico esquerdo vira direção nos menus a partir desta fração (LACUNA; proposta)
       axes: {move_x: 0, move_y: 1, look_x: 2, look_y: 3}
       # em partida; no quebra-cabeça: `interact` confirma (timing), `puzzle_exit` sai e o direcional dá as setas
       buttons: {interact: 0, puzzle_exit: 1, ability: 3, attack: 7, run: 6, camera: 11, ping_1: 12, ping_2: 15, ping_3: 13, ping_4: 14}

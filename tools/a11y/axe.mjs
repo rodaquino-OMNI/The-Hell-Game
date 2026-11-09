@@ -276,7 +276,8 @@ try {
 
     // ---------- partida (protótipo): começar pelo teclado, HUD, fim ----------
     if (await tabTo(page, "go")) await page.keyboard.press("Enter");
-    await waitStarted(page, `${locale}/partida`);
+    // sem partida não há HUD para conferir: a falha já foi registrada (com o t atingido); segue para o próximo idioma
+    if (!(await waitStarted(page, `${locale}/partida`))) { await ctx.close(); continue; }
     const top = await page.textContent("#top");
     const gens = await game(page, () => window.__thehell().gens.filter(g => !g.bonus).length);
     const objectives = T["hud.objectives"].split("{")[0].trim();
@@ -326,7 +327,7 @@ try {
     // ---------- v1: espectador e fim com end.team / end.reason / end.individual ----------
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await waitStarted(page, `${locale}/partida-v1`);
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, () => { const g = window.__thehell(); g.survivors[0].st = "dead"; g.survivors[0].hp = 0; });
     await page.waitForSelector("#spec", { state: "visible", timeout: STALL_MS });
     const spt = await page.textContent("#spt");
@@ -351,7 +352,7 @@ try {
     // v1, limite de tempo com o jogador vivo: "não escapou" (não "morreu", erro do END_TEXT antigo)
     await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=v1`, { waitUntil: "load" });
     await page.click("#go");
-    await waitStarted(page, `${locale}/partida-v1`);
+    if (!(await waitStarted(page, `${locale}/partida-v1`))) { await ctx.close(); continue; }
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
     await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
     const notEscaped = T["end.v1.title"].match(/other \{([^}]*)\}/)[1];
