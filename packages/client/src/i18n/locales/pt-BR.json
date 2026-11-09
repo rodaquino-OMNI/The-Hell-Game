@@ -170,6 +170,7 @@
   "opt.reduce_flicker": "Reduzir flicker",
   "opt.reduce_flicker_hint": "Grão parado, sem aberração, seta de ameaça fixa e feixe pendente alternando com meia intensidade em vez de apagar.",
   "opt.reduce_bob": "Reduzir balanço de câmera",
+  "opt.hunter_outline": "Contorno do caçador",
   "opt.fov": "Campo de visão",
   "opt.value_deg": "{v}°",
   "opt.value_times": "{v}×",

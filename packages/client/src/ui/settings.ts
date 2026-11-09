@@ -24,6 +24,8 @@ export interface Options {
   layerA: Record<(typeof LAYER_A_OPTIONS)[number], number>;
   reduceFlicker: boolean;
   reduceCameraBob: boolean;
+  /** contorno do caçador, 0 a 1 (D-18, `render.hunter_outline.intensity`; 0 desliga) */
+  hunterOutline: number;
   /** graus (`ui.fov`); null = fov do protótipo (render/motion.ts) */
   fov: number | null;
   fontSize: FontSize;
@@ -44,6 +46,7 @@ export function defaultOptions(): Options {
     layerA: { grain: r.layer_a.grain, vignette: r.layer_a.vignette, scanlines: r.layer_a.scanlines, aberration: r.layer_a.aberration, bloom: r.layer_a.bloom },
     reduceFlicker: false,
     reduceCameraBob: false,
+    hunterOutline: r.hunter_outline.intensity,
     fov: null,
     fontSize: balance.ui.options.font_default,
     colorMode: "normal",
@@ -76,6 +79,7 @@ export function parseOptions(raw: unknown): Options {
     layerA: Object.fromEntries(LAYER_A_OPTIONS.map(e => [e, unit(get(la, e), d.layerA[e])])) as Options["layerA"],
     reduceFlicker: bool(get(raw, "reduceFlicker"), d.reduceFlicker),
     reduceCameraBob: bool(get(raw, "reduceCameraBob"), d.reduceCameraBob),
+    hunterOutline: unit(get(raw, "hunterOutline"), d.hunterOutline),
     fov: typeof fov === "number" && Number.isFinite(fov) && fov >= fr.min && fov <= fr.max ? fov : d.fov,
     fontSize: oneOf(get(raw, "fontSize"), FONT_SIZES, d.fontSize),
     colorMode: oneOf(get(raw, "colorMode"), ["normal", ...COLOR_MODES] as const, d.colorMode),

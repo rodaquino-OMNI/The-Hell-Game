@@ -180,6 +180,7 @@ function build(): HTMLElement[] {
   const comfort = section("os-comfort", t("opt.sec.comfort"),
     checkbox("o-flicker", t("opt.reduce_flicker"), o.reduceFlicker, v => commit({ ...opts, reduceFlicker: v }), t("opt.reduce_flicker_hint")),
     checkbox("o-bob", t("opt.reduce_bob"), o.reduceCameraBob, v => commit({ ...opts, reduceCameraBob: v })),
+    slider("o-outline", t("opt.hunter_outline"), o.hunterOutline, 0, 1, step, pct, v => commit({ ...opts, hunterOutline: v })),
     slider("o-fov", t("opt.fov"), o.fov ?? px.camera.fov, fr.min, fr.max, ob.fov_step, v => t("opt.value_deg", { v }), v => commit({ ...opts, fov: v })));
   const audio = section("os-audio", t("opt.sec.audio"),
     ...(["master", ...BUSES] as VolumeName[]).map(b => slider("o-vol-" + b, t(VOLUME_LABEL[b]), getBusVolume(b), 0, 1, step, pct, v => { setBusVolume(b, v); })));

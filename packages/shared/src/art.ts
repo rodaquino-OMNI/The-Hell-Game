@@ -28,14 +28,13 @@ export const PaletteSchema = z.object({
    * alguns tokens (os ausentes ficam como na paleta normal). Cada modo tem que passar no mesmo palette-check.
    */
   modos_daltonico: z.object({
+    // as mesmas 3 chaves de COLOR_MODES (color-modes.ts)
     protanopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
     deuteranopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
     tritanopia: z.object({ $comment: z.string().optional(), tokens: z.record(token, z.tuple([rgb5, rgb5, rgb5])) }).strict(),
   }).strict(),
 });
-/** modos daltônicos de data/art/palette.json, na ordem do menu */
-export const COLOR_MODES = ["protanopia", "deuteranopia", "tritanopia"] as const;
-export type ColorMode = (typeof COLOR_MODES)[number];
+
 export type PaletteData = z.infer<typeof PaletteSchema>;
 
 // ---------- ficha dos personagens ----------

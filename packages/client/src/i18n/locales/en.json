@@ -170,6 +170,7 @@
   "opt.reduce_flicker": "Reduce flicker",
   "opt.reduce_flicker_hint": "Still grain, no aberration, steady threat arrow, and the pending beam alternates with half brightness instead of turning off.",
   "opt.reduce_bob": "Reduce camera bob",
+  "opt.hunter_outline": "Hunter outline",
   "opt.fov": "Field of view",
   "opt.value_deg": "{v}°",
   "opt.value_times": "{v}×",

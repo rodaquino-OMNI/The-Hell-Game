@@ -25,6 +25,8 @@ export function setColorMode(m: ColorModeOption) {
   overrides = colorMode === "normal" ? {} : PALETTE.modos_daltonico[colorMode].tokens;
 }
 export const getColorMode = () => colorMode;
+/** tokens que o modo de cor atual sobrepõe (vazio no modo normal ou sem sobreposição aprovada) */
+export const colorOverrides = (): string[] => Object.keys(overrides);
 
 /** cor do token em 5 bits por canal, já com o modo de cor atual */
 export function rgb5(name: string): readonly [number, number, number] {

@@ -170,6 +170,7 @@
   "opt.reduce_flicker": "Reducir parpadeo",
   "opt.reduce_flicker_hint": "Grano quieto, sin aberración, flecha de amenaza fija y el haz pendiente alterna con media intensidad en vez de apagarse.",
   "opt.reduce_bob": "Reducir balanceo de cámara",
+  "opt.hunter_outline": "Contorno del cazador",
   "opt.fov": "Campo de visión",
   "opt.value_deg": "{v}°",
   "opt.value_times": "{v}×",

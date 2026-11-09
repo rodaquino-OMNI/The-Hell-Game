@@ -10,7 +10,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import type { SkinDef } from "@thehell/shared";
 import type { ClipName } from "../../assets/characters.ts";
 import { balance } from "../../data.ts";
-import { FX, PALETTE, tok } from "../../look.ts";
+import { colorOverrides, FX, PALETTE, rgb5, tok } from "../../look.ts";
 import { ps1Uniforms, Ps1Material } from "../ps1.ts";
 import { minWidthScale } from "../states.ts";
 import { atlasCell, rgb5ToRgb8 } from "./atlas.ts";
@@ -117,14 +117,18 @@ function bindToBone(mesh: THREE.SkinnedMesh, name: string): { bone: THREE.Bone; 
   return { bone: mesh.skeleton.bones[i], m: new THREE.Matrix4().multiplyMatrices(mesh.skeleton.boneInverses[i], mesh.bindMatrix) };
 }
 
-/** atlas com as cores secundárias trocadas pelas da skin (mesmo layout do bake: atlas.ts) */
+/**
+ * atlas com as cores secundárias trocadas pelas da skin e os tokens sobrepostos pelo modo daltônico (V8, look.ts
+ * `setColorMode`; mesmo layout do bake: atlas.ts). Cores sempre via `rgb5`, que já aplica o modo.
+ */
 function skinAtlas(src: THREE.Texture, skin: SkinDef): THREE.Texture {
   const size = balance.render.models.atlas;
   const k = document.createElement("canvas"); k.width = k.height = size;
   const x = k.getContext("2d")!;
   x.drawImage(src.image as CanvasImageSource, 0, 0, size, size);
-  for (const [from, to] of Object.entries(skin.trocas)) {
-    const c = atlasCell(PALETTE, size, from), [r, g, b] = PALETTE.tokens[to].rgb5.map(rgb5ToRgb8);
+  const swaps: [string, string][] = [...colorOverrides().map(k => [k, k] as [string, string]), ...Object.entries(skin.trocas)];
+  for (const [from, to] of swaps) {
+    const c = atlasCell(PALETTE, size, from), [r, g, b] = rgb5(to).map(rgb5ToRgb8);
     x.fillStyle = `rgb(${r},${g},${b})`;
     x.fillRect(c.x, c.y, c.size, c.size);
   }
@@ -137,7 +141,7 @@ function skinAtlas(src: THREE.Texture, skin: SkinDef): THREE.Texture {
 /** veste a skin no modelo: material do atlas trocado (só nesta instância) e acessório preso ao osso do ponto `anchor` */
 function applySkin(model: THREE.Object3D, skin: SkinDef, anchor: Anchor | undefined) {
   const meshes = skinnedMeshes(model);
-  if (Object.keys(skin.trocas).length) {
+  if (Object.keys(skin.trocas).length || colorOverrides().length) {
     const cache = new Map<THREE.Texture, THREE.Material>();
     for (const mesh of meshes) {
       const m = mesh.material as Ps1Material, map = m.uniforms.tMap.value as THREE.Texture | null;
@@ -228,7 +232,8 @@ export function createCharacter(id: string, skin?: SkinDef, o: { outline?: boole
     const model = cloneSkinned(a.scene);
     // o glTF olha para +Z; na simulação o rumo 0 olha para −Z
     model.rotation.y = Math.PI;
-    if (skin) applySkin(model, skin, a.anchor);
+    // modo daltônico (V8): sem skin, o atlas também é repintado se o modo sobrepõe algum token
+    if (skin || colorOverrides().length) applySkin(model, skin ?? { trocas: {} } as SkinDef, a.anchor);
     root.add(model);
     inst.model = model;
     if (inst.wantTelegraph !== null) setTelegraph(root, inst.wantTelegraph);

@@ -34,6 +34,7 @@ describe("persistência das opções (localStorage)", () => {
     const d = defaultOptions();
     expect(d.ps1.snap).toBe(balance.render.ps1.snap);
     expect(d.layerA.grain).toBe(balance.render.layer_a.grain);
+    expect(d.hunterOutline).toBe(balance.render.hunter_outline.intensity);
     expect(d.fontSize).toBe(balance.ui.options.font_default);
     expect(d.keys).toEqual(defaultBindings());
     expect(loadOptions(memStorage())).toEqual(d);
@@ -46,7 +47,7 @@ describe("persistência das opções (localStorage)", () => {
   it("cada campo inválido cai no padrão; os válidos continuam", () => {
     const d = defaultOptions();
     const o = parseOptions({
-      ps1: { snap: 2, affine: 0.3, dither: "x" }, layerA: { grain: -1, bloom: 0.1 }, reduceFlicker: "sim", reduceCameraBob: true,
+      ps1: { snap: 2, affine: 0.3, dither: "x" }, layerA: { grain: -1, bloom: 0.1 }, reduceFlicker: "sim", reduceCameraBob: true, hunterOutline: 1.5,
       fov: balance.ui.fov.max + 1, fontSize: "gigante", colorMode: "roxo", toggleRun: true, toggleInteract: 1, puzzleAccessible: true,
       sensitivity: ctl.sensitivity.max * 10, invertY: true, keys: { forward: ["KeyI"], back: "KeyK", run: ["Escape"] },
     });
@@ -54,6 +55,8 @@ describe("persistência das opções (localStorage)", () => {
     expect(o.layerA).toEqual({ ...d.layerA, bloom: 0.1 });
     expect(o.reduceFlicker).toBe(d.reduceFlicker);
     expect(o.reduceCameraBob).toBe(true);
+    expect(o.hunterOutline).toBe(d.hunterOutline);
+    expect(parseOptions({ hunterOutline: 0 }).hunterOutline).toBe(0); // 0 desliga o contorno
     expect(o.fov).toBe(d.fov);
     expect(o.fontSize).toBe(d.fontSize);
     expect(o.colorMode).toBe("normal");

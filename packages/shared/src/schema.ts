@@ -3,19 +3,13 @@
 // detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
 // audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
+import { CONTROL_ACTIONS } from "./controls.ts";
 
 const num = z.number().finite();
 const pos = num.nonnegative();
 const range = z.tuple([num, num]);
 const vec = z.tuple([num, num]);
 const int = z.number().int();
-
-/** ações remapeáveis do teclado (GDD v0.3 §12.2: "remapeamento de todas as ações"); padrão em `ui.controls.keyboard` */
-export const CONTROL_ACTIONS = [
-  "forward", "back", "left", "right", "run", "interact", "ability", "attack", "camera", "look_left", "look_right",
-  "puzzle_confirm", "ping_1", "ping_2", "ping_3", "ping_4",
-] as const;
-export type ControlAction = (typeof CONTROL_ACTIONS)[number];
 
 /** GDD v0.3 §12.1 (HUD), §12.2 (FOV), §12.3 (tutorial), §12.4 (contraste) e §12.5 (idiomas); item R7 */
 const UiSchema = z.object({
