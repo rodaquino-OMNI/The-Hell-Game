@@ -1,4 +1,5 @@
 // Tipos do estado da partida. Todo o estado é dado puro (serializável), sem DOM nem three.js.
+import type { Balance } from "@thehell/shared";
 
 export const CLASSES = ["Curandeiro", "Mecânico", "Atacador"] as const;
 export type ClassName = (typeof CLASSES)[number];
@@ -6,6 +7,15 @@ export type Arrow = "left" | "up" | "right" | "down";
 export const ARROWS: readonly Arrow[] = ["left", "up", "right", "down"];
 
 export interface Vec { x: number; z: number }
+
+/** categoria do resumo de fim de partida (GDD-v0.2 §7.1): Objetivos, Altruísmo, Sobrevivência, Audácia */
+export type ScoreCategory = Balance["points"]["events"]["puzzle"]["category"];
+export const SCORE_CATEGORIES: readonly ScoreCategory[] = ["objectives", "altruism", "survival", "boldness"];
+/** placar por categoria (pontos já multiplicados pela dificuldade e arredondados) */
+export type Score = Record<ScoreCategory, number>;
+/** evento de pontos do sobrevivente (`points.events.*`) e do caçador (`points.hunter_events.*`) */
+export type SurvivorPointEvent = keyof Balance["points"]["events"];
+export type HunterPointEvent = keyof Balance["points"]["hunter_events"];
 
 export type SurvivorState = "ok" | "cage" | "dead" | "out";
 
@@ -40,6 +50,8 @@ export interface Survivor extends Vec {
   sidestepDir: number;
   /** v1: anti-tunnel (GDD-v0.2 §4.3) — tempo restante em que o caçador não pode capturar este sobrevivente de novo */
   antiTunnel: number;
+  /** pontos que este sobrevivente fez, por categoria (GDD-v0.2 §7.1) */
+  score: Score;
   /** v1 com `ai.bot_brain: competent`: estado do cérebro do bot (R4); ausente no jogador humano e nos bots do protótipo */
   ai?: BotAi;
 }
@@ -282,16 +294,45 @@ export type GameEvent =
   | { type: "sound"; name: "puzzle_ok" | "puzzle_fail" | "hit" | "stun" | "bolt" }
   | { type: "flash" }
   | { type: "noise"; kind: NoiseKind; x: number; z: number; radius: number; heard: boolean }
+  /**
+   * só no v1: pontos creditados (GDD-v0.2 §7.1). `who` = id do sobrevivente, ou −1 para o caçador (categoria "hunter").
+   * `value` é inteiro (já com `points_mult` e `points.rounding`).
+   */
+  | { type: "points"; who: number; event: SurvivorPointEvent | HunterPointEvent; value: number; category: ScoreCategory | "hunter" }
   | {
       type: "end"; win: boolean; outcome: Outcome; coins: number; time: number;
       /** só no v1: resultado da equipe, motivo do fim e resultado individual do jogador */
       team?: Team; reason?: EndReason; individual?: Individual;
+      /** só no v1: placar do jogador nas 4 categorias do §7.1 */
+      score?: Score;
+      /**
+       * só no v1: o jogador recebeu o bônus `economy.win_coins` (regra `economy.win_coins_to`). Com `escaped`, `win`
+       * pode ser true sem bônus (venceu com o time, mas não escapou).
+       */
+      winCoins?: boolean;
     };
+
+/** rastreio da pontuação do v1 (perseguição em curso e revelações já pontuadas); dado puro */
+export interface ScoreTrack {
+  /** perseguição em curso: alvo e instante em que começou */
+  chase: { target: number; since: number } | null;
+  /** sobreviventes cuja revelação atual já rendeu `revelação eficaz` ao caçador */
+  revealHit: number[];
+  /**
+   * último capturado (−1 = nenhum): o alvo do caçador pode ficar parado nele depois da captura (atordoado, ninguém
+   * livre); enquanto o alvo bruto for este id, não há perseguição. Limpo quando o alvo bruto muda.
+   */
+  stale: number;
+}
 
 export interface GameState {
   t: number;
   seed: number;
+  /** pontos do jogador (survivors[0]); é o que vira moedas no fim */
   points: number;
+  /** pontos do caçador (GDD-v0.2 §7.1; só no v1) */
+  hunterPoints: number;
+  scoreTrack: ScoreTrack;
   /** tempo até a próxima revelação */
   reveal: number;
   gateTimer: number;

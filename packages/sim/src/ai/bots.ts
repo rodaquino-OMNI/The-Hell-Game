@@ -25,8 +25,9 @@ export interface BotEffects {
   collide(p: Vec, r: number): void;
   noise(kind: NoiseKind, at: Vec, event: boolean): void;
   /** resultado de um quebra-cabeça do bot: as mesmas regras do jogador no v1 (GDD-v0.2 §6.2) */
-  puzzle(gen: Generator, ok: boolean): void;
-  free(caged: Survivor): void;
+  puzzle(s: Survivor, gen: Generator, ok: boolean): void;
+  /** resgate concluído: solta `caged` e credita o resgate a `by` (R6, GDD-v0.2 §7.1) */
+  free(caged: Survivor, by: Survivor): void;
 }
 
 // Tolerância de ponto flutuante (técnica, não é número de jogo), a mesma do caçador.
@@ -334,7 +335,7 @@ function actBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, dt: number
         s.rescue += dt;
         ai.busy = true; s.a = Math.atan2(-(c.x - s.x), -(c.z - s.z));
         fx.noise("rescue", s, false);
-        if (s.rescue >= b.cage.rescue_time) { fx.free(c); s.rescue = 0; }
+        if (s.rescue >= b.cage.rescue_time) { fx.free(c, s); s.rescue = 0; }
         stamina(cfg, s, ai, false, false, dt);
         idle(ai);
         return;
@@ -352,7 +353,7 @@ function actBot(cfg: SimConfig, g: GameState, s: Survivor, ai: BotAi, dt: number
         if (!gen.done) {
           s.work += dt;
           const need = s.cls === "Mecânico" ? b.classes.mechanic.bot_puzzle_time : sv.bot.puzzle_time;
-          if (s.work >= need) { s.work = 0; fx.puzzle(gen, nextRandom(g) >= b.ai.bots.puzzle_fail_rate); }
+          if (s.work >= need) { s.work = 0; fx.puzzle(s, gen, nextRandom(g) >= b.ai.bots.puzzle_fail_rate); }
         }
         stamina(cfg, s, ai, false, true, dt);
         idle(ai);

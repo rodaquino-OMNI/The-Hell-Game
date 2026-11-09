@@ -10,7 +10,7 @@ import {
 } from "../src/ai/bots.ts";
 import { loopAt } from "../src/ai/hunter.ts";
 import {
-  createGame, hit, lineOfSight, makeConfig, measureChase, newChaseMeter, playHeadless, step, NO_INPUT, type GameState,
+  chaseEpisodes, createGame, hit, lineOfSight, makeConfig, playHeadless, step, NO_INPUT, type GameState,
   type SimConfig, type Survivor, type Vec,
 } from "../src/index.ts";
 import { b, map } from "./ai-helpers.ts";
@@ -59,8 +59,8 @@ function fx(): BotEffects & { calls: string[] } {
     attack: s => calls.push(`attack:${s.cls}`),
     collide: () => {},
     noise: k => calls.push(`noise:${k}`),
-    puzzle: (_gen, ok) => calls.push(`puzzle:${ok}`),
-    free: c => calls.push(`free:${c.id}`),
+    puzzle: (_s, _gen, ok) => calls.push(`puzzle:${ok}`),
+    free: (c, by) => calls.push(`free:${c.id}:${by.id}`),
   };
 }
 
@@ -456,22 +456,13 @@ describe("determinismo e simulador", () => {
     expect(r.team).not.toBeNull();
     for (const d of r.chases) expect(d).toBeGreaterThan(0);
   });
-  it("medidor de perseguição (D-35): alvo visto ou lembrado, contínuo até a captura; trocar de alvo abre outro", () => {
-    const g = game(), ai = g.hunter.ai!, m = newChaseMeter();
-    const tick = (mode: typeof ai.mode, downed = false, dt = 1) => { g.t += dt; ai.mode = mode; measureChase(g, m, downed); };
-    ai.target = 1; tick("chase"); tick("chase");
-    ai.target = -1; ai.memory = { id: 1, x: 0, z: 0, until: g.t + 5, vx: 0, vz: 0 }; tick("chase"); // só lembrado
-    ai.target = 1; tick("chase"); tick("recoil", true);
-    expect(m.done.map(x => Math.round(x))).toEqual([4]);
-    tick("cage"); tick("patrol", true);
-    expect(m.done).toHaveLength(1);
-    ai.target = 2; tick("chase"); ai.target = 1; tick("chase"); tick("attack", true);
-    expect(m.done.map(x => Math.round(x))).toEqual([4, 1]);
-    ai.target = 1; tick("chase"); tick("investigate"); tick("chase"); tick("chase", true); // investigar encerra o episódio
-    expect(m.done.map(x => Math.round(x))).toEqual([4, 1, 1]);
-    const noAi = createGame(makeConfig(b, map, { ruleset: "v1" }), "Curandeiro", 1);
-    measureChase(noAi, m, true);
-    expect(m.done).toHaveLength(3);
+  it("métrica do §8.5 (D-35): com o caçador seguindo pela memória, o episódio sobrevive à perda de linha de visão", () => {
+    // chaseEpisodes conta chase/attack/recoil contínuos até cage; com a D-35 o chase cobre o alvo visto ou lembrado
+    expect(chaseEpisodes([
+      { t: 1, from: "patrol", to: "chase" }, { t: 3, from: "chase", to: "attack" }, { t: 3.4, from: "attack", to: "recoil" },
+      { t: 4, from: "recoil", to: "chase" }, { t: 20, from: "chase", to: "attack" }, { t: 20.4, from: "attack", to: "recoil" },
+      { t: 21, from: "recoil", to: "cage" },
+    ])).toEqual([19.4]);
   });
   it("personalidade de bot desconhecida não existe nos dados (personalityOf lê ai.bots.personalities)", () => {
     const s = game().survivors[1], ai = newBotAi(cfg, { seed: 2 }, s);
