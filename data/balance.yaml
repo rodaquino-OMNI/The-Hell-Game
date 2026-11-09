@@ -167,6 +167,10 @@ ai:
   # suíte rules-v1 fixa); "utility" = IA do GDD-v0.3 §8 (percepção e decisão a 10 Hz, estados do §8.2, utilidade do
   # §8.3, dificuldade do §8.4, navegação do §8.6). Como `ruleset`, o padrão muda no marco MJ-B.
   hunter_brain: basic
+  # Bots aliados do ruleset v1 (item R4, GDD-v0.3 §8.5). "prototype" = bots do protótipo (updateBot, paridade);
+  # "competent" = ai/bots.ts (personalidades, fuga para loop, stamina e percepção do jogador). No ruleset prototype
+  # vale sempre "prototype". O padrão muda no marco MJ-B, só se o R4 tiver passado na prova.
+  bot_brain: prototype
   decision_hz: 10
   perception_hz: 10
   hearing_investigate_time: 8
@@ -188,12 +192,31 @@ ai:
   anti_stuck: {min_progress_ratio: 0.4, window: 0.7}
   stuck_fail_after: 3               # critério T-03: deslocamento < 40% por > 3 s com caminho válido = trava
   bots:
+    # GDD-v0.3 §8.5: Cauteloso foge a 12 m e evita bônus; Ousado foge a 7 m e prioriza bônus; Altruísta foge a 9 m e
+    # prioriza resgate e cura. Sorteio uniforme pelo PRNG da partida. rescue_priority "high" = resgata mesmo com o
+    # caçador por perto (batimento ligado), desde que não o saiba a menos de flee_dist da gaiola; "normal" = só sem
+    # batimento e sem o caçador conhecido a menos de rescue_safe_dist da gaiola. look_on_heartbeat (LACUNA): no
+    # quebra-cabeça a câmera fica no gerador; true = ao ouvir o batimento (prototype_extras.heartbeat) olha em volta
+    # depois do tempo de reação; false (Ousado) = segue consertando até ver o caçador no campo da câmera ou levar dano.
     personalities:
-      cautious:  {flee_dist: 12, bonus: avoid}
-      bold:      {flee_dist: 7,  bonus: prefer}
-      altruist:  {flee_dist: 9,  bonus: avoid, rescue_priority: high}
-    puzzle_fail_rate: 0.15
+      cautious:  {flee_dist: 12, bonus: avoid,  rescue_priority: normal, look_on_heartbeat: true}
+      bold:      {flee_dist: 7,  bonus: prefer, rescue_priority: normal, look_on_heartbeat: false}
+      altruist:  {flee_dist: 9,  bonus: avoid,  rescue_priority: high,   look_on_heartbeat: true}
+    puzzle_fail_rate: 0.15          # §8.5: a falha emite o mesmo ruído e a mesma regressão do jogador (GDD-v0.2 §6.2)
+    # §8.5: reação a pings de 0,3 a 0,8 s. LACUNA: o sim não tem pings (vivem no HUD, packages/client/src/hud/ping.ts);
+    # o atraso sorteado nesta faixa vale para os eventos que o sim já emite (aliado preso, gerador revelado, ruído).
     ping_reaction: [0.3, 0.8]
+    # Números técnicos sem valor no GDD (LACUNA registrada no relato do R4; valores conservadores):
+    sight_radius: 30                # §8.1 "o que um jogador veria": = render.fog.far (névoa total aos 30 m), com linha de visão
+    glance_interval: 1.5            # fora de interação, olha em volta (360°) a cada isto; entre olhadas vale o campo da câmera
+    memory: 5                       # s que o bot confia na última posição vista do caçador
+    calm_time: 4                    # s sem ver o caçador para encerrar a fuga
+    stamina_resume: 30              # depois de esgotar a stamina, anda até recuperar isto (histerese; regra de correr = a do jogador)
+    defend_dist: 4                  # habilidade de defesa (bloqueio do Atacador, parafuso do Mecânico) só com o caçador visível a até isto (= prototype_extras.bot.fighter_block_dist)
+    rescue_safe_dist: 16            # rescue_priority normal (= prototype_extras.bot.rescue_min_hunter_dist)
+    danger_radius: 12               # evita gerador a até isto de um perigo conhecido (gerador revelado, falha ouvida)
+    bonus_prefer_mult: 0.5          # bonus "prefer": distância a gerador bônus conta × isto na escolha
+    flee_probe: 6                   # fuga sem loop por perto: pontos de teste a esta distância (8 direções)
 
 # ---------- 12. Navegação (GDD-v0.3 §8.6) ----------
 nav:

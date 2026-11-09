@@ -1,6 +1,6 @@
 export * from "./types.ts";
 export * from "./game.ts";
-export { makeConfig, hunterMaxHp, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type AiDifficulty, type AiTrace } from "./config.ts";
+export { makeConfig, hunterMaxHp, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type BotBrain, type AiDifficulty, type AiTrace } from "./config.ts";
 export { matchEnd, individualResult, isTerminal, type MatchEnd } from "./match.ts";
 export { canSee, inCone, lineOfSight, segmentHitsBox } from "./perception.ts";
 export { nextRandom } from "./rng.ts";
@@ -10,4 +10,5 @@ export {
 } from "./ai/hunter.ts";
 export { perceive } from "./ai/percept.ts";
 export { chooseTarget, utilityScore, utilityTerms, type TargetChoice, type UtilityTerms } from "./ai/utility.ts";
-export { playHeadless, measureStuck, newStuckMeter, type HeadlessResult, type StuckMeter } from "./headless.ts";
+export { playHeadless, measureChase, measureStuck, newChaseMeter, newStuckMeter, type ChaseMeter, type HeadlessResult, type StuckMeter } from "./headless.ts";
+export { newBotAi, updateBotAi, type BotEffects } from "./ai/bots.ts";

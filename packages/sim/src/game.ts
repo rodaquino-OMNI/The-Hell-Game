@@ -2,6 +2,7 @@
 // Referências "L" apontam para as linhas do protótipo; números vêm de SimConfig (data/balance.yaml).
 // Com `ruleset: v1` (cfg.v1) entram as regras do GDD v0.3 (item R1): cone de visão, ruído, fim de partida do §3.3
 // revisto, vida escalada, tabela de dificuldade, anti-tunnel, recuo, telegraph e regras de gerador do §6.2.
+import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
 import { hunterMaxHp, type SimConfig } from "./config.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
@@ -118,6 +119,7 @@ function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = t
     if (H.ai) H.ai.heard = { x: at.x, z: at.z, at: g.t, dur: cfg.balance.ai.hearing_investigate_time };
   }
   if (event) emit(g, { type: "noise", kind, x: at.x, z: at.z, radius, heard });
+  if (cfg.botBrain === "competent") botsHear(cfg, g, kind, at); // percepção dos bots competentes (R4)
   return heard;
 }
 
@@ -167,14 +169,7 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
       return;
     }
   } else if (cfg.v1) {
-    // v1: ruído de 18 m em vez de alerta global (GDD-v0.3 C-08); `generator.fails_to_regress` falhas seguidas regridem `regress_amount` (GDD-v0.2 §6.2)
-    noise(cfg, g, "puzzle_fail", gen);
-    gen.fails++;
-    if (gen.fails >= b.generator.fails_to_regress) {
-      gen.n = Math.max(0, gen.n - b.generator.regress_amount);
-      gen.fails = 0;
-      gen.spark = b.generator.fail_spark_time;
-    }
+    failGeneratorV1(cfg, g, gen);
     emit(g, { type: "sound", name: "puzzle_fail" });
     msg(g, "spark");
   } else {
@@ -184,6 +179,30 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
     msg(g, "spark");
   }
   openPuzzle(cfg, g, z.gen);
+}
+
+/** v1: ruído de 18 m em vez de alerta global (GDD-v0.3 C-08); `generator.fails_to_regress` falhas seguidas regridem `regress_amount` (GDD-v0.2 §6.2) */
+function failGeneratorV1(cfg: SimConfig, g: GameState, gen: Generator) {
+  const b = cfg.balance;
+  noise(cfg, g, "puzzle_fail", gen);
+  gen.fails++;
+  if (gen.fails >= b.generator.fails_to_regress) {
+    gen.n = Math.max(0, gen.n - b.generator.regress_amount);
+    gen.fails = 0;
+    gen.spark = b.generator.fail_spark_time;
+  }
+}
+
+/**
+ * Quebra-cabeça de bot competente (R4) com as regras do jogador no v1: acerto avança e zera as falhas seguidas;
+ * falha faz o ruído e a regressão do §6.2. Pontos são do jogador (`g.points`), então o bot não pontua.
+ */
+function botPuzzle(cfg: SimConfig, g: GameState, gen: Generator, ok: boolean) {
+  if (gen.done) return;
+  if (!ok) { failGeneratorV1(cfg, g, gen); return; }
+  gen.n++;
+  gen.fails = 0;
+  if (gen.n >= cfg.balance.generator.puzzles_per_generator) finishGenerator(cfg, g, gen);
 }
 
 // ---------- habilidades e ataques (L119–L123) ----------
@@ -289,6 +308,17 @@ function hunterEffects(cfg: SimConfig, g: GameState): HunterEffects {
     hit: (s, damage) => hit(cfg, g, s, damage),
     collide: (p, r) => collide(cfg, p, r),
     reveal: alive => periodicReveal(cfg, g, alive),
+  };
+}
+
+function botEffects(cfg: SimConfig, g: GameState): BotEffects {
+  return {
+    ability: s => ability(cfg, g, s),
+    attack: s => attack(cfg, g, s),
+    collide: (p, r) => collide(cfg, p, r),
+    noise: (kind, at, event) => { noise(cfg, g, kind, at, event); },
+    puzzle: (gen, ok) => botPuzzle(cfg, g, gen, ok),
+    free: c => free(cfg, g, c),
   };
 }
 
@@ -509,7 +539,10 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     }
   }
 
-  for (const s of g.survivors) if (s.bot && s.st === "ok") updateBot(cfg, g, s, dt);
+  if (cfg.botBrain === "competent") {
+    const fx = botEffects(cfg, g);
+    for (const s of g.survivors) if (s.bot && s.st === "ok") updateBotAi(cfg, g, s, dt, fx);
+  } else for (const s of g.survivors) if (s.bot && s.st === "ok") updateBot(cfg, g, s, dt);
   updateHunter(cfg, g, dt);
 
   g.projectiles = g.projectiles.filter(p => {

@@ -4,7 +4,7 @@
 // e nenhuma transição de estado fora do grafo do §8.2. Sai com código 1 se algum falhar.
 //
 // Uso: pnpm sim [--n=1000] [--seed=1] [--difficulty=normal|easy|hard|nightmare|all] [--map=patio]
-//               [--workers=4] [--nav=grid|recast] [--json=saida.json]
+//               [--workers=4] [--nav=grid|recast] [--bot-brain=prototype|competent] [--json=saida.json]
 import { readdirSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ type Difficulty = "easy" | "normal" | "hard" | "nightmare";
 const DIFFS: Difficulty[] = ["easy", "normal", "hard", "nightmare"];
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
-interface Job { map: string; difficulty: Difficulty; seeds: number[]; nav: "grid" | "recast" }
+interface Job { map: string; difficulty: Difficulty; seeds: number[]; nav: "grid" | "recast"; botBrain?: "prototype" | "competent" }
 interface Row extends Omit<HeadlessResult, "stuck"> { stuck: boolean; stuckWorst: number; dither: number; failAt: HeadlessResult["stuck"]["failAt"]; error?: string }
 
 async function runJob(job: Job): Promise<Row[]> {
@@ -29,14 +29,14 @@ async function runJob(job: Job): Promise<Row[]> {
     await initRecast();
     nav = RecastNav.build(map, navParams(balance, balance.hunter.radius));
   }
-  const cfg = makeConfig(balance, map, { ruleset: "v1", hunterBrain: "utility", difficulty: job.difficulty, nav });
+  const cfg = makeConfig(balance, map, { ruleset: "v1", hunterBrain: "utility", difficulty: job.difficulty, nav, botBrain: job.botBrain });
   return job.seeds.map(seed => {
     try {
       const r = playHeadless(cfg, seed);
       return { ...r, stuck: !!r.stuck.failAt, stuckWorst: r.stuck.worst, dither: r.stuck.dither, failAt: r.stuck.failAt };
     } catch (e) {
       return {
-        seed, time: 0, team: null, reason: null, escaped: 0, captures: 0, transitions: {}, replans: 0, layout: "",
+        seed, time: 0, team: null, reason: null, escaped: 0, captures: 0, transitions: {}, replans: 0, layout: "", chases: [], chasesMemory: [],
         stuck: false, stuckWorst: 0, dither: 0, failAt: null, error: (e as Error).stack ?? String(e),
       };
     }
@@ -49,10 +49,11 @@ if (!isMainThread) {
   const arg = (k: string, d: string) => process.argv.find(a => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
   const n = Number(arg("n", "1000")), seed0 = Number(arg("seed", "1"));
   const diffArg = arg("difficulty", "normal"), nav = arg("nav", "grid") as Job["nav"];
+  const botArg = arg("bot-brain", ""), botBrain = botArg ? botArg as NonNullable<Job["botBrain"]> : undefined;
   const workers = Math.max(1, Number(arg("workers", String(Math.min(4, availableParallelism())))));
   const maps = arg("map", "all") === "all" ? readdirSync(root + "data/maps").filter(f => f.endsWith(".json")).map(f => f.slice(0, -5)).sort() : [arg("map", "")];
   const diffs = diffArg === "all" ? DIFFS : [diffArg as Difficulty];
-  if (!diffs.every(d => DIFFS.includes(d)) || !["grid", "recast"].includes(nav) || !(n > 0)) {
+  if (!diffs.every(d => DIFFS.includes(d)) || !["grid", "recast"].includes(nav) || !(n > 0) || (botBrain && !["prototype", "competent"].includes(botBrain))) {
     console.error("argumentos inválidos; veja o cabeçalho de tools/sim/run.ts");
     process.exit(2);
   }
@@ -62,8 +63,8 @@ if (!isMainThread) {
   for (const map of maps) for (const difficulty of diffs) {
     const seeds = Array.from({ length: n }, (_, i) => seed0 + i);
     const chunks = Array.from({ length: workers }, (_, w) => seeds.filter((_, i) => i % workers === w)).filter(c => c.length);
-    const parts = await Promise.all(chunks.map(c => workers === 1 ? runJob({ map, difficulty, seeds: c, nav }) : new Promise<Row[]>((ok, ko) => {
-      const w = new Worker(new URL(import.meta.url), { workerData: { map, difficulty, seeds: c, nav } satisfies Job });
+    const parts = await Promise.all(chunks.map(c => workers === 1 ? runJob({ map, difficulty, seeds: c, nav, botBrain }) : new Promise<Row[]>((ok, ko) => {
+      const w = new Worker(new URL(import.meta.url), { workerData: { map, difficulty, seeds: c, nav, botBrain } satisfies Job });
       w.once("message", ok); w.once("error", ko);
     })));
     const rows = parts.flat().sort((a, b) => a.seed - b.seed);
@@ -98,6 +99,9 @@ function report(map: string, difficulty: string, nav: string, rows: Row[]): bool
   console.log(`capturas por partida ${mean(r => r.captures).toFixed(2)} · escapados por partida ${mean(r => r.escaped).toFixed(2)}`);
   console.log(`travas (T-03, > ai.stuck_fail_after): ${stuck.length} · maior sequência abaixo do mínimo ${Math.max(0, ...ok.map(r => r.stuckWorst)).toFixed(1)} s · vaivém máx (informativo) ${Math.max(0, ...ok.map(r => r.dither)).toFixed(1)} s`);
   console.log(`replanejamentos do anti-travamento: ${ok.reduce((s, r) => s + r.replans, 0)} (${mean(r => r.replans).toFixed(1)} por partida)`);
+  const median = (xs: number[]) => { const v = [...xs].sort((a, b) => a - b); return v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : NaN; };
+  const chases = ok.flatMap(r => r.chases), withMemory = ok.flatMap(r => r.chasesMemory);
+  console.log(`perseguição antes da captura: mediana ${median(chases).toFixed(1)} s (n=${chases.length}) · com memória do alvo (informativo) ${median(withMemory).toFixed(1)} s (n=${withMemory.length})`);
   console.log(`exceções: ${errors.length}`);
   console.log(`transições: ${Object.entries(trans).sort().map(([k, v]) => `${k.replace(">", "→")} ${v}`).join(", ")}`);
   console.log(`transições fora do grafo (GDD-v0.3 §8.2): ${invalid.length ? invalid.join(", ") : "nenhuma"}`);
