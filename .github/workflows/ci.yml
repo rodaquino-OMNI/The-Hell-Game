@@ -49,6 +49,8 @@ jobs:
         run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
+      - name: "Câmera sem salto ao adquirir o pointer lock (clique real em #go, 5 inícios)"
+        run: pnpm e2e:pointer-lock
       - name: "Áudio: contexto inicia após o clique (A-1)"
         run: node tools/audio/e2e.mjs
       - name: "Áudio: stems decodificados no Chromium com comprimento exato e loop sem estalo (A-3)"

@@ -845,6 +845,13 @@ ui:
 client:
   max_frame_dt: 0.25                # s (4 fps); padrão de "Fix Your Timestep!" (Glenn Fiedler, gafferongames.com)
   max_steps_per_frame: 15           # = 0,25 s × 60 Hz
+  # Mouse da câmera (packages/client/src/pointer-filter.ts). Bug: ao adquirir o pointer lock (clique em "#go") o
+  # Chromium pode emitir um mousemove com movementX espúrio (medido ≈ −568 px, o clientX do cursor) e a câmera saltava
+  # ≈ 1,4 rad. A primeira leitura de cada lock já é descartada; além disso, um evento isolado com |movementX| ou
+  # |movementY| acima deste limite é ignorado. LACUNA (GDD v0.2/v0.3 não definem). Proposta: 300 px por evento
+  # (o Chromium agrupa o mousemove por quadro, https://developer.chrome.com/blog/aligning-input-events: a 60 Hz
+  # equivale a 18.000 px/s, acima de um giro rápido real).
+  mouse_max_delta: 300              # px por evento
 
 # ---------- 17. Rede (GDD-v0.3 §13.4) ----------
 net:

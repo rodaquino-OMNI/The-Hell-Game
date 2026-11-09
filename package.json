@@ -22,6 +22,7 @@
     "a11y": "node tools/a11y/axe.mjs",
     "smoke:prototype": "node tools/prototype-smoke.cjs /tmp/prototype-smoke.png",
     "smoke": "node tools/smoke.mjs",
+    "e2e:pointer-lock": "node tools/e2e/pointer-lock.mjs",
     "assets:validate": "node tools/assets/validate.mjs",
     "maps:validate": "tsx tools/maps/validate.ts",
     "sim": "tsx tools/sim/run.ts",
