@@ -6,13 +6,19 @@
 // sobrevivente (`__thehell().survivors[0].a`, que é o yaw da câmera de cada passo) continua 0 depois do início.
 // Fase 3 (determinística; o clique real sozinho não pega a regressão: no headless o par espúrio pode chegar com
 // locked=false e o ± se anula dentro de um passo): na última página, solta e retoma o lock e, no pointerlockchange,
-// despacha mousemove sintéticos (movementX −568, o salto medido) lendo `view.yaw` logo depois de cada um
-// (`__thehellInput`, ?debug=1): o primeiro do lock e o acima de client.mouse_max_delta não giram; um pequeno gira.
+// despacha mousemove sintéticos lendo `view.yaw` logo depois de cada um (`__thehellInput`, ?debug=1). Cada defesa do
+// pointer-filter.ts é isolada: (a) o primeiro do lock, com |dx| ABAIXO de client.mouse_max_delta (só o descarte do 1º
+// evento o segura), não gira; (b) um posterior acima do limite (só o limite o segura) não gira; (c) um pequeno gira.
+// O Chromium entrega um mousemove real (0, 0, locked) ao adquirir o lock, antes do pointerlockchange; ele consumiria o
+// descarte do 1º evento sem girar nada e (a) passaria mesmo sem a defesa. Por isso, durante a fase 3, um ouvinte de
+// captura em window retém os mousemove reais (isTrusted): o input.ts só vê os sintéticos.
 // Uso: node tools/e2e/pointer-lock.mjs [url]   (sem url, sobe packages/server/dist/server.mjs numa porta livre: tools/lib/server.mjs)
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
+const { parse } = require("yaml");
 let chromium;
 try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require(require("node:child_process").execSync("npm root -g").toString().trim() + "/playwright")); }
 
@@ -23,6 +29,12 @@ const MIN_T = 0.2;
 /** fase 2: o mouse anda NUDGE px depois do lock. NUDGE_MAX (rad) separa o giro legítimo disso (centésimos de rad com a
  * sensibilidade atual do protótipo, 0,0025 rad/px) do salto do bug (≈ 1,4 rad) com folga dos dois lados */
 const NUDGE = 2, NUDGE_MAX = 0.1;
+/** fase 3: limite do filtro (D-47) lido do YAML; os deslocamentos sintéticos derivam dele: (a) FIRST_DX abaixo do
+ * limite (2/3 dele, −200 px com 300), (b) OUTLIER_DX acima (o dobro), (c) SMALL_DX pequeno como em um giro real */
+const MAX_DELTA = parse(readFileSync(new URL("../../data/balance.yaml", import.meta.url), "utf8")).client.mouse_max_delta;
+if (!(MAX_DELTA > 0)) throw new Error("client.mouse_max_delta ausente em data/balance.yaml");
+const FIRST_DX = -Math.round(MAX_DELTA * 2 / 3), OUTLIER_DX = -2 * MAX_DELTA, SMALL_DX = -5;
+if (!(Math.abs(FIRST_DX) < MAX_DELTA && Math.abs(SMALL_DX) < MAX_DELTA)) throw new Error("fase 3: deslocamentos fora da faixa");
 
 let url = process.argv[2], server;
 // porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
@@ -71,8 +83,12 @@ try {
     results.push({ fase1: r.max, fase2: r2.max, locked: r2.locked, moves: r2.moves });
   }
   // fase 3: eventos sintéticos no próprio pointerlockchange; leitura do yaw por evento
-  const det = await page.evaluate(async () => {
+  const det = await page.evaluate(async ([firstDx, outlierDx, smallDx]) => {
     const c = document.getElementById("c");
+    // retém os mousemove reais (a captura em window roda antes de qualquer ouvinte do jogo); conta os retidos com lock
+    let held = 0;
+    const hold = e => { if (!e.isTrusted) return; if (document.pointerLockElement) held++; e.stopImmediatePropagation(); };
+    addEventListener("mousemove", hold, true);
     if (document.pointerLockElement) {
       const off = new Promise(r => document.addEventListener("pointerlockchange", r, { once: true }));
       document.exitPointerLock();
@@ -82,17 +98,18 @@ try {
     const fire = (dx) => { const y0 = yaw(); document.dispatchEvent(new MouseEvent("mousemove", { movementX: dx, movementY: 0, bubbles: true })); return yaw() - y0; };
     const on = new Promise(r => document.addEventListener("pointerlockchange", () => {
       // o ouvinte do input.ts (registrado no início) já rodou: a sessão de lock nova começou
-      r({ locked: !!document.pointerLockElement, first: fire(-568), outlier: fire(-568), small: fire(-5) });
+      r({ locked: !!document.pointerLockElement, first: fire(firstDx), outlier: fire(outlierDx), small: fire(smallDx), heldLocked: held });
+      removeEventListener("mousemove", hold, true);
     }, { once: true }));
     // o evaluate do Playwright conta como gesto do usuário (requestPointerLock exige ativação)
     await c.requestPointerLock();
     return on;
-  });
-  console.log("fase 3 (sintética):", JSON.stringify(det));
+  }, [FIRST_DX, OUTLIER_DX, SMALL_DX]);
+  console.log("fase 3 (sintética):", JSON.stringify({ maxDelta: MAX_DELTA, dx: [FIRST_DX, OUTLIER_DX, SMALL_DX], ...det }));
   if (!det.locked) fail("fase 3: o pointer lock não foi retomado: " + JSON.stringify(det));
-  if (!(Math.abs(det.first) < EPS)) fail(`fase 3: o primeiro mousemove do lock (−568 px) girou a câmera ${det.first} rad`);
-  if (!(Math.abs(det.outlier) < EPS)) fail(`fase 3: o mousemove acima de client.mouse_max_delta (−568 px) girou a câmera ${det.outlier} rad`);
-  if (!(Math.abs(det.small) > EPS && Math.abs(det.small) < NUDGE_MAX)) fail(`fase 3: o mousemove pequeno (−5 px) devia girar pouco a câmera: ${det.small} rad`);
+  if (!(Math.abs(det.first) < EPS)) fail(`fase 3 (a): o primeiro mousemove do lock (${FIRST_DX} px, abaixo de client.mouse_max_delta = ${MAX_DELTA}) girou a câmera ${det.first} rad: o descarte do 1º evento falhou`);
+  if (!(Math.abs(det.outlier) < EPS)) fail(`fase 3 (b): o mousemove acima de client.mouse_max_delta = ${MAX_DELTA} (${OUTLIER_DX} px) girou a câmera ${det.outlier} rad: o limite falhou`);
+  if (!(Math.abs(det.small) > EPS && Math.abs(det.small) < NUDGE_MAX)) fail(`fase 3 (c): o mousemove pequeno (${SMALL_DX} px) devia girar pouco a câmera: ${det.small} rad`);
   await browser.close();
   if (errors.length) fail("erros na página: " + errors.join(" | "));
   console.log("pointer-lock ok", JSON.stringify(results));
