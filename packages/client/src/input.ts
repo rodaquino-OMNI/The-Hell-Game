@@ -1,11 +1,15 @@
 // Entrada: teclado, mouse e ponteiro; monta o PlayerInput de cada passo da simulação.
 import type { Arrow, GameState, PlayerInput } from "@thehell/sim";
+import { balance } from "./data.ts";
+import { pointerFilter } from "./pointer-filter.ts";
 
 /** estado de câmera controlado pela entrada (lido pela render) */
 export const view = { yaw: 0, pitch: 0, thirdPerson: true };
 let drag = false;
 const keys: Record<string, boolean> = {};
 const pending: Partial<PlayerInput> = {};
+/** descarta o salto espúrio ao adquirir o pointer lock e eventos fora do limite (pointer-filter.ts) */
+const mouseFilter = pointerFilter(balance.client.mouse_max_delta);
 
 const ARROW_KEYS: Record<string, Arrow> = { ArrowLeft: "left", ArrowUp: "up", ArrowRight: "right", ArrowDown: "down", KeyA: "left", KeyW: "up", KeyD: "right", KeyS: "down" };
 const EXIT_KEYS = ["Escape", "Backspace", "KeyX", "KeyE", "ShiftLeft", "ShiftRight"]; // P-10: o Shift direito também sai
@@ -27,7 +31,9 @@ export function setupInput(game: () => GameState | undefined) {
     }
   };
   onkeyup = e => { keys[e.code] = false; };
+  document.addEventListener("pointerlockchange", () => mouseFilter.lockChange(!!document.pointerLockElement));
   onmousemove = e => {
+    if (!mouseFilter.accept(!!document.pointerLockElement, e.movementX, e.movementY)) return;
     const G = game();
     if (!G || G.over) return;
     if (document.pointerLockElement || drag) { view.yaw -= e.movementX * 0.0025; view.pitch = Math.max(-1.2, Math.min(1.2, view.pitch - e.movementY * 0.0025)); }
