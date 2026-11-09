@@ -1,7 +1,7 @@
 // `?ruleset=` só com `?debug=1` (como os ganchos da D-33): sem depuração o cliente usa o padrão dos dados (v1 desde o
 // marco MJ-B); as ferramentas de teste e captura (tools/visual, tools/a11y, tools/audio) abrem com os dois parâmetros.
 import { describe, expect, it } from "vitest";
-import { balance, cfg, rulesetOverride } from "../src/data.ts";
+import { balance, cfg, mapFlagsOverride, rulesetOverride } from "../src/data.ts";
 
 describe("rulesetOverride (packages/client/src/data.ts)", () => {
   it("sem debug=1 o parâmetro é ignorado", () => {
@@ -19,5 +19,21 @@ describe("rulesetOverride (packages/client/src/data.ts)", () => {
   });
   it("fora do navegador vale o padrão dos dados", () => {
     expect(cfg.v1).toBe(balance.ruleset === "v1");
+  });
+});
+
+describe("mapFlagsOverride (packages/client/src/data.ts)", () => {
+  it("sem debug=1 o parâmetro é ignorado", () => {
+    expect(mapFlagsOverride("?map_flags=side_exit")).toBeUndefined();
+    expect(mapFlagsOverride("?debug=1&map_flags=side_exit", false)).toBeUndefined();
+  });
+  it("com debug=1 liga só as flags nomeadas e conhecidas; as omitidas ficam com os dados", () => {
+    expect(mapFlagsOverride("?debug=1&map_flags=short_loop_pillars,side_exit")).toEqual({ short_loop_pillars: true, side_exit: true });
+    expect(mapFlagsOverride("?debug=1&map_flags=side_exit,qualquer")).toEqual({ side_exit: true });
+    expect(mapFlagsOverride("?debug=1&map_flags=qualquer")).toBeUndefined();
+    expect(mapFlagsOverride("?debug=1")).toBeUndefined();
+  });
+  it("fora do navegador o cfg usa as flags dos dados", () => {
+    expect(cfg.balance.maps.v1).toEqual(balance.maps.v1);
   });
 });

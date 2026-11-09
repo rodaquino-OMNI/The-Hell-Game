@@ -7,7 +7,7 @@
 // Números em data/balance.yaml `render.layer_b` e `render.layer_c`; cores por token de data/art/palette.json.
 import * as THREE from "three";
 import { insideWall } from "@thehell/sim";
-import { balance, cfg, map } from "../data.ts";
+import { balance, cfg } from "../data.ts";
 import { paletteColor } from "./layers.ts";
 
 const rc = balance.render;
@@ -57,10 +57,10 @@ export function neutralBake(g: THREE.BufferGeometry) {
   g.setAttribute("ps1Bake", new THREE.BufferAttribute(a, 4));
 }
 
-/** distância no plano XZ de (x, z) até a caixa de muro mais próxima */
-function wallDistance(x: number, z: number): number {
+/** distância no plano XZ de (x, z) até a caixa de muro mais próxima do mapa efetivo (`cfg.map`, com as pilastras do v1) */
+export function wallDistance(x: number, z: number): number {
   let best = Infinity;
-  for (const [wx, wz, ww, wd] of map.walls) {
+  for (const [wx, wz, ww, wd] of cfg.map.walls) {
     const dx = Math.max(0, Math.abs(x - wx) - ww / 2), dz = Math.max(0, Math.abs(z - wz) - wd / 2);
     best = Math.min(best, Math.hypot(dx, dz));
   }
@@ -184,7 +184,7 @@ export function createAmbience(rand: () => number): Ambience {
   const group = new THREE.Group();
   group.name = "camada-c";
   const fb = lc.fog_billboards;
-  const [w, d] = map.size;
+  const [w, d] = cfg.map.size;
   const lerp = (r: readonly number[], u: number) => r[0] + (r[1] - r[0]) * u;
 
   const fogMat = new THREE.ShaderMaterial({

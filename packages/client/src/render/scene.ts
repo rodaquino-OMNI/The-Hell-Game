@@ -2,8 +2,8 @@
 // Valores de render vêm de data/balance.yaml `render` (GDD-v0.3 §10); fov da câmera de `prototype_extras.camera.fov`
 // (P-02, paridade da fase 0) até o jogador escolher outro no menu de opções (V8, `ui.fov`, render/motion.ts).
 import * as THREE from "three";
-import { insideWall, type GameState } from "@thehell/sim";
-import { balance, cfg, map, px } from "../data.ts";
+import { insideWall, type Arena, type GameState } from "@thehell/sim";
+import { balance, cfg, px } from "../data.ts";
 import { skinDef, tok, tokCss, WORLD } from "../look.ts";
 import { createHunterModel, createSurvivorModel, SURVIVOR_MODEL } from "./characters/actors.ts";
 import { charactersReady } from "./characters/runtime.ts";
@@ -44,7 +44,7 @@ export interface RenderCtx {
 }
 
 const rc = balance.render;
-/** malhas indexadas por chave: s<id>, hunter, lock<id> (cadeado), gate, p<id> (projétil), t<id> (armadilha) */
+/** malhas indexadas por chave: s<id>, hunter, lock<id> (cadeado), gate, cage, p<id> (projétil), t<id> (armadilha) */
 export const meshes = new Map<string, THREE.Object3D>();
 /** feixe, lâmpada, espiral e losango de cada gerador (índice de G.gens) */
 export const genVisuals: GenVisual[] = [];
@@ -74,6 +74,51 @@ export function box(w: number, h: number, d: number, m: THREE.Material, x: numbe
 }
 /** subdivisões de uma dimensão para o tamanho de célula `render.tessellate` (GDD-v0.3 §10.1 item 2) */
 const seg = (len: number) => Math.max(1, Math.ceil(len / rc.tessellate));
+/**
+ * muros do mapa EFETIVO (`cfg.map`, de makeConfig: no v1 inclui as pilastras de `maps.v1.short_loop_pillars`,
+ * GDD-v0.3 D-22/23/25), não o `map` de topo; um material por caixa (`wallMat` recebe a largura em x). Devolve as malhas.
+ */
+export function addWalls(S: THREE.Object3D, baked: THREE.Mesh[], wallMat: (ww: number) => THREE.Material): THREE.Mesh[] {
+  const { walls, wall_height: h } = cfg.map;
+  const out: THREE.Mesh[] = [];
+  for (const [x, z, ww, wd] of walls) {
+    const g = new THREE.BoxGeometry(ww, h, wd, seg(ww), seg(h), seg(wd));
+    neutralBake(g);
+    const b = new THREE.Mesh(g, wallMat(ww));
+    b.name = "muro";
+    b.position.set(x, h / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b); out.push(b);
+  }
+  return out;
+}
+
+/**
+ * pose do portão a partir da saída da PARTIDA (`GameState.arena`: layout escolhido pela semente, com a saída lateral da
+ * D-25 quando `maps.v1.side_exit`), nunca do `map` de topo: centrado no portão ao longo da abertura e sobre a linha da
+ * saída (`exitZ` na parede norte/sul, `exitX` na lateral; no Pátio do protótipo, (0, −28) para o portão em (0, −29)).
+ * O giro vem de `arena.gateFacing` (não é deduzido da posição): a face +z local da malha olha para dentro do mapa e a
+ * −z para fora (`gateFacing`); norte {0, −1} → 0 rad, oeste {−1, 0} → π/2 rad (a largura passa a correr em z).
+ */
+export function gatePose(arena: Pick<Arena, "gate" | "exitX" | "exitZ" | "gateFacing">): { x: number; z: number; rotY: number } {
+  const f = arena.gateFacing;
+  return { x: arena.exitX ?? arena.gate.x, z: arena.exitZ ?? arena.gate.z, rotY: Math.atan2(-f.x, -f.z) };
+}
+
+/** portão da partida (pose de `gatePose`) com o material dado; registrado em `meshes` como "gate" */
+export function addGate(S: THREE.Object3D, arena: Arena, m: THREE.Material): THREE.Mesh {
+  const p = gatePose(arena);
+  const gate = box(6, 3, 0.6, m, p.x, 1.5, p.z);
+  gate.rotation.y = p.rotY;
+  gate.name = "portao";
+  S.add(gate); meshes.set("gate", gate);
+  return gate;
+}
+
+/** põe a jaula (criada em `buildWorld`) na gaiola da partida (`GameState.arena.cage`, layout da semente) */
+export function placeCage(arena: Pick<Arena, "cage">) {
+  const c = meshes.get("cage");
+  if (c) c.position.set(arena.cage.x, c.position.y, arena.cage.z);
+}
+
 /** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
@@ -103,20 +148,16 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   const PL = new THREE.PointLight(tok(WORLD.playerLight), rc.lights.player * Math.PI, rc.player_light_radius, rc.lights.player_decay);
   S.add(PL);
   const rand = clientRandom(TEX_SALT);
-  const [w, d] = map.size;
+  const [w, d] = cfg.map.size;
   const baked: THREE.Mesh[] = [];
   const floorGeo = new THREE.PlaneGeometry(w, d, seg(w), seg(d));
   neutralBake(floorGeo);
   const floor = new THREE.Mesh(floorGeo, new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.floor(18, 18) : tex(rand, tokCss(WORLD.ground), 260, 18, 18) }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.add(floor); baked.push(floor);
-  for (const [x, z, ww, wd] of map.walls) {
-    const m = new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.wall(Math.max(1, ww / 3), 1) : tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) });
-    const g = new THREE.BoxGeometry(ww, map.wall_height, wd, seg(ww), seg(map.wall_height), seg(wd));
-    neutralBake(g);
-    const b = new THREE.Mesh(g, m);
-    b.position.set(x, map.wall_height / 2, z); b.castShadow = b.receiveShadow = true; S.add(b); baked.push(b);
-  }
-  S.add(box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: tok(WORLD.cage), wireframe: true }), map.cage[0], 1.2, map.cage[1]));
+  addWalls(S, baked, (ww) => new Ps1Material({ lit: true, baked: true, map: industrial ? industrial.wall(Math.max(1, ww / 3), 1) : tex(rand, tokCss(WORLD.wall), 200, Math.max(1, ww / 3), 1) }));
+  // jaula: criada aqui (mesma ordem na cena) e posta na gaiola da partida em buildActors (placeCage, GameState.arena)
+  const cage = box(2.6, 2.4, 2.6, new Ps1Material({ lit: false, color: tok(WORLD.cage), wireframe: true }), cfg.map.cage[0], 1.2, cfg.map.cage[1]);
+  cage.name = "jaula"; S.add(cage); meshes.set("cage", cage);
   const lantern = createLantern();
   S.add(lantern, lantern.target);
   const ambience = createAmbience(clientRandom(AMBIENCE_SALT));
@@ -158,7 +199,9 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
     genVisuals.push(createGenVisual(S, g.x, g.z));
   });
   // o portão é chapado mas não emissivo: o bloom da camada A fica nos olhos, lanterna, feixes e lâmpadas
-  const gate = box(6, 3, 0.6, new Ps1Material({ lit: false, fog: false, emissive: false, color: tok(WORLD.gateClosed) }), map.gate[0], 1.5, map.gate[1] + 1); S.add(gate); meshes.set("gate", gate);
+  // pose e giro pela saída da partida (G.arena: exitZ ou exitX, gateFacing), não pelo map de topo
+  addGate(S, G.arena, new Ps1Material({ lit: false, fog: false, emissive: false, color: tok(WORLD.gateClosed) }));
+  placeCage(G.arena);
   // personagens do pipeline V2 (render/characters): posição e rumo vêm da simulação em sync.ts.
   // Skin (V3): só o sobrevivente do jogador (id 0) a veste, como no protótipo.
   G.survivors.forEach(s => {

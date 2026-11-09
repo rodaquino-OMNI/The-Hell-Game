@@ -4,9 +4,9 @@
 // revisto, vida escalada, tabela de dificuldade, anti-tunnel, recuo, telegraph e regras de gerador do §6.2.
 import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
-import { hunterMaxHp, type SimConfig } from "./config.ts";
+import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
-import { chooseLayout, crossedExit, resolveLayout, survivorSpawns } from "./nav/layout.ts";
+import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
 import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
@@ -25,8 +25,14 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
   const b = cfg.balance, px = b.prototype_extras;
   // v1: a semente escolhe a combinação de geradores, gaiola e saída (GDD-v0.3 §9.3); o protótipo usa o topo do mapa
   const layout = cfg.v1 ? chooseLayout(cfg.map, seed) : { generators: 0, cage: 0, exit: 0 };
-  const m = cfg.v1 ? resolveLayout(cfg.map, layout) : cfg.map;
   const order: ClassName[] = [playerClass, ...CLASSES.filter(c => c !== playerClass)];
+  // v1: obrigatórios e bônus pelo tamanho da equipe (GDD-v0.2 §3.5, `generator.by_team_size`; D-22: 5 para 4–5).
+  // O recorte vale em todo o v1, com ou sem `maps.v1.fifth_generator`: a flag só decide se existe a lista de 5
+  // (`large_team`); sem ela, uma equipe que pede 5 fica com os obrigatórios que o layout tem.
+  const team = cfg.v1 ? b.generator.by_team_size[String(order.length)] : undefined;
+  const m = cfg.v1 ? resolveLayout(cfg.map, layout, team?.required) : cfg.map;
+  const required = team ? m.generators.slice(0, team.required) : m.generators;
+  const bonus = team ? m.bonus.slice(0, team.bonus) : m.bonus;
   const spawn = spawnPoints(cfg, order.length);
   const survivors: Survivor[] = order.map((cls, i) => ({
     id: i, cls, bot: i > 0, x: spawn[i][0], z: spawn[i][1],
@@ -35,8 +41,8 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
     score: newScore(),
   }));
   const gens: Generator[] = [
-    ...m.generators.map(([x, z]) => ({ x, z, n: 0, done: false, bonus: false, fails: 0, spark: 0, revealed: 0 })),
-    ...m.bonus.map(([x, z]) => ({ x, z, n: 0, done: false, bonus: true, fails: 0, spark: 0, revealed: 0 })),
+    ...required.map(([x, z]) => ({ x, z, n: 0, done: false, bonus: false, fails: 0, spark: 0, revealed: 0 })),
+    ...bonus.map(([x, z]) => ({ x, z, n: 0, done: false, bonus: true, fails: 0, spark: 0, revealed: 0 })),
   ];
   const hp = hunterMaxHp(cfg, survivors.length);
   const hunter: Hunter = {
@@ -45,7 +51,15 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
     a: 0, alert: null, alertTime: 0, patrol: null, sidestep: 0, sidestepDir: 1, target: -1, windup: null, recoil: 0,
   };
   if (cfg.brain === "utility") hunter.ai = newHunterAi();
-  const arena: Arena = { layout, cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] }, exitZ: m.exit_z };
+  // saída norte/sul: exitZ; saída lateral (D-25): exitX. walls só com os pilares do v1 (D-23): a lista inteira de
+  // caixas da partida, para o cliente desenhar; sem a flag o cliente usa as paredes do mapa (cfg.map.walls).
+  const arena: Arena = {
+    layout, cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] },
+    ...(m.exit_x !== undefined ? { exitX: m.exit_x } : { exitZ: m.exit_z }),
+    gateFacing: gateFacing(m),
+    ...(cfg.v1 && cfg.balance.maps.v1.short_loop_pillars
+      ? { walls: m.walls.map(w => [w[0], w[1], w[2], w[3]] as [number, number, number, number]) } : {}),
+  };
   return {
     t: 0, seed: seed | 0, points: 0, hunterPoints: 0, scoreTrack: newScoreTrack(), reveal: px.hunter_initial.reveal, gateTimer: 0, gateStarted: false, gateOpen: false,
     over: false, gens, survivors, hunter, arena, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
@@ -121,7 +135,7 @@ function noise(cfg: SimConfig, g: GameState, kind: NoiseKind, at: Vec, event = t
     if (H.ai) H.ai.heard = { x: at.x, z: at.z, at: g.t, dur: cfg.balance.ai.hearing_investigate_time };
   }
   if (event) emit(g, { type: "noise", kind, x: at.x, z: at.z, radius, heard });
-  if (cfg.botBrain === "competent") botsHear(cfg, g, kind, at); // percepção dos bots competentes (R4)
+  if (anyCompetentBot(cfg)) botsHear(cfg, g, kind, at); // percepção dos bots competentes (R4)
   return heard;
 }
 
@@ -243,7 +257,7 @@ export function attack(cfg: SimConfig, g: GameState, s: Survivor) {
   if (s.cls === "Mecânico") {
     const dx = H.x - s.x, dz = H.z - s.z, k = Math.hypot(dx, dz) || 1;
     const facing = (-Math.sin(s.a) * dx - Math.cos(s.a) * dz) / k;
-    if (k < c.mechanic.bolt.range && ((s.bot && cfg.botBrain === "prototype") || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
+    if (k < c.mechanic.bolt.range && ((s.bot && botBrainOf(cfg, s.id) === "prototype") || facing > cfg.balance.prototype_extras.bolt_aim_cos)) {
       s.atk = c.mechanic.bolt.cooldown;
       H.hp -= c.mechanic.bolt.damage;
       H.slow = c.mechanic.bolt.slow_time;
@@ -572,10 +586,13 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     }
   }
 
-  if (cfg.botBrain === "competent") {
-    const fx = botEffects(cfg, g);
-    for (const s of g.survivors) if (s.bot && s.st === "ok") updateBotAi(cfg, g, s, dt, fx);
-  } else for (const s of g.survivors) if (s.bot && s.st === "ok") updateBot(cfg, g, s, dt);
+  // cérebro por vaga (`botBrainOf`): na partida padrão todas as vagas usam `cfg.botBrain`
+  const fx = anyCompetentBot(cfg) ? botEffects(cfg, g) : null;
+  for (const s of g.survivors) {
+    if (!s.bot || s.st !== "ok") continue;
+    if (fx && botBrainOf(cfg, s.id) === "competent") updateBotAi(cfg, g, s, dt, fx);
+    else updateBot(cfg, g, s, dt);
+  }
   updateHunter(cfg, g, dt);
 
   g.projectiles = g.projectiles.filter(p => {
@@ -585,7 +602,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     return !dead;
   });
   g.traps = g.traps.filter(t => {
-    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && cfg.botBrain === "prototype" && s.cls === "Mecânico" && s.bot));
+    const s = g.survivors.find(s => s.st === "ok" && dist(s, t) < b.hunter.trap.radius && !(px.mechanic_bot_trap_immune && s.bot && botBrainOf(cfg, s.id) === "prototype" && s.cls === "Mecânico"));
     if (s) { s.slow = b.hunter.trap.slow_time; if (!s.bot) msg(g, "trap_caught"); return false; }
     return true;
   });
@@ -594,8 +611,8 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     g.gateStarted = true; g.gateTimer = cfg.gateTime; msg(g, "gate_countdown", { n: cfg.gateTime });
   }
   if (g.gateStarted && !g.gateOpen) { g.gateTimer -= dt; if (g.gateTimer <= 0) { g.gateOpen = true; msg(g, "gate_open"); } }
-  // saída: lado do portão em relação à linha exit_z (norte ou sul, R2 `crossedExit`); no protótipo, z < exit_z
-  const exit = { gate: [g.arena.gate.x, g.arena.gate.z] as [number, number], exit_z: g.arena.exitZ };
+  // saída: lado do portão em relação à linha exit_z (norte/sul) ou exit_x (lateral, D-25), R2 `crossedExit`; no protótipo, z < exit_z
+  const exit = { gate: [g.arena.gate.x, g.arena.gate.z] as [number, number], exit_z: g.arena.exitZ, exit_x: g.arena.exitX };
   for (const s of g.survivors) {
     if (g.gateOpen && s.st === "ok" && crossedExit(exit, s.x, s.z, px.gate_exit_half_width)) {
       s.st = "out";
