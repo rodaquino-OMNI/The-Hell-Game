@@ -8,6 +8,7 @@ import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
+import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
 import {
   ARROWS, CLASSES, type Arena, type ClassName, type GameEvent, type GameState, type Generator, type Hunter,
   type MsgKey, type NoiseKind, type Outcome, type PlayerInput, type Survivor, type Vec,
@@ -30,6 +31,7 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
     id: i, cls, bot: i > 0, x: spawn[i][0], z: spawn[i][1],
     hp: b.survivor.hp, st: "ok", cage: 0, captures: 0, cd: 0, atk: 0, block: 0, slow: 0, revealed: 0, immune: 0,
     stamina: b.survivor.stamina.max, a: 0, rescue: 0, work: 0, sidestep: 0, sidestepDir: 1, antiTunnel: 0,
+    score: newScore(),
   }));
   const gens: Generator[] = [
     ...m.generators.map(([x, z]) => ({ x, z, n: 0, done: false, bonus: false, fails: 0, spark: 0, revealed: 0 })),
@@ -44,7 +46,7 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number)
   if (cfg.brain === "utility") hunter.ai = newHunterAi();
   const arena: Arena = { layout, cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] }, exitZ: m.exit_z };
   return {
-    t: 0, seed: seed | 0, points: 0, reveal: px.hunter_initial.reveal, gateTimer: 0, gateStarted: false, gateOpen: false,
+    t: 0, seed: seed | 0, points: 0, hunterPoints: 0, scoreTrack: newScoreTrack(), reveal: px.hunter_initial.reveal, gateTimer: 0, gateStarted: false, gateOpen: false,
     over: false, gens, survivors, hunter, arena, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
   };
 }
@@ -127,7 +129,7 @@ function finishGenerator(cfg: SimConfig, g: GameState, gen: Generator) {
   if (!cfg.v1) return;
   const gb = cfg.balance.generator, H = g.hunter;
   gen.revealed = gb.completed_reveal;
-  // LACUNA (GDD-v0.2 §3.4 × §6.2): a revelação alcança o caçador fora do raio de 25 m? Padrão conservador: não.
+  // GDD-v0.2 §3.4 × §6.2, D-21: com `completed_reveal_global` a revelação alcança o caçador fora do raio de 25 m.
   if (!noise(cfg, g, "generator_done", gen) && gb.completed_reveal_global) {
     H.alert = { x: gen.x, z: gen.z }; H.alertTime = gb.completed_reveal;
     if (H.ai) H.ai.heard = { x: gen.x, z: gen.z, at: g.t, dur: gb.completed_reveal };
@@ -153,15 +155,13 @@ function puzzleResult(cfg: SimConfig, g: GameState, ok: boolean) {
   if (ok) {
     gen.n++;
     gen.fails = 0;
-    // multiplicador de pontos da dificuldade (GDD-v0.2 §7.3 e Apêndice C); 1 no protótipo
-    const pp = (gen.bonus ? b.points.bonus_puzzle : b.points.puzzle) * cfg.pointsMult;
-    g.points += pp;
+    // pontos com o multiplicador da dificuldade (GDD-v0.2 §7.1, §7.3 e Apêndice C; 1 no protótipo), em score.ts
+    const pp = credit(cfg, g, player(g), gen.bonus ? "bonus_puzzle" : "puzzle");
     msg(g, "puzzle_points", { n: pp });
     emit(g, { type: "sound", name: "puzzle_ok" });
     if (gen.n >= b.generator.puzzles_per_generator) {
       finishGenerator(cfg, g, gen);
-      const bonus = (gen.bonus ? b.points.bonus_generator : b.points.generator) * cfg.pointsMult;
-      g.points += bonus;
+      const bonus = credit(cfg, g, player(g), gen.bonus ? "bonus_generator" : "generator");
       g.puzzle = null;
       msg(g, gen.bonus ? "bonus_done" : "gen_done", { n: pp + bonus });
       return;
@@ -192,7 +192,12 @@ export function ability(cfg: SimConfig, g: GameState, s: Survivor) {
   const c = cfg.balance.classes;
   if (s.cd > 0 || s.st !== "ok") return;
   if (s.cls === "Curandeiro") {
-    for (const a of g.survivors) if (a.st === "ok" && dist(a, s) < c.healer.pulse_radius) a.hp = Math.min(cfg.balance.survivor.hp, a.hp + c.healer.pulse_heal);
+    for (const a of g.survivors) {
+      if (a.st !== "ok" || dist(a, s) >= c.healer.pulse_radius) continue;
+      const before = a.hp;
+      a.hp = Math.min(cfg.balance.survivor.hp, a.hp + c.healer.pulse_heal);
+      onHeal(cfg, g, s, a, a.hp - before);
+    }
     s.cd = c.healer.cooldown;
     if (cfg.v1) noise(cfg, g, "heal", s);
     if (!s.bot) msg(g, "heal_pulse");
@@ -200,7 +205,8 @@ export function ability(cfg: SimConfig, g: GameState, s: Survivor) {
     const gen = g.gens.find(x => !x.bonus && !x.done && dist(x, s) < c.mechanic.turbo.range);
     if (!gen) return;
     gen.n++;
-    if (gen.n >= cfg.balance.generator.puzzles_per_generator) finishGenerator(cfg, g, gen);
+    if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o Turbo avança um quebra-cabeça e pontua como tal (§7.1)
+    if (gen.n >= cfg.balance.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
     s.cd = c.mechanic.turbo.cooldown;
     if (!s.bot) msg(g, "turbo");
   } else {
@@ -222,6 +228,7 @@ export function attack(cfg: SimConfig, g: GameState, s: Survivor) {
       H.slow = c.mechanic.bolt.slow_time;
       emit(g, { type: "sound", name: "bolt" });
       if (!s.bot) msg(g, "bolt_hit");
+      if (cfg.v1) credit(cfg, g, s, "block_bolt"); // parafuso útil = acertou o caçador (§7.1)
     }
     return;
   }
@@ -232,26 +239,34 @@ export function attack(cfg: SimConfig, g: GameState, s: Survivor) {
     H.stun = c.fighter.strike.stun;
     emit(g, { type: "sound", name: "stun" });
     if (!s.bot) msg(g, "strike_hit");
+    if (cfg.v1) credit(cfg, g, s, "stun"); // atordoar o caçador (§7.1)
   }
 }
 
 // ---------- dano, prisão e resgate (L124–L127) ----------
 
-export function hit(cfg: SimConfig, g: GameState, s: Survivor, damage: number) {
+/** `by`: origem do dano do caçador (pontos do caçador no v1, GDD-v0.2 §7.1); sem origem não pontua o golpe */
+export function hit(cfg: SimConfig, g: GameState, s: Survivor, damage: number, by?: "melee" | "projectile") {
   if (s.immune > 0 || s.st !== "ok") return;
-  if (s.block > 0) { s.block = 0; if (!s.bot) msg(g, "blocked"); return; }
+  if (s.block > 0) {
+    s.block = 0; if (!s.bot) msg(g, "blocked");
+    if (cfg.v1) credit(cfg, g, s, "block_bolt"); // bloqueio útil = anulou um golpe (§7.1, §2.3)
+    return;
+  }
   // v1, anti-tunnel (GDD-v0.2 §4.3): dentro da janela, o golpe que capturaria de novo não tem efeito
   if (cfg.v1 && s.antiTunnel > 0 && s.hp - damage <= 0) return;
   s.hp -= damage;
   if (!s.bot) emit(g, { type: "flash" });
   emit(g, { type: "sound", name: "hit" });
+  onHunterHit(cfg, g, s, by);
   if (s.hp <= 0) knockDown(cfg, g, s);
 }
 
 function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
   const b = cfg.balance, cage = g.arena.cage;
   if (!s.bot) g.puzzle = null;
-  if (s.captures >= b.cage.deaths_at_capture - 1) { kill(g, s); return; }
+  onCapture(cfg, g, s);
+  if (s.captures >= b.cage.deaths_at_capture - 1) { kill(cfg, g, s); return; }
   s.st = "cage";
   s.captures++;
   s.cage = cfg.cageTime;
@@ -262,10 +277,11 @@ function knockDown(cfg: SimConfig, g: GameState, s: Survivor) {
   if (!s.bot) msg(g, "caged", { n: cfg.cageTime });
 }
 
-function kill(g: GameState, s: Survivor) { s.st = "dead"; msg(g, "died", { cls: s.cls }); }
+function kill(cfg: SimConfig, g: GameState, s: Survivor) { s.st = "dead"; msg(g, "died", { cls: s.cls }); creditHunter(cfg, g, "kill"); }
 
-function free(cfg: SimConfig, g: GameState, c: Survivor) {
+function free(cfg: SimConfig, g: GameState, c: Survivor, by: Survivor) {
   const b = cfg.balance;
+  if (cfg.v1) credit(cfg, g, by, "rescue");
   c.st = "ok";
   c.hp = b.cage.rescue_hp;
   c.immune = b.cage.immunity;
@@ -286,7 +302,7 @@ function periodicReveal(cfg: SimConfig, g: GameState, alive: Survivor[]) {
 
 function hunterEffects(cfg: SimConfig, g: GameState): HunterEffects {
   return {
-    hit: (s, damage) => hit(cfg, g, s, damage),
+    hit: (s, damage) => hit(cfg, g, s, damage, "melee"),
     collide: (p, r) => collide(cfg, p, r),
     reveal: alive => periodicReveal(cfg, g, alive),
   };
@@ -328,7 +344,7 @@ function updateHunter(cfg: SimConfig, g: GameState, dt: number) {
   }
   if (H.trap <= 0) { H.trap = cfg.trapInterval; g.traps.push({ id: g.nextId++, x: H.x, z: H.z }); }
   move(cfg, g, H, tx - H.x, tz - H.z, sp, dt);
-  if (c && cd < h.melee.range && H.atk <= 0) { H.atk = cfg.meleeCooldown; hit(cfg, g, c, g.gateStarted ? h.melee.damage_final : h.melee.damage); }
+  if (c && cd < h.melee.range && H.atk <= 0) { H.atk = cfg.meleeCooldown; hit(cfg, g, c, g.gateStarted ? h.melee.damage_final : h.melee.damage, "melee"); }
 }
 
 /**
@@ -394,7 +410,7 @@ function updateHunterV1(cfg: SimConfig, g: GameState, dt: number) {
     // o golpe sai no fim do preparo e só acerta se o alvo ainda estiver no alcance; recarga gasta mesmo errando
     H.atk = cfg.meleeCooldown;
     if (c && d(c) < h.melee.range) {
-      hit(cfg, g, c, g.gateStarted ? h.melee.damage_final : h.melee.damage);
+      hit(cfg, g, c, g.gateStarted ? h.melee.damage_final : h.melee.damage, "melee");
       H.recoil = h.melee.recoil;
     }
   } else if (c && d(c) < h.melee.range && H.atk <= 0) {
@@ -422,7 +438,7 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
     else {
       s.rescue += dt;
       if (cfg.v1) noise(cfg, g, "rescue", s, false);
-      if (s.rescue >= b.cage.rescue_time) { free(cfg, g, caged); s.rescue = 0; }
+      if (s.rescue >= b.cage.rescue_time) { free(cfg, g, caged, s); s.rescue = 0; }
     }
     return;
   }
@@ -435,7 +451,11 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
     else {
       s.work += dt;
       const need = s.cls === "Mecânico" ? b.classes.mechanic.bot_puzzle_time : b.survivor.bot.puzzle_time;
-      if (s.work > need) { s.work = 0; gen.n++; if (gen.n >= b.generator.puzzles_per_generator) finishGenerator(cfg, g, gen); }
+      if (s.work > need) {
+        s.work = 0; gen.n++;
+        if (cfg.v1) credit(cfg, g, s, "puzzle"); // v1: o bot pontua o próprio conserto (§7.1, por sobrevivente)
+        if (gen.n >= b.generator.puzzles_per_generator) { finishGenerator(cfg, g, gen); if (cfg.v1) credit(cfg, g, s, "generator"); }
+      }
     }
   } else {
     const w = { x: bt.wait_point[0], z: bt.wait_point[1] };
@@ -451,7 +471,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
   g.t += dt;
   for (const s of g.survivors) {
     s.cd -= dt; s.atk -= dt; s.block -= dt; s.slow -= dt; s.revealed -= dt; s.immune -= dt; s.antiTunnel -= dt;
-    if (s.st === "cage") { s.cage -= dt; if (s.cage <= 0) kill(g, s); }
+    if (s.st === "cage") { s.cage -= dt; if (s.cage <= 0) kill(cfg, g, s); }
   }
   for (const x of g.gens) { x.spark -= dt; x.revealed -= dt; }
   if (g.puzzle && g.gens[g.puzzle.gen].done) g.puzzle = null;
@@ -493,14 +513,17 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
     if (caged && input.interactHeld && !g.puzzle) {
       P.rescue += dt;
       if (cfg.v1) noise(cfg, g, "rescue", P, false);
-      if (P.rescue >= b.cage.rescue_time) { free(cfg, g, caged); P.rescue = 0; }
+      if (P.rescue >= b.cage.rescue_time) { free(cfg, g, caged, P); P.rescue = 0; }
     }
     else P.rescue = 0;
     if (input.interact) {
       if (g.puzzle) g.puzzle = null;
       else {
         const trap = g.traps.find(t => dist(t, P) < px.interact_range.trap);
-        if (trap && P.cls === "Mecânico") { g.traps.splice(g.traps.indexOf(trap), 1); msg(g, "trap_disarmed"); }
+        if (trap && P.cls === "Mecânico") {
+          g.traps.splice(g.traps.indexOf(trap), 1); msg(g, "trap_disarmed");
+          if (cfg.v1) credit(cfg, g, P, "trap_disarm");
+        }
         else {
           const i = g.gens.findIndex(x => !x.done && dist(x, P) < px.interact_range.generator);
           if (i >= 0) openPuzzle(cfg, g, i);
@@ -515,7 +538,7 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
   g.projectiles = g.projectiles.filter(p => {
     p.x += p.vx * dt; p.z += p.vz * dt; p.t -= dt;
     let dead = p.t <= 0 || insideWall(cfg, p.x, p.z);
-    for (const s of g.survivors) if (!dead && s.st === "ok" && dist(s, p) < px.projectile_hit_radius) { hit(cfg, g, s, cfg.projectileDamage); dead = true; }
+    for (const s of g.survivors) if (!dead && s.st === "ok" && dist(s, p) < px.projectile_hit_radius) { hit(cfg, g, s, cfg.projectileDamage, "projectile"); dead = true; }
     return !dead;
   });
   g.traps = g.traps.filter(t => {
@@ -531,9 +554,13 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
   // saída: lado do portão em relação à linha exit_z (norte ou sul, R2 `crossedExit`); no protótipo, z < exit_z
   const exit = { gate: [g.arena.gate.x, g.arena.gate.z] as [number, number], exit_z: g.arena.exitZ };
   for (const s of g.survivors) {
-    if (g.gateOpen && s.st === "ok" && crossedExit(exit, s.x, s.z, px.gate_exit_half_width)) s.st = "out";
+    if (g.gateOpen && s.st === "ok" && crossedExit(exit, s.x, s.z, px.gate_exit_half_width)) {
+      s.st = "out";
+      if (cfg.v1) credit(cfg, g, s, "escape");
+    }
   }
   if (cfg.v1) {
+    trackScore(cfg, g);
     const r = matchEnd(cfg, g.survivors.map(s => s.st), H.hp, g.t);
     if (r) endV1(cfg, g, r);
   } else if (P.st === "out") end(cfg, g, true, "escaped");
@@ -547,21 +574,22 @@ export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: numbe
  * completo vai em `team`, `reason` e `individual`.
  */
 function endV1(cfg: SimConfig, g: GameState, r: MatchEnd) {
-  const e = cfg.balance.economy, individual = individualResult(player(g).st);
+  const individual = individualResult(player(g).st);
   const win = r.team === "survivors" && individual !== "dead";
   const outcome: Outcome = r.reason === "hunter_down" ? "hunter_down" : individual === "escaped" ? "escaped" : "died";
   g.over = true;
   g.puzzle = null;
-  const coins = Math.round(e.base_coins + (win ? e.win_coins : 0) + g.points * e.points_to_coins);
-  emit(g, { type: "end", win, outcome, coins, time: Math.floor(g.t), team: r.team, reason: r.reason, individual });
+  // bônus de vitória conforme `economy.win_coins_to` (padrão alive, decisão do Rodrigo 09/11/2026); pontos já com points_mult (§7.3)
+  closeChase(cfg, g); // perseguição em curso no fim (ex.: o último escapou perseguido) pontua antes do resumo
+  const winCoins = winsCoins(cfg, r.team === "survivors", individual);
+  const coins = coinsFor(cfg, winCoins, g.points);
+  emit(g, { type: "end", win, outcome, coins, time: Math.floor(g.t), team: r.team, reason: r.reason, individual, score: { ...player(g).score }, winCoins });
 }
 
 function end(cfg: SimConfig, g: GameState, win: boolean, outcome: "escaped" | "hunter_down" | "died") {
-  const e = cfg.balance.economy;
   g.over = true;
   g.puzzle = null;
-  const coins = Math.round(e.base_coins + (win ? e.win_coins : 0) + g.points * e.points_to_coins);
-  emit(g, { type: "end", win, outcome, coins, time: Math.floor(g.t) });
+  emit(g, { type: "end", win, outcome, coins: coinsFor(cfg, win, g.points), time: Math.floor(g.t) });
 }
 
 /** retira os eventos acumulados (o cliente consome a cada quadro) */
