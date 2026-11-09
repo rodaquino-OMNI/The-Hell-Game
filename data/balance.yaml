@@ -1041,6 +1041,33 @@ ui:
       # repetição ao segurar uma direção no menu (s): primeira repetição e intervalo (LACUNA; proposta)
       menu_repeat: {delay: 0.4, interval: 0.12}
 
+# ---------- Tutorial / Treino (GDD-v0.3 §12.3; GDD-v0.2 §12.3 e §14 "Treino: tutorial com bot passivo"; D-34) ----------
+# Etapas na ordem do GDD-v0.3 §12.3: "mover, gerador, quebra-cabeça, resgate, habilidade". Cada etapa diz o que a
+# conclui (`on`) e os parâmetros. A duração-alvo de 60 s é `ui.tutorial_time` (§12.3); ela é meta de roteiro, não
+# limite: o modo tutorial não termina por tempo (o GDD não diz que o treino acaba no relógio).
+tutorial:
+  steps: [move, generator, puzzle, rescue, ability]
+  # "bot passivo" (GDD-v0.3 §12.3). LACUNA: o GDD não diz se o bot passivo anda sem atacar ou fica parado. Proposta:
+  # idle = parado no ponto de nascimento, sem atacar, sem habilidades e sem revelação.
+  hunter: idle
+  # LACUNA (GDD não define a equipe do treino): o jogador e 1 aliado, que começa preso para a etapa de resgate.
+  # O cronômetro da gaiola não corre no treino (o aliado não morre esperando) e só se resgata na etapa "rescue".
+  # Os aliados não agem (bot passivo também do lado dos sobreviventes; mesma LACUNA).
+  team_size: 2
+  # LACUNA (GDD não define): 5 m andados (deslocamento real, depois da colisão) concluem "mover".
+  move: {on: distance, distance: 5}
+  # abrir o quebra-cabeça do gerador-alvo (alcance `prototype_extras.interact_range.generator`). O alvo é o gerador
+  # obrigatório não concluído mais próximo, revisto a cada passo. No tutorial nenhum gerador se conclui (para a um
+  # quebra-cabeça do fim, nem por Turbo): sempre há alvo válido para generator, puzzle e o Turbo da ability
+  generator: {on: puzzle_open}
+  # LACUNA (GDD não define): 1 acerto no gerador-alvo conclui "quebra-cabeça" (o gerador inteiro pede
+  # `generator.puzzles_per_generator` = 5, longo demais para 60 s)
+  puzzle: {on: puzzle_ok, count: 1}
+  # soltar o aliado preso (resgate segurado por `cage.rescue_time`)
+  rescue: {on: rescued}
+  # usar a habilidade da classe com efeito (Turbo do Mecânico exige gerador obrigatório em `classes.mechanic.turbo.range`)
+  ability: {on: ability_used}
+
 # ---------- Laço do cliente (GDD-v0.3 §13.3: passo fixo de 1/60 s) ----------
 # O laço acumula o tempo real do quadro e roda quantos passos de 1/60 s couberem, para a partida andar em
 # tempo real mesmo com quadro lento (o limite de 600 s do §3.3 revisto e a simulação do servidor, C-11, correm em

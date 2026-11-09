@@ -15,3 +15,7 @@ export {
   chasedTarget, closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, scaledPoints, scoreTotal, winsCoins,
 } from "./score.ts";
 export { newBotAi, updateBotAi, type BotEffects } from "./ai/bots.ts";
+// modo tutorial (D-34, GDD-v0.3 §12.3); os tipos GameMode, GameOptions, TutorialState, TutorialStepName e
+// TutorialTarget saem de types.ts
+export { rescueAllowed, startTutorial, tutorialFrame, updateTutorial, type TutorialFrame } from "./tutorial.ts";
+export { TUTORIAL_STEPS } from "@thehell/shared";

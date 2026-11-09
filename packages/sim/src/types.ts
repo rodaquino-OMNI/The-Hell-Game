@@ -347,7 +347,30 @@ export type GameEvent =
        * pode ser true sem bônus (venceu com o time, mas não escapou).
        */
       winCoins?: boolean;
-    };
+    }
+  /** só no modo tutorial (D-34): a etapa `step` (posição `index` em `tutorial.steps`) foi concluída */
+  | { type: "tutorial_step"; step: TutorialStepName; index: number; done: true }
+  /** só no modo tutorial: a última etapa foi concluída; a partida para (`over`). `time` = segundos inteiros (FTUE, §12.3) */
+  | { type: "tutorial_end"; time: number };
+
+/** modo da partida: normal (protótipo ou v1) ou o Treino do GDD-v0.3 §12.3 (D-34) */
+export type GameMode = "normal" | "tutorial";
+export interface GameOptions { mode?: GameMode }
+/** etapa do Treino (`tutorial.steps` em data/balance.yaml, GDD-v0.3 §12.3) */
+export type TutorialStepName = Balance["tutorial"]["steps"][number];
+/** alvo da etapa: gerador (`id` = índice em `gens`) ou aliado preso (`id` = id do sobrevivente), com a posição */
+export interface TutorialTarget { kind: "generator" | "cage"; id: number; x: number; z: number }
+/** estado do Treino; dado puro (entra no hash). Ausente fora do modo tutorial. */
+export interface TutorialState {
+  /** etapa atual; null depois da última (tutorial concluído) */
+  step: TutorialStepName | null;
+  /** posição da etapa atual em `tutorial.steps` (= número de etapas no fim) */
+  index: number;
+  /** alvo da etapa (null em "mover" e na habilidade sem alvo) */
+  target: TutorialTarget | null;
+  /** progresso da etapa atual: metros andados em "move", acertos em "puzzle"; 0 nas demais */
+  progress: number;
+}
 
 /** rastreio da pontuação do v1 (perseguição em curso e revelações já pontuadas); dado puro */
 export interface ScoreTrack {
@@ -386,6 +409,8 @@ export interface GameState {
   puzzle: Puzzle | null;
   nextId: number;
   events: GameEvent[];
+  /** só no modo tutorial (D-34); ausente na partida normal (o hash da partida normal não muda) */
+  tutorial?: TutorialState;
 }
 
 /** Entrada do jogador num passo. `interact`, `ability`, `attack` e os campos de `puzzle` são eventos de um quadro (borda de subida). */
