@@ -4,7 +4,7 @@
 // geometria (docs/handoff/plano-audio-v5.md §1 e §3).
 // Dois pontos distintos:
 //   - o OUVINTE do panner (direção e distância do som) segue a câmera ativa (RenderCtx.cam em render/scene.ts), porque
-//     em `?retro=1` a câmera é de 1ª pessoa;
+//     no modo Retro FPS (render/retro/mode.ts) a câmera começa em 1ª pessoa;
 //   - a OCLUSÃO é decidida pela posição do PERSONAGEM visto (o laço passa `cameraTarget(G) ?? G.survivors[0]` em
 //     `updateSpatial(at)`), não pela câmera: em 3ª pessoa o recuo da câmera (scene.ts `renderFrame`) só evita o
 //     interior do muro, então ela pode parar do outro lado de um muro fino ou dentro de uma caixa e ocluiria tudo.

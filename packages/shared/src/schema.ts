@@ -214,9 +214,16 @@ const V3n = z.tuple([num, num, num]);
 /** faixa [mín, máx] de opacidade (0..1) e de pixels (inteiros ≥ 1) */
 const unitRange = z.tuple([unit, unit]).refine(r => r[1] >= r[0], "faixa: máx deve ser ≥ mín");
 const pxRange = z.tuple([z.number().int().positive(), z.number().int().positive()]).refine(r => r[1] > r[0], "faixa: máx deve ser > mín");
+/** peça feita em código para a ferramenta na mão (luneta do Batedor, A2b 2c), no formato das peças da ficha */
+const vmPiece = z.discriminatedUnion("forma", [
+  z.object({ forma: z.literal("cilindro"), de: V3n, ate: V3n, r: z.tuple([num.positive(), num.positive()]), lados: z.number().int().min(3), cor: token3 }).strict(),
+  z.object({ forma: z.literal("caixa"), desloc: V3n, tam: z.tuple([num.positive(), num.positive(), num.positive()]), rot: V3n.optional(), cor: token3 }).strict(),
+]);
+const vmPlace = { origem: V3n, pos: V3n, rot: V3n, escala: num.positive() };
 /**
- * mockup do modo "Retro FPS" (D-13, D-14, D-15 em docs/plano-construcao.md §7; V9 em docs/handoff/plano-fases-1-2.md
- * §5): balanço e ferramenta da classe na mão (D-13) e variante industrial do Pátio (D-15). Só com `?retro=1`.
+ * modo "Retro FPS" (D-13, D-14, D-15 em docs/plano-construcao.md §7; V9 em docs/handoff/plano-fases-1-2.md §5;
+ * respostas do A2b na issue #27): balanço e ferramenta da classe na mão (D-13) e variante industrial do Pátio (D-15).
+ * Liga pela opção do menu (ui/settings.ts `retroFps`) ou, só com ?debug=1, por ?retro=1.
  */
 const retro = z.object({
   bob: unit, bob_amplitude: z.tuple([pos, pos]), bob_stride: num.positive(), bob_return: unit,
@@ -225,10 +232,15 @@ const retro = z.object({
     far: num.positive(),
     light: z.object({ ambient: token3, ambient_intensity: pos, key: token3, key_intensity: pos, key_pos: V3n }).strict(),
     hand: z.object({ size: z.tuple([num.positive(), num.positive(), num.positive()]), forearm: z.tuple([num.positive(), num.positive()]), forearm_sides: z.number().int().min(3) }).strict(),
+    corner: z.object({ scale: num.positive().max(1), anchor: V3n }).strict(),
+    max_triangles: z.number().int().positive(),
     classes: z.record(
       z.enum(["curandeiro", "mecanico", "atacador", "protetor", "batedor"]),
       z.object({
-        grupos: z.array(z.object({ osso: z.string().min(1), cores: z.array(token3).optional(), origem: V3n, pos: V3n, rot: V3n, escala: num.positive() }).strict()).min(1),
+        grupos: z.array(z.union([
+          z.object({ osso: z.string().min(1), cores: z.array(token3).optional(), ...vmPlace }).strict(),
+          z.object({ pecas: z.array(vmPiece).min(1), ...vmPlace }).strict(),
+        ])).min(1),
         maos: z.array(z.object({ pos: V3n, rot: V3n, antebraco: V3n }).strict()),
       }).strict(),
     ),

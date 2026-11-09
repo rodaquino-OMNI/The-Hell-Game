@@ -78,31 +78,30 @@ button:disabled{cursor:default;border-style:dashed}
 button[aria-disabled="true"]{cursor:progress;border-style:dashed}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .sk button{white-space:nowrap}
-/* MOCKUP A2b do modo Retro FPS (D-13; só com ?retro=1): barra de estado inferior, estilo de gênero anos 90 */
-#sb{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;align-items:stretch;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));
-  background:radial-gradient(circle at 5px 5px,var(--world-industrial-chapa) 1.5px,transparent 2px) 0 0/22px 22px,var(--world-industrial-parede);
-  border-top:3px solid var(--world-industrial-chapa);box-shadow:0 -3px 0 var(--world-industrial-junta);font-weight:bold;text-transform:uppercase}
-.sbs{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:4px 10px;background:var(--ui-panel);min-width:96px;
-  border:3px solid;border-color:var(--ui-bg) var(--ui-text-dim) var(--ui-text-dim) var(--ui-bg)}
-.sbs small{color:var(--ui-text-dim);font-size:11px;letter-spacing:1px;text-transform:none}.sbs>small:first-child{text-transform:uppercase}
-.sbs .big{font-size:26px;line-height:1;letter-spacing:2px}.sbs .big.danger{color:var(--ui-danger)}
-.sbm{height:8px;background:var(--ui-bg);width:100%;min-width:90px}.sbm i{display:block;height:100%}
-.sb-me{flex-direction:row;align-items:center;gap:8px;font-size:15px}.sb-me .ci{color:var(--cc)}.sb-me .ci svg{width:32px;height:32px}
-.sb-tm{flex:1}.sb-tm ul{display:flex;gap:4px;margin:0;padding:0;list-style:none}
-.sb-tm .pt{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;border-left:0;border-bottom:3px solid var(--cc);font-size:10px;min-width:58px}
-.sb-tm .pt+.pt{margin-top:0}.sb-tm .pt .nm{display:none}.sb-tm .pt .ci svg{width:20px;height:20px}
+/* modo Retro FPS (V9, D-13; opção do menu): barra de estado fina embaixo, estilo de gênero anos 90 com arte própria;
+   resposta 3b do A2b (issue #27): só vida, fôlego e habilidade. Letras em --ui-scale (3 tamanhos de fonte); a altura
+   real da barra vai para --sb-h (hud/layout.ts) e afasta pings e a coluna de legendas */
+#sb{position:fixed;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:stretch;padding:3px 8px calc(3px + env(safe-area-inset-bottom,0px));
+  background:radial-gradient(circle at 4px 4px,var(--world-industrial-chapa) 1px,transparent 1.5px) 0 0/16px 16px,var(--world-industrial-parede);
+  border-top:2px solid var(--world-industrial-chapa);box-shadow:0 -2px 0 var(--world-industrial-junta);font-weight:bold;text-transform:uppercase}
+.sbs{display:flex;align-items:center;gap:6px;padding:2px 8px;background:var(--ui-panel);
+  border:2px solid;border-color:var(--ui-bg) var(--ui-text-dim) var(--ui-text-dim) var(--ui-bg)}
+.sbs small{color:var(--ui-text-dim);font-size:calc(11px * var(--ui-scale,1));letter-spacing:1px}
+.sbs .big{font-size:calc(16px * var(--ui-scale,1));line-height:1;min-width:2.2em;text-align:right;font-variant-numeric:tabular-nums}.sbs .big.danger{color:var(--ui-danger)}
+.sbm{height:6px;background:var(--ui-bg);width:clamp(48px,12vw,160px)}.sbm i{display:block;height:100%}
+.sb-ab .ci{display:inline-flex;color:var(--cc)}.sb-ab .ci svg{width:calc(18px * var(--ui-scale,1));height:calc(18px * var(--ui-scale,1))}
 .c-protector{--cc:var(--class-protetor)}.c-scout{--cc:var(--class-batedor)}
-body.retro #me,body.retro #top,body.retro #tm{display:none!important}
-body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+body.retro #me{display:none!important}
+body.retro #pings{bottom:calc(var(--sb-h,0px) + 14px)}
 /* legendas de som (V8b): centro embaixo, acima da dica (e da barra de estado no retro); sobe com o painel de espectador */
 /* coluna do centro embaixo (V8b): legendas, painel de espectador e dica empilhados num só fluxo, sem sobreposição em
-   qualquer tamanho de fonte ou de tela; no ?retro=1 a coluna começa acima da barra de estado */
+   qualquer tamanho de fonte ou de tela; no modo Retro FPS a coluna começa acima da barra de estado (--sb-h) */
 #bot{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px;width:max-content;max-width:92vw;pointer-events:none}
 #bot>.p{position:static;pointer-events:auto}
-body.retro #bot{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+body.retro #bot{bottom:calc(var(--sb-h,0px) + 14px)}
 /* a coluna sobe acima do painel de pings quando as larguras se cruzam (hud/layout.ts; 8px = o gap da coluna) */
 #bot.lift{bottom:calc(14px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
-body.retro #bot.lift{bottom:calc(104px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
+body.retro #bot.lift{bottom:calc(var(--sb-h,0px) + 14px + 8px + var(--pings-lift,0px))}
 #cap{max-width:min(92vw,46ch)}
 #cap ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .cp{display:flex;align-items:center;gap:6px;max-width:100%;background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:3px 8px;overflow-wrap:anywhere}

@@ -11,7 +11,9 @@
 //     inicia a partida; na tela de fim o foco vai para "Jogar de novo";
 //   - confere o HUD: seta de ameaça com setor 0–7 quando o caçador está dentro de `ui.threat_radius`, ping com
 //     recarga `ui.ping_cooldown` e retratos com o estado de cada aliado;
-//   - confere a tela de fim do v1 (`end.team`, `end.reason`, `end.individual`) e o modo espectador.
+//   - confere a tela de fim do v1 (`end.team`, `end.reason`, `end.individual`) e o modo espectador;
+//   - V9: a opção "Modo Retro FPS" liga pelo teclado e persiste; com ela, barra de estado fina (vida, fôlego,
+//     habilidade), axe e contraste nos 3 tamanhos de fonte, e legendas e pings sem cobrir a barra.
 // Uso: node tools/a11y/axe.mjs [--shots dir] [url]
 //   --shots  grava capturas do HUD e das telas em pt-BR (1280×720, deviceScaleFactor 2) com o prefixo r7-
 import { mkdirSync, readFileSync } from "node:fs";
@@ -150,6 +152,8 @@ async function optionsFlow(page, locale, T, pt) {
   const before = await optState(page);
   let changed = 0;
   const check = (ok, msg) => { if (ok) changed++; else fail(`${n}: ${msg}`); };
+  // V9: modo Retro FPS (opção de exibição, desligada por padrão) liga pelo teclado e chega a render/retro/mode.ts
+  if (await tabPress(page, "o-retro", "Space")) { const o = await optState(page); check(!before.options.retroFps && o.options.retroFps && o.retro, `modo Retro FPS não ligou (opção ${o.options.retroFps}, modo ${o.retro})`); }
   if (await tabPress(page, "o-ps1-snap", "Home")) { const o = await optState(page); check(o.ps1.snap === 0, `tremor de vértice ${o.ps1.snap} depois de Home`); }
   if (await tabPress(page, "o-la-grain", "ArrowLeft")) {
     const o = await optState(page), want = balance.render.layer_a.grain - ob.intensity_step;
@@ -194,7 +198,8 @@ async function optionsFlow(page, locale, T, pt) {
   await page.reload({ waitUntil: "load" });
   const r = await optState(page);
   const okPersist = r.reduceFlicker && r.bobScale === ob.reduced_bob && r.fov === fov0 + ob.fov_step && r.ps1.snap === 0 && r.options.fontSize === "normal" &&
-    r.colorMode === "protanopia" && r.options.puzzleAccessible && r.controls.toggleRun && r.options.keys.forward.join() === "KeyI" && (await audioVol(page, "music")) === 0;
+    r.colorMode === "protanopia" && r.options.puzzleAccessible && r.controls.toggleRun && r.options.keys.forward.join() === "KeyI" && (await audioVol(page, "music")) === 0 &&
+    r.options.retroFps && r.retro;
   if (!okPersist) fail(`${n}: opções não persistiram depois de recarregar: ${JSON.stringify(r)}`);
   else report.push(`${n}: ${changed} opções mudadas só pelo teclado, conferidas no estado efetivo e depois de recarregar`);
   await gamepadFlow(page, n);
@@ -237,6 +242,55 @@ async function gamepadFlow(page, n) {
   else report.push(`${n}/gamepad: abriu, mudou 2 opções e fechou só pelo controle`);
 }
 
+/**
+ * sem sobreposição: faixa de legendas × painel de espectador × dica (longa, quebrando linha) × barra de estado do modo
+ * Retro FPS × pings (com e sem pings ativos), e pings × barra de estado, nos 3 tamanhos de fonte, a 1280×720 e a
+ * 800×600 (painel, dica e feed só durante a medida). Devolve os pares medidos (todos e os com a barra de estado)
+ */
+async function overlapCheck(page, n, T) {
+  const hintText = Object.entries(T).filter(([k]) => k.startsWith("hud.hint.")).map(([, v]) => v).sort((x, y) => y.length - x.length)[0].repeat(3);
+  const vp0 = page.viewportSize();
+  let pairs = 0, sbPairs = 0;
+  for (const vp of [vp0, { width: 800, height: 600 }]) {
+    await page.setViewportSize(vp);
+    const o = await page.evaluate(async ([scales, hint, pingText]) => {
+      const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
+      const spec = document.getElementById("spec"), hintEl = document.getElementById("hint"), pf = document.getElementById("pf");
+      const saved = { spec: spec.hidden, hint: hintEl.hidden, text: hintEl.textContent, pf: pf.innerHTML };
+      const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const box = id => { const e = document.getElementById(id); if (!e || e.hidden || !e.checkVisibility()) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+      const out = [];
+      // com e sem dica e espectador; com e sem pings ativos no painel (o feed é preenchido só durante a medida)
+      for (const withExtras of [true, false]) for (const withPings of [false, true]) for (const [size, sc] of Object.entries(scales)) {
+        spec.hidden = !withExtras; hintEl.hidden = !withExtras; hintEl.textContent = withExtras ? hint : saved.text;
+        pf.innerHTML = withPings ? Array.from({ length: 4 }, () => `<li>${pingText}</li>`).join("") : "";
+        document.documentElement.style.setProperty("--ui-scale", String(sc));
+        await frames();
+        c.emit("step_hunter", { x: p.x + 6, z: p.z }); c.emit("telegraph_trap", { x: p.x - 4, z: p.z }); c.emit("rescue");
+        await frames();
+        const cap = box("cap");
+        for (const id of ["spec", "hint", "sb", "pings"]) {
+          const b = box(id);
+          if (!cap || !b) continue;
+          const hit = cap.left < b.right && b.left < cap.right && cap.top < b.bottom && b.top < cap.bottom;
+          out.push({ size, id, withExtras, withPings, hit, cap, other: b });
+        }
+        if (cap && (cap.top < 0 || cap.left < 0 || cap.right > innerWidth)) out.push({ size, id: "tela", hit: true, cap });
+        // modo Retro FPS (V9): o painel de pings também fica acima da barra de estado
+        const pg = box("pings"), sb = box("sb");
+        if (pg && sb) out.push({ size, id: "pings×sb", withExtras, withPings, hit: pg.left < sb.right && sb.left < pg.right && pg.top < sb.bottom && sb.top < pg.bottom, cap: pg, other: sb });
+      }
+      spec.hidden = saved.spec; hintEl.hidden = saved.hint; hintEl.textContent = saved.text; pf.innerHTML = saved.pf;
+      return out;
+    }, [balance.ui.options.font_scales, hintText, T["ping.feed"].replace(/\{[^}]*\}/g, "Aaaaaaaa")]);
+    pairs += o.length;
+    sbPairs += o.filter(x => x.id === "sb" || x.id === "pings×sb").length;
+    for (const x of o) if (x.hit) fail(`${n}: sobreposição ${x.id === "pings×sb" ? "pings × barra de estado" : "legendas × #" + x.id} a ${vp.width}×${vp.height}, fonte ${x.size}: ${JSON.stringify(x)}`);
+  }
+  await page.setViewportSize(vp0);
+  return { pairs, sbPairs };
+}
+
 /** faixa de legendas (V8b; GDD-v0.3 §12.4): o caçador à direita gera "passos" com seta no setor 2 e ×2 na fusão; a
  *  legenda mais longa dos catálogos cabe na tela sem estourar nos 3 tamanhos de fonte (ui.options.font_scales).
  *  Emissão e leitura do DOM no mesmo evaluate (o barramento avisa de forma síncrona): com a máquina carregada, o
@@ -269,44 +323,7 @@ async function captionsCheck(page, locale, T) {
   if (!steps || !steps.rot.includes(`rotate(${right}deg)`) || !steps.text.includes("×2") || !steps.danger) fail(`${n}: passos do caçador sem seta à direita, ×2 ou borda de perigo: ${JSON.stringify(r.items)}`);
   if (!r.items.some(i => i.text.includes(T["caption.rescue"]) && !i.rot)) fail(`${n}: resgate sem a legenda sem direção: ${JSON.stringify(r.items)}`);
   for (const [size, w] of Object.entries(r.wrap)) if (w.over) fail(`${n}: legenda de ${longest.length} caracteres estoura com a fonte ${size}: ${JSON.stringify(w)}`);
-  // sem sobreposição: faixa × painel de espectador × dica (longa, quebrando linha) × barra de estado × pings (com e
-  // sem pings ativos), nos 3 tamanhos de fonte, a 1280×720 e a 800×600 (painel, dica e feed só durante a medida)
-  const hintText = Object.entries(T).filter(([k]) => k.startsWith("hud.hint.")).map(([, v]) => v).sort((x, y) => y.length - x.length)[0].repeat(3);
-  const vp0 = page.viewportSize();
-  let pairs = 0;
-  for (const vp of [vp0, { width: 800, height: 600 }]) {
-    await page.setViewportSize(vp);
-    const o = await page.evaluate(async ([scales, hint, pingText]) => {
-      const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
-      const spec = document.getElementById("spec"), hintEl = document.getElementById("hint"), pf = document.getElementById("pf");
-      const saved = { spec: spec.hidden, hint: hintEl.hidden, text: hintEl.textContent, pf: pf.innerHTML };
-      const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const box = id => { const e = document.getElementById(id); if (!e || e.hidden || !e.checkVisibility()) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
-      const out = [];
-      // com e sem dica e espectador; com e sem pings ativos no painel (o feed é preenchido só durante a medida)
-      for (const withExtras of [true, false]) for (const withPings of [false, true]) for (const [size, sc] of Object.entries(scales)) {
-        spec.hidden = !withExtras; hintEl.hidden = !withExtras; hintEl.textContent = withExtras ? hint : saved.text;
-        pf.innerHTML = withPings ? Array.from({ length: 4 }, () => `<li>${pingText}</li>`).join("") : "";
-        document.documentElement.style.setProperty("--ui-scale", String(sc));
-        await frames();
-        c.emit("step_hunter", { x: p.x + 6, z: p.z }); c.emit("telegraph_trap", { x: p.x - 4, z: p.z }); c.emit("rescue");
-        await frames();
-        const cap = box("cap");
-        for (const id of ["spec", "hint", "sb", "pings"]) {
-          const b = box(id);
-          if (!cap || !b) continue;
-          const hit = cap.left < b.right && b.left < cap.right && cap.top < b.bottom && b.top < cap.bottom;
-          out.push({ size, id, withExtras, withPings, hit, cap, other: b });
-        }
-        if (cap && (cap.top < 0 || cap.left < 0 || cap.right > innerWidth)) out.push({ size, id: "tela", hit: true, cap });
-      }
-      spec.hidden = saved.spec; hintEl.hidden = saved.hint; hintEl.textContent = saved.text; pf.innerHTML = saved.pf;
-      return out;
-    }, [balance.ui.options.font_scales, hintText, T["ping.feed"].replace(/\{[^}]*\}/g, "Aaaaaaaa")]);
-    pairs += o.length;
-    for (const x of o) if (x.hit) fail(`${n}: legendas sobrepõem #${x.id} a ${vp.width}×${vp.height}, fonte ${x.size}: ${JSON.stringify(x)}`);
-  }
-  await page.setViewportSize(vp0);
+  const { pairs } = await overlapCheck(page, n, T);
   if (!pairs) fail(`${n}: conferência de sobreposição não mediu nada (faixa ausente?)`);
   // axe com a fonte maior e as legendas na tela (renovadas na hora)
   await game(page, () => { const p = window.__thehell().survivors[0]; window.__thehellCaptions.emit("step_hunter", { x: p.x + 6, z: p.z }); window.__thehellCaptions.emit("rescue"); });
@@ -314,6 +331,54 @@ async function captionsCheck(page, locale, T) {
   await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), balance.ui.options.font_scales[balance.ui.options.font_default]);
   await game(page, (s) => window.__thehellCaptions.duration(s), ac.durations[ac.default_duration_index]);
   report.push(`${n}: sem sobreposição com espectador/dica/barra/pings (${pairs} pares medidos em 2 telas, 3 fontes, com e sem dica e pings); seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
+}
+
+/**
+ * barra fina: altura máxima da barra de estado com a fonte normal, em fração da altura da tela (parâmetro do teste,
+ * não número de jogo; resposta 3b do A2b na issue #27: "barra mais fina"; a barra do mockup tinha 104 px de 720)
+ */
+const THIN_BAR = 1 / 12;
+
+/**
+ * V9: modo Retro FPS ligado pela opção do menu (localStorage, como o jogador): partida em 1ª pessoa, barra de estado
+ * fina só com vida, fôlego e habilidade (A2b 3b), HUD padrão com objetivos e equipe, painel do jogador escondido, axe
+ * e contraste nos 3 tamanhos de fonte, e legendas/pings sem cobrir a barra (overlapCheck) a 1280×720 e 800×600
+ */
+async function retroFlow(page, locale, T) {
+  const n = `${locale}/retro`, ob = balance.ui.options;
+  await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype`, { waitUntil: "load" });
+  await page.evaluate(() => localStorage.setItem("thehell.options", JSON.stringify({ retroFps: true })));
+  await page.reload({ waitUntil: "load" });
+  await page.click("#go");
+  if (!(await waitStarted(page, n))) return;
+  await page.waitForTimeout(150);
+  const s = await page.evaluate(() => {
+    const vis = (id) => { const e = document.getElementById(id); return !!e && !e.hidden && e.checkVisibility(); };
+    const sb = document.getElementById("sb");
+    return {
+      retro: window.__thehellOptions().retro, first: !window.__thehellView.thirdPerson, sb: vis("sb"), me: vis("me"), top: vis("top"), tm: vis("tm"),
+      blocks: sb.querySelectorAll(".sbs").length, meters: sb.querySelectorAll("[role=meter]").length, height: sb.getBoundingClientRect().height,
+      text: sb.textContent, sbh: getComputedStyle(document.documentElement).getPropertyValue("--sb-h").trim(),
+    };
+  });
+  if (!s.retro || !s.first) fail(`${n}: a opção não ligou o modo em 1ª pessoa: ${JSON.stringify(s)}`);
+  if (!s.sb || s.me || !s.top || !s.tm) fail(`${n}: barra visível ${s.sb}, painel do jogador ${s.me} (esperado escondido), objetivos ${s.top}, equipe ${s.tm}`);
+  if (s.blocks !== 3 || s.meters !== 2) fail(`${n}: barra com ${s.blocks} blocos e ${s.meters} medidores (esperado 3: vida, fôlego, habilidade; 2 medidores)`);
+  for (const k of ["retro.health", "retro.stamina"]) if (!s.text.includes(T[k])) fail(`${n}: barra sem "${T[k]}"`);
+  const vh = page.viewportSize().height;
+  if (s.height > vh * THIN_BAR) fail(`${n}: barra com ${s.height.toFixed(1)} px de altura (> ${(vh * THIN_BAR).toFixed(1)}, 1/${1 / THIN_BAR} da tela)`);
+  if (!(Math.abs(parseFloat(s.sbh) - s.height) <= 1)) fail(`${n}: --sb-h ${s.sbh} diferente da altura da barra (${s.height})`);
+  await axe(page, n);
+  for (const size of ["large", "xlarge"]) {
+    await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), ob.font_scales[size]);
+    await page.waitForTimeout(100);
+    await axe(page, `${n}-fonte-${ob.font_scales[size]}`);
+  }
+  await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), ob.font_scales[ob.font_default]);
+  const { pairs, sbPairs } = await overlapCheck(page, n, T);
+  if (!sbPairs) fail(`${n}: conferência de sobreposição não mediu a barra de estado`);
+  report.push(`${n}: barra fina (${s.height.toFixed(1)} px, 3 blocos), HUD padrão com objetivos e equipe, ${pairs} pares sem sobreposição (${sbPairs} com a barra) em 2 telas e 3 fontes`);
+  await page.evaluate(() => localStorage.removeItem("thehell.options"));
 }
 
 /**
@@ -400,6 +465,9 @@ try {
     const objectives = T["hud.objectives"].split("{")[0].trim();
     if (!top.includes(objectives)) fail(`${locale}: HUD sem objetivos traduzidos: ${top}`);
     if (!top.includes(`0/${gens}`)) fail(`${locale}: HUD sem contador de geradores 0/${gens}: ${top}`);
+    // V9: com o modo Retro FPS desligado (padrão) o painel do jogador (#me) aparece e a barra de estado (#sb) não
+    const meOff = await page.evaluate(() => ({ me: document.getElementById("me").checkVisibility(), sb: document.getElementById("sb").checkVisibility(), retro: window.__thehellOptions().retro }));
+    if (meOff.retro || !meOff.me || meOff.sb) fail(`${locale}: HUD sem o modo Retro com #me visível=${meOff.me}, #sb visível=${meOff.sb}, modo=${meOff.retro}`);
 
     // seta de ameaça: caçador a 3/4 do raio, à direita da câmera (yaw 0: direita = +x) → setor 2 de 8
     const r = balance.ui.threat_radius;
@@ -482,6 +550,9 @@ try {
     const notEscaped = T["end.v1.title"].match(/other \{([^}]*)\}/)[1];
     const t2 = await page.textContent("#et");
     if (t2 !== notEscaped) fail(`${locale}: fim v1 no limite com o jogador vivo: "${t2}", esperado "${notEscaped}"`);
+
+    // ---------- V9: modo Retro FPS ligado pela opção (como o jogador): barra fina, HUD, axe, sobreposição ----------
+    await retroFlow(page, locale, T);
 
     if (errors.length) fail(`${locale}: erros no console: ${errors.join(" | ")}`);
     await ctx.close();

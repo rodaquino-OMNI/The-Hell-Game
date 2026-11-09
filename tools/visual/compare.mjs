@@ -7,6 +7,9 @@
 //   low-todos e high-todos (presets de resolução interna). As cenas do V1 rodam com as camadas desligadas (material
 //   isolado); as do V4 ligam as camadas: por preset (low-A, medium-AB, high-ABC), por camada (medium-A, medium-B,
 //   high-C) e dano (aberração), com e sem "reduzir flicker"; D-18: medium-cacador-fora (caçador fora do cone).
+//   V9 (modo Retro FPS, ?debug=1&retro=1; D-13, D-15): medium-retro-1p (ferramenta no canto, Pátio industrial),
+//   medium-retro-batedor (luneta, A2b 2c) e medium-retro-3p (Pátio industrial em 3ª pessoa), com o caçador escondido
+//   na captura (o contorno dele no modo é da issue #48, fora desta cena).
 // Compara cada captura com tools/visual/ref/<nome>.png por diferença por pixel com tolerância e verifica:
 //   - com tudo em 0 duas capturas seguidas com a câmera parada são idênticas e não há padrão Bayer;
 //   - o dither ligado produz o padrão Bayer; cada efeito sozinho muda a imagem em relação a tudo em 0;
@@ -94,7 +97,13 @@ const SCENES = [
   { name: "medium-dano-reduzir", preset: "medium", ps1: ALL(1), layers: null, damage: 1, reduceFlicker: true },
   // D-18: caçador fora do cone da lanterna (cena de prova de legibilidade), com o contorno
   { name: "medium-cacador-fora", preset: "medium", ps1: ALL(1), layers: null, leg: LEG },
+  // V9: modo Retro FPS (página própria com ?retro=1), mesma vista em 1ª pessoa; o caçador fica fora da captura
+  { name: "medium-retro-1p", preset: "medium", ps1: ALL(1), layers: null, query: "retro=1", view: { ...VIEW, thirdPerson: false }, hidden: ["hunter"] },
+  { name: "medium-retro-batedor", preset: "medium", ps1: ALL(1), layers: null, query: "retro=1&retro_class=batedor", view: { ...VIEW, thirdPerson: false }, hidden: ["hunter"] },
+  { name: "medium-retro-3p", preset: "medium", ps1: ALL(1), layers: null, query: "retro=1", hidden: ["hunter"] },
 ];
+/** cenas do V9 (modo Retro FPS) */
+const RETRO_SCENES = SCENES.filter(s => s.query?.includes("retro=1")).map(s => s.name);
 
 let server, baseServer;
 // porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
@@ -160,6 +169,7 @@ const layerADefaults = Object.fromEntries(LAYER_A.map(e => [e, balance.render.la
 /** intensidade padrão do contorno do caçador (D-18; data/balance.yaml render.hunter_outline) */
 const outlineDefault = balance.render.hunter_outline.intensity;
 
+/** abre o jogo no preset; `query` = parâmetros extras (V9: `retro=1`, com o ?debug=1 que já vai sempre) */
 async function openGame(browser, preset, viewport, at = url, query = "") {
   const [w, h] = balance.render.presets[preset].internal;
   const page = await browser.newPage({ viewport: viewport ?? { width: w, height: h }, deviceScaleFactor: 1 });
@@ -168,7 +178,7 @@ async function openGame(browser, preset, viewport, at = url, query = "") {
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   // relógio parado, instalado e pausado ANTES de navegar (tools/lib/capture-page.mjs); as capturas seguem idênticas às
   // referências
-  await gotoPaused(page, `${at}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}${query}`);
+  await gotoPaused(page, `${at}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}${query ? "&" + query : ""}`);
   await page.click("#go");
   // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
   await page.evaluate(() => window.__thehellCharactersReady?.());
@@ -222,7 +232,8 @@ async function capture(page, ps1, o = {}) {
       H.x = P.x - Math.sin(a) * o.leg.distance; H.z = P.z - Math.cos(a) * o.leg.distance;
       H.a = Math.atan2(P.x - H.x, P.z - H.z);
     }
-    const c = h.capture(o.leg ? o.leg.view : view);
+    // o.view: vista própria da cena (V9: 1ª pessoa); o.hidden: malhas fora da captura (V9: o caçador)
+    const c = h.capture(o.leg ? o.leg.view : (o.view ?? view), o.hidden ? { hidden: o.hidden } : undefined);
     [H.x, H.z, H.a] = saved;
     return { ...c, info: h.info(), t: window.__thehell().t };
   }, [ps1, VIEW, o, layerADefaults, outlineDefault]);
@@ -236,8 +247,10 @@ try {
   const pages = {};
   const shots = {};
   for (const s of SCENES) {
-    pages[s.preset] ??= await openGame(browser, s.preset);
-    const img = await capture(pages[s.preset].page, s.ps1, s);
+    // uma página por preset (e por `query`: o modo Retro FPS monta o Pátio industrial ao abrir a partida)
+    const key = s.query ? `${s.preset}?${s.query}` : s.preset;
+    pages[key] ??= await openGame(browser, s.preset, undefined, url, s.query);
+    const img = await capture(pages[key].page, s.ps1, s);
     shots[s.name] = img;
     const [w, h] = balance.render.presets[s.preset].internal;
     if (img.width !== w || img.height !== h) fail(`${s.name}: captura ${img.width}×${img.height}, esperado ${w}×${h} (escala 1)`);
@@ -316,11 +329,18 @@ try {
   const info = shots["medium-todos"].info;
   console.log(`renderer.info (medium, todos, sem camadas): ${info.calls} draw calls, ${info.triangles} triângulos (orçamento ${b.draw_calls} / ${b.triangles})`);
   if (info.calls > b.draw_calls || info.triangles > b.triangles) fail("renderer.info acima do orçamento");
-  for (const name of ["low-A", "medium-AB", "high-ABC"]) {
+  for (const name of ["low-A", "medium-AB", "high-ABC", ...RETRO_SCENES]) {
     const info = shots[name].info;
     console.log(`renderer.info (${name}): ${info.calls} draw calls, ${info.triangles} triângulos (orçamento ${b.draw_calls} / ${b.triangles})`);
     if (info.calls > b.draw_calls || info.triangles > b.triangles) fail(`renderer.info acima do orçamento em ${name}`);
   }
+  // V9: o modo muda a imagem (Pátio industrial em 3ª pessoa × o Pátio de sempre); a ferramenta entra no quadro em
+  // 1ª pessoa (a única diferença entre as páginas do Batedor e da classe padrão do menu é a ferramenta na mão)
+  const dInd = diff(shots["medium-retro-3p"], shots["medium-AB"]);
+  const dLun = diff(shots["medium-retro-batedor"], shots["medium-retro-1p"]);
+  console.log(`modo Retro FPS: Pátio industrial muda ${(dInd.fraction * 100).toFixed(2)}% dos pixels; luneta × ferramenta padrão ${(dLun.fraction * 100).toFixed(2)}%`);
+  if (dInd.fraction < 0.05) fail(`modo Retro FPS: o Pátio industrial quase não muda a imagem (${(dInd.fraction * 100).toFixed(3)}%)`);
+  if (dLun.fraction < 0.005) fail(`modo Retro FPS: a luneta do Batedor quase não muda a imagem em relação à ferramenta padrão (${(dLun.fraction * 100).toFixed(3)}%)`);
 
   // custo das camadas (render.layer_cost_factor): preset médio, 1280×720 (escala 3), custo síncrono por quadro
   // (hook bench: readPixels de 1 pixel a cada quadro) sem camadas (A) e com A+B (B).
@@ -503,7 +523,7 @@ try {
     // dele, na mesma cena LEG e na mesma máscara chapada. A 1ª pessoa passa pelo renderFrame do jogo (o fator entra lá)
     const ho = balance.render.hunter_outline;
     for (const preset of Object.keys(balance.render.presets)) {
-      const g = await openGame(browser, preset, undefined, url, "&retro=1");
+      const g = await openGame(browser, preset, undefined, url, "retro=1");
       const shot = async (o) => {
         const r = await g.page.evaluate(([LEG, o, outline0]) => {
           const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
