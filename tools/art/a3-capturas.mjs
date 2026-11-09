@@ -10,9 +10,12 @@
 // (dentro) à esquerda da vista, de frente para o jogador.
 // Chromium do Playwright com SwiftShader, 1280×720 com deviceScaleFactor 2, semente fixa e relógio parado.
 // Uso: node tools/art/a3-capturas.mjs <pasta de saída> [url] [--forma potência,amount --sufixo nome] [--presets a,b]
+//   [--fator f --sufixo nome]
 //   (sem url, sobe packages/server/dist/server.mjs). --forma troca só nesta captura a forma do contorno (o padrão é
 //   render.hunter_outline) para comparar opções de arte; --sufixo entra no nome dos arquivos do "depois"
 //   (ex.: --forma 1,1.05 --sufixo fraco → a3-contorno-medium-fraco.png, patio-medium-fora-do-cone-fraco.png)
+//   --fator fixa o fator do preset no contorno (D-54, render.hunter_outline.preset_scale) nas capturas; ex.:
+//   --fator 1 --sufixo d54-antes reproduz o contorno de antes de D-54
 // Pré-requisito: pnpm build.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -27,7 +30,9 @@ const { chromium } = require("playwright");
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const argv = process.argv.slice(2);
 const flagArg = (n) => { const i = argv.indexOf(n); if (i < 0) return undefined; const v = argv[i + 1]; argv.splice(i, 2); return v; };
-const formaArg = flagArg("--forma"), suffix = flagArg("--sufixo"), presetsArg = flagArg("--presets");
+const formaArg = flagArg("--forma"), suffix = flagArg("--sufixo"), presetsArg = flagArg("--presets"), fatorArg = flagArg("--fator");
+const fator = fatorArg === undefined ? null : Number(fatorArg);
+if (fator !== null && (!(fator > 0) || !suffix)) { console.error("--fator exige número > 0 e --sufixo"); process.exit(2); }
 const forma = formaArg ? (([power, amount]) => ({ power, amount }))(formaArg.split(",").map(Number)) : null;
 if (forma && (!(forma.power > 0) || !(forma.amount > 0) || !suffix)) { console.error("--forma potência,amount exige números > 0 e --sufixo"); process.exit(2); }
 const out = argv[0];
@@ -59,6 +64,7 @@ async function open(query) {
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
   await page.evaluate((f) => window.__thehellRender.setHunterOutlineShape(f), forma);
+  await page.evaluate((v) => window.__thehellRender.setHunterOutlinePresetScale(v), fator);
   return page;
 }
 

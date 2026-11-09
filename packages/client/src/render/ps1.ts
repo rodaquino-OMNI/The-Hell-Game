@@ -47,20 +47,39 @@ function rimColor(hex: number, amount: number): THREE.Color {
  * do fresnel (maior = borda mais fina)
  */
 export const rimUniforms = {
-  uRim: { value: ho.intensity },
+  uRim: { value: ho.intensity * ho.preset_scale[balance.render.default_preset] },
   // valor cru do token, como os demais materiais (scene.ts desliga o ColorManagement, mas este módulo carrega antes);
   // cada canal fica ≤ 1 (sem branco saturado; o teste de render-layers confere amount × token ≤ 1 nos dados)
   uRimColor: { value: rimColor(tok(ho.color), ho.amount) },
   uRimPower: { value: ho.power },
 };
-/** intensidade escolhida (opção do jogador, V8) e se a vista atual é a 1ª pessoa do modo Retro (issue #48) */
-const rim = { chosen: ho.intensity, retroFirstPerson: false };
-/** uRim = intensidade escolhida × render.hunter_outline.retro_scale só no Retro em 1ª pessoa (issue #48, 3b) */
-const applyRim = () => { rimUniforms.uRim.value = rim.chosen * (rim.retroFirstPerson ? ho.retro_scale : 1); };
-/** intensidade escolhida do contorno do caçador (0 a 1), sem o fator do Retro em 1ª pessoa */
+/**
+ * intensidade escolhida (opção do jogador, V8), fator do preset (D-54, render.hunter_outline.preset_scale) e se a
+ * vista atual é a 1ª pessoa do modo Retro (issue #48)
+ */
+const rim = { chosen: ho.intensity, preset: ho.preset_scale[balance.render.default_preset], retroFirstPerson: false };
+/**
+ * uRim = intensidade escolhida × render.hunter_outline.preset_scale do preset (D-54) × retro_scale só no Retro em
+ * 1ª pessoa (issue #48, 3b). O shader limita a cor do contorno ao token × amount, então um fator > 1 alarga a borda
+ * (mais do corpo chega à cor do contorno) sem passar dessa cor
+ */
+const applyRim = () => { rimUniforms.uRim.value = rim.chosen * rim.preset * (rim.retroFirstPerson ? ho.retro_scale : 1); };
+/** intensidade escolhida do contorno do caçador (0 a 1), sem o fator do preset nem o do Retro em 1ª pessoa */
 export const getHunterOutline = () => rim.chosen;
 /** setter para o menu de opções (V8): 0 desliga o contorno; fora de 0..1 é limitado */
 export function setHunterOutline(v: number) { rim.chosen = clamp01(v); applyRim(); }
+type PresetName = keyof typeof ho.preset_scale;
+let presetName: PresetName = balance.render.default_preset;
+/**
+ * D-54: preset de render atual; o contorno leva render.hunter_outline.preset_scale dele. Trocar de preset descarta
+ * o fator fixado à mão por setHunterOutlinePresetScale (volta ao dos dados)
+ */
+export function setHunterOutlinePreset(name: PresetName) { presetName = name; rim.preset = ho.preset_scale[name]; applyRim(); }
+/**
+ * fator do preset fixado à mão (null volta ao do preset atual). Só para capturas de comparação de arte e para
+ * medir o fator mínimo (D-54); o jogo usa os dados
+ */
+export function setHunterOutlinePresetScale(v: number | null) { rim.preset = v ?? ho.preset_scale[presetName]; applyRim(); }
 /**
  * issue #48 (3b): a vista desenhada é a 1ª pessoa do modo Retro (`?retro=1`)? Nela o contorno leva o fator
  * render.hunter_outline.retro_scale; na 3ª pessoa (jogo normal e o V do Retro) fica a intensidade escolhida
