@@ -10,6 +10,7 @@ import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
+import { exposeDebugHook } from "./debug-hooks.ts";
 import { installRenderHook } from "./render/debug.ts";
 import { urlPs1, urlRetro, urlRetroClass, urlSeed } from "./render/options.ts";
 import { setPs1 } from "./render/ps1.ts";
@@ -39,13 +40,14 @@ function init() {
   if (urlRetro) { view.thirdPerson = false; setupStatusBar(); }
 }
 
+// ganchos de depuração só com ?debug=1 (D-33, debug-hooks.ts)
 /** gancho somente-leitura para os testes ponta a ponta (tools/smoke.mjs) */
-(window as unknown as { __thehell: () => GameState | undefined }).__thehell = () => G;
+exposeDebugHook("__thehell", () => G);
 /** gancho de render (capturas de referência e renderer.info) e intensidades PS1 do parâmetro de URL `?ps1=` */
 installRenderHook(() => ctx, () => G);
 setPs1(urlPs1);
 /** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
-if (urlRetro) (window as unknown as { __thehellView: typeof view }).__thehellView = view;
+if (urlRetro) exposeDebugHook("__thehellView", view);
 
 function start() {
   hideMenu();
