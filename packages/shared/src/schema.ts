@@ -20,7 +20,8 @@ const UiSchema = z.object({
 }).strict();
 
 /** simulador e porta de regressão (GDD v0.3 C-15, D-05 a, D-16 a; GDD v0.2 §7.6; item R5) */
-const simTol = { max_worsening: pos, pooled_max_worsening: pos.optional(), min_samples: z.number().int().positive().optional() };
+/** tolerância null = "a medir" (ruído ainda não medível; a métrica não é comparada) */
+const simTol = { max_worsening: pos.nullable(), pooled_max_worsening: pos.nullable().optional(), min_samples: z.number().int().positive().optional() };
 const simMetric = z.discriminatedUnion("worse", [
   z.object({ worse: z.enum(["higher", "lower"]), ...simTol }).strict(),
   z.object({ worse: z.literal("band"), band: range.refine(r => r[1] >= r[0], "banda: máx deve ser ≥ mín"), ...simTol }).strict(),
@@ -35,7 +36,7 @@ const SimSchema = z.object({
   /** métricas de tools/sim/metrics.ts (METRICS); as ausentes aqui só são medidas */
   regression: z.object({
     hunter_win: simMetric, survivor_escape: simMetric, duration_mean: simMetric, duration_median: simMetric,
-    captures_per_match: simMetric, short_match_rate: simMetric, chase_median: simMetric, chase_count: simMetric,
+    captures_per_match: simMetric, short_match_rate: simMetric, chase_median: simMetric, chases_per_match: simMetric,
   }).partial().strict(),
 }).strict();
 

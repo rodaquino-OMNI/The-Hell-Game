@@ -33,7 +33,7 @@ import { loadBalanceFile, loadMapFile } from "../../packages/shared/src/node.ts"
 import { HUNTER_TRANSITIONS, makeConfig, playHeadless, type HunterMode } from "../../packages/sim/src/index.ts";
 import type { NavQuery } from "../../packages/sim/src/nav/index.ts";
 import { groupMetrics, hardFailures, METRICS, type GroupMetrics, type MatchRow } from "./metrics.ts";
-import { compare, comparisonMarkdown, POOLED, type Baseline, type Rules } from "./regression.ts";
+import { compare, comparisonMarkdown, metaMismatch, POOLED, type Baseline, type Rules } from "./regression.ts";
 
 type Difficulty = "easy" | "normal" | "hard" | "nightmare";
 const DIFFS: Difficulty[] = ["easy", "normal", "hard", "nightmare"];
@@ -107,13 +107,10 @@ if (!isMainThread) {
   }
   const t0 = performance.now();
   if (noise > 0) {
-    await noiseReport(maps, diffs, n, seed0, nav, workers, noise, sim.short_match_seconds);
+    await noiseReport(maps, diffs, n, seed0, nav, workers, noise, sim.short_match_seconds, sim.regression as Rules);
     console.error(`tempo total ${((performance.now() - t0) / 1000).toFixed(1)} s`);
     process.exit(0);
   }
-  const rows = await runAll(maps, diffs, n, seed0, nav, workers);
-  const groups: Record<string, GroupMetrics> = {};
-  for (const [k, r] of Object.entries(rows)) groups[k] = groupMetrics(r, sim.short_match_seconds, isValid);
   // comando reproduzível (sem as opções que não mudam o resultado)
   const shown = argv.filter(a => !/^--(json=|md=|workers=|write-baseline$)/.test(a)).join(" ");
   const meta = {
@@ -122,6 +119,18 @@ if (!isMainThread) {
     maps, difficulties: diffs, matches_per_group: n, seeds: `${seed0}..${seed0 + n - 1} em todos os grupos`,
     short_match_seconds: sim.short_match_seconds,
   };
+  const comparePath = flag("write-baseline") ? "" : arg("compare", check ? BASELINE : "");
+  const baseline = comparePath ? JSON.parse(readFileSync(comparePath, "utf8")) as Baseline : null;
+  // fora do noturno (que compara um lote maior de propósito), o lote tem de ser o mesmo da linha de base
+  const diverge = baseline && !nightly ? metaMismatch(baseline.meta, meta, ["nav", "maps", "difficulties", "seeds", "matches_per_group"]) : [];
+  if (diverge.length) {
+    console.error(`lote diferente da linha de base ${comparePath.replace(root, "")}: ${diverge.join("; ")}\n` +
+      "a comparação só vale com o mesmo lote (use pnpm sim:check, ou regrave a linha de base em PR explícito)");
+    process.exit(1);
+  }
+  const rows = await runAll(maps, diffs, n, seed0, nav, workers);
+  const groups: Record<string, GroupMetrics> = {};
+  for (const [k, r] of Object.entries(rows)) groups[k] = groupMetrics(r, sim.short_match_seconds, isValid);
 
   let failed = false;
   const md: string[] = [`# Simulador — ${meta.command}`, "", "```json", JSON.stringify(meta, null, 1), "```", ""];
@@ -133,10 +142,8 @@ if (!isMainThread) {
     md.push(text.md, "");
   }
 
-  const comparePath = flag("write-baseline") ? "" : arg("compare", check ? BASELINE : "");
   let comparison: ReturnType<typeof compare> | null = null;
-  if (comparePath) {
-    const baseline = JSON.parse(readFileSync(comparePath, "utf8")) as Baseline;
+  if (baseline) {
     comparison = compare(baseline, groups, sim.regression as Rules);
     const table = comparisonMarkdown(comparison.rows);
     console.log(`\n== comparação com ${comparePath.replace(root, "")} (tolerâncias de sim.regression, data/balance.yaml) ==\n${table}`);
@@ -200,7 +207,7 @@ function sd(xs: number[]): number {
 }
 
 /** --noise=K: K lotes com sementes disjuntas; desvio de cada métrica por grupo e tolerância sugerida */
-async function noiseReport(maps: string[], diffs: Difficulty[], n: number, seed0: number, nav: Job["nav"], workers: number, k: number, short: number) {
+async function noiseReport(maps: string[], diffs: Difficulty[], n: number, seed0: number, nav: Job["nav"], workers: number, k: number, short: number, rules: Rules) {
   const samples: Record<string, Record<string, number[]>> = {};
   for (let b = 0; b < k; b++) {
     const rows = await runAll(maps, diffs, n, seed0 + b * n, nav, workers);
@@ -208,7 +215,8 @@ async function noiseReport(maps: string[], diffs: Difficulty[], n: number, seed0
       const m = groupMetrics(r, short, isValid);
       for (const metric of METRICS) {
         const v = m[metric];
-        if (v === null) continue;
+        // lote abaixo de min_samples (chase_median: episódios) não entra na medida do desvio: o check não o compararia
+        if (v === null || (metric === "chase_median" && m.chase_count < (rules.chase_median?.min_samples ?? 1))) continue;
         ((samples[g] ??= {})[metric] ??= []).push(v);
       }
       ((samples[g] ??= {}).chase_count ??= []).push(m.chase_count);
@@ -226,8 +234,7 @@ async function noiseReport(maps: string[], diffs: Difficulty[], n: number, seed0
     }
   }
   console.log("\ntolerância sugerida = 3 × √2 × maior desvio (max_worsening: grupos de 1 dificuldade; pooled_max_worsening: \"mapa/all\"):");
-  for (const [metric, s] of Object.entries(worst)) {
-    const p = worstPooled[metric] ?? 0;
-    console.log(`  ${metric}: desvio máx ${s.toFixed(4)} → ${(3 * Math.SQRT2 * s).toFixed(4)} · agregado ${p.toFixed(4)} → ${(3 * Math.SQRT2 * p).toFixed(4)}`);
-  }
+  // sem ≥ 2 lotes válidos o desvio não é medível: a tolerância fica "a medir" (null em sim.regression)
+  const tol = (s: number | undefined) => s === undefined ? "a medir (< 2 lotes válidos)" : `desvio máx ${s.toFixed(4)} → ${(3 * Math.SQRT2 * s).toFixed(4)}`;
+  for (const metric of [...METRICS, "chase_count"]) console.log(`  ${metric}: ${tol(worst[metric])} · agregado ${tol(worstPooled[metric])}`);
 }

@@ -14,8 +14,16 @@ export interface MatchRow extends Omit<HeadlessResult, "stuck"> {
 /** métricas que a porta de regressão sabe comparar (seção `sim.regression` de data/balance.yaml) */
 export const METRICS = [
   "hunter_win", "survivor_escape", "duration_mean", "duration_median", "captures_per_match", "short_match_rate", "chase_median",
+  "chases_per_match",
 ] as const;
 export type MetricName = (typeof METRICS)[number];
+
+/** limites físicos de cada métrica (frações em 0..1; o resto ≥ 0 sem teto). Não são números de jogo. */
+export const METRIC_BOUNDS: Record<MetricName, readonly [number, number]> = {
+  hunter_win: [0, 1], survivor_escape: [0, 1], short_match_rate: [0, 1],
+  duration_mean: [0, Infinity], duration_median: [0, Infinity], captures_per_match: [0, Infinity], chase_median: [0, Infinity],
+  chases_per_match: [0, Infinity],
+};
 
 export interface GroupMetrics {
   matches: number;
@@ -38,6 +46,11 @@ export interface GroupMetrics {
   /** mediana (s) dos episódios de perseguição que terminaram em captura; null sem episódios (só com hunter_brain utility) */
   chase_median: number | null;
   chase_count: number;
+  /**
+   * episódios de perseguição que terminaram em captura, por partida. É a forma vigiada de `chase_count` (vigia um
+   * defeito que zere as perseguições): por partida, a linha de base de 200 partidas compara com o lote noturno.
+   */
+  chases_per_match: number;
   /** fração das vagas de sobrevivente por classe (com bots: a distribuição sorteada) */
   class_use: Record<string, number>;
   /** taxa de fuga por classe (informativo) */
@@ -92,6 +105,7 @@ export function groupMetrics(rows: readonly MatchRow[], shortMatchSeconds: numbe
     short_match_rate: mean(r => (r.time < shortMatchSeconds ? 1 : 0)),
     chase_median: median(chases),
     chase_count: chases.length,
+    chases_per_match: n ? chases.length / n : 0,
     class_use: share(slots, seats),
     class_escape: Object.fromEntries(Object.keys(slots).sort().map(c => [c, (out[c] ?? 0) / slots[c]])),
     first_class: share(first, n),

@@ -3,16 +3,19 @@
 // (mesmo padrão de packages/client/test/atlas-glb.test.ts) com os tipos mínimos declarados aqui.
 import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "../../shared/src/node.ts";
-import { makeConfig, playHeadless } from "../src/index.ts";
+import { chaseEpisodes, makeConfig, playHeadless } from "../src/index.ts";
 import { aiCfg, b, map } from "./ai-helpers.ts";
 
-type Rule = { worse: "higher" | "lower" | "band"; band?: [number, number]; max_worsening: number; pooled_max_worsening?: number; min_samples?: number };
+type Rule = { worse: "higher" | "lower" | "band"; band?: [number, number]; max_worsening: number | null; pooled_max_worsening?: number | null; min_samples?: number };
 type Metrics = Record<string, unknown>;
-interface Comparison { group: string; metric: string; before: number | null; after: number | null; worsening: number | null; tolerance: number; status: string }
+interface Comparison { group: string; metric: string; before: number | null; after: number | null; worsening: number | null; tolerance: number | null; status: string; saturated: boolean }
 interface RegressionModule {
   bandDistance(x: number, band: [number, number]): number;
   worsening(rule: Rule, before: number, after: number): number;
-  toleranceFor(group: string, rule: Rule): number;
+  toleranceFor(group: string, rule: Rule): number | null;
+  saturated(metric: string, rule: Rule, before: number, tol: number): boolean;
+  inactiveMetrics(rows: Comparison[]): string[];
+  metaMismatch(base: Record<string, unknown>, cur: Record<string, unknown>, keys: string[]): string[];
   compareMetric(group: string, metric: string, rule: Rule, base: Metrics | undefined, cur: Metrics | undefined): Comparison;
   compare(baseline: { meta: object; groups: Record<string, Metrics> }, current: Record<string, Metrics>, rules: Record<string, Rule>): { rows: Comparison[]; failed: boolean };
   comparisonMarkdown(rows: Comparison[]): string;
@@ -52,7 +55,15 @@ describe("direção de piora", () => {
     expect(R.worsening(band, 0, 0.1)).toBeCloseTo(-0.1); // de 0% para 10%: aproxima da banda
     expect(R.worsening(band, 0.5, 0.8)).toBeCloseTo(0.25); // passa da banda por cima
     expect(R.worsening(band, 0.46, 0.54)).toBe(0);
-    expect(R.worsening(band, 0.3, 0.7)).toBeCloseTo(0); // trocou de lado à mesma distância
+  });
+  it("band: passar para o outro lado da banda conta a distância nova inteira", () => {
+    expect(R.worsening(band, 0.3, 0.7)).toBeCloseTo(0.15); // mesma distância, mas do outro lado
+    expect(R.worsening(band, 0, 1)).toBeCloseTo(0.45); // caçador invencível
+    expect(R.worsening(band, 0.7, 0.3)).toBeCloseTo(0.15);
+    expect(R.worsening(band, 0.3, 0.56)).toBeCloseTo(0.01);
+    expect(R.compareMetric("p/normal", "hunter_win", band, g({ hunter_win: 0 }), g({ hunter_win: 1 })).status).toBe("PIORA");
+    expect(R.compareMetric("p/normal", "hunter_win", band, g({ hunter_win: 0.3 }), g({ hunter_win: 0.7 })).status).toBe("PIORA");
+    expect(R.compareMetric("p/normal", "hunter_win", band, g({ hunter_win: 0.3 }), g({ hunter_win: 0.56 })).status).toBe("piora tolerada");
   });
 });
 
@@ -97,6 +108,41 @@ describe("comparação de uma métrica", () => {
   });
 });
 
+describe("saturação, tolerância a medir e lote da linha de base", () => {
+  it("saturada quando base ± tolerância passa do limite físico do lado da piora", () => {
+    expect(R.saturated("short_match_rate", higher, 0.9, 0.1)).toBe(true); // 0,9 + 0,1 ≥ 1
+    expect(R.saturated("short_match_rate", higher, 0.85, 0.1)).toBe(false);
+    expect(R.saturated("chases_per_match", lower, 0.03, 5)).toBe(true); // 0,03 − 5 ≤ 0
+    expect(R.saturated("duration_mean", higher, 100, 1e6)).toBe(false); // sem teto
+    expect(R.saturated("hunter_win", band, 0.01, 0.02)).toBe(true); // abaixo da banda: lado de perto é o 0
+    expect(R.saturated("hunter_win", band, 0.99, 0.02)).toBe(true); // acima: lado de perto é o 1
+    expect(R.saturated("hunter_win", band, 0.5, 0.02)).toBe(false); // dentro: precisa saturar dos dois lados
+    const row = R.compareMetric("p/normal", "short_match_rate", higher, g({ short_match_rate: 0.95 }), g({ short_match_rate: 0.95 }));
+    expect(row.saturated).toBe(true);
+    expect(R.comparisonMarkdown([row])).toContain("| igual | sim |");
+  });
+  it("porta inativa: métrica sem nenhum grupo comparado e não saturado", () => {
+    const rules = { short_match_rate: higher, chase_median: lower, duration_mean: { worse: "higher", max_worsening: 10 } as Rule };
+    const base = { meta: {}, groups: { "p/easy": g({ short_match_rate: 0.95, chase_median: 20, chase_count: 1, duration_mean: 80 }) } };
+    const rows = R.compare(base, { "p/easy": g({ short_match_rate: 0.95, chase_median: 20, chase_count: 1, duration_mean: 80 }) }, rules).rows;
+    expect(R.inactiveMetrics(rows)).toEqual(["short_match_rate", "chase_median"]);
+    expect(R.comparisonMarkdown(rows)).toContain("Porta inativa (todos os grupos saturados, com amostra pequena ou a medir): short_match_rate, chase_median.");
+  });
+  it("tolerância null = a medir: não compara nem reprova; o agregado pode ter a sua", () => {
+    const r: Rule = { worse: "lower", max_worsening: null, pooled_max_worsening: 30 };
+    expect(R.compareMetric("p/hard", "chase_median", r, g({ chase_median: 50 }), g({ chase_median: 1 })).status).toBe("a medir");
+    expect(R.compareMetric("p/all", "chase_median", r, g({ chase_median: 50 }), g({ chase_median: 1 })).status).toBe("PIORA");
+    expect(R.comparisonMarkdown([R.compareMetric("p/hard", "chase_median", r, g({ chase_median: 50 }), g({ chase_median: 1 }))])).toContain("| a medir | a medir |");
+  });
+  it("lote diferente da linha de base é apontado campo a campo", () => {
+    const base = { nav: "grid", maps: ["patio"], seeds: "1..50", matches_per_group: 50 };
+    expect(R.metaMismatch(base, { ...base }, ["nav", "maps", "seeds", "matches_per_group"])).toEqual([]);
+    expect(R.metaMismatch(base, { ...base, nav: "recast", matches_per_group: 10 }, ["nav", "maps", "seeds", "matches_per_group"]))
+      .toEqual(['nav: "grid" ≠ "recast"', "matches_per_group: 50 ≠ 10"]);
+    expect(R.metaMismatch(base, { ...base, maps: ["patio", "floresta"] }, ["maps"])).toHaveLength(1);
+  });
+});
+
 describe("comparação completa", () => {
   const rules = { hunter_win: band, short_match_rate: higher };
   const base = { meta: {}, groups: { "p/easy": g({ hunter_win: 0.5, short_match_rate: 0.1 }), "p/all": g({ hunter_win: 0.5, short_match_rate: 0.1 }) } };
@@ -117,7 +163,7 @@ describe("comparação completa", () => {
   });
   it("tabela Markdown traz antes, depois, piora, tolerância e status", () => {
     const md = R.comparisonMarkdown(R.compare(base, { "p/easy": g({ hunter_win: 0.4, short_match_rate: 0.1 }), "p/all": g({ hunter_win: 0.5, short_match_rate: 0.1 }) }, rules).rows);
-    expect(md).toContain("| p/easy | hunter_win | 50.0% | 40.0% | 5.0 p.p. | 5.0 p.p. | piora tolerada |");
+    expect(md).toContain("| p/easy | hunter_win | 50.0% | 40.0% | 5.0 p.p. | 5.0 p.p. | piora tolerada | — |");
   });
 });
 
@@ -163,6 +209,27 @@ describe("dados", () => {
     const base = JSON.parse(readFileSync(new URL("data/sim/baseline.json", root), "utf8")) as { meta: { matches_per_group: number }; groups: Record<string, Metrics> };
     expect(base.meta.matches_per_group).toBe(b.sim.check.matches_per_group);
     for (const d of b.sim.check.difficulties) expect(Object.keys(base.groups).some(k => k.endsWith(`/${d}`))).toBe(true);
+  });
+});
+
+describe("episódios de perseguição (chaseEpisodes)", () => {
+  const T = (...xs: [number, string, string][]) => xs.map(([t, from, to]) => ({ t, from, to }));
+  it("chase→attack→recoil→chase→…→captura é um episódio, medido da entrada em chase até o golpe que derrubou", () => {
+    expect(chaseEpisodes(T(
+      [10, "patrol", "chase"], [12, "chase", "attack"], [12.5, "attack", "recoil"], [13.1, "recoil", "chase"],
+      [15, "chase", "attack"], [16, "attack", "chase"], [17, "chase", "attack"], [18, "attack", "recoil"], [18.6, "recoil", "cage"],
+    ))).toEqual([8]);
+  });
+  it("trecho que volta a patrulhar ou investigar não conta; o próximo começa na nova entrada em chase", () => {
+    expect(chaseEpisodes(T(
+      [1, "patrol", "chase"], [3, "chase", "attack"], [3.5, "attack", "recoil"], [4.1, "recoil", "chase"], [9, "chase", "investigate"],
+      [20, "investigate", "chase"], [26, "chase", "attack"], [27, "attack", "recoil"], [27.6, "recoil", "cage"], [30, "cage", "patrol"],
+      [40, "patrol", "chase"], [45, "chase", "patrol"],
+    ))).toEqual([7]);
+  });
+  it("sem transições, ou só patrulha e investigação, não há episódio", () => {
+    expect(chaseEpisodes([])).toEqual([]);
+    expect(chaseEpisodes(T([1, "patrol", "investigate"], [5, "investigate", "patrol"]))).toEqual([]);
   });
 });
 

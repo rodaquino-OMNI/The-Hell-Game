@@ -1,6 +1,6 @@
 // Partida headless (ruleset v1, todos os sobreviventes controlados pelos bots atuais) com a medição de trava do
 // critério T-03 (GDD-v0.3 §8.6, `ai.stuck_fail_after`). Base do simulador (tools/sim/run.ts, métricas do R5).
-import { CLASSES, NO_INPUT, type ClassName, type EndReason, type GameState, type HunterMode, type SurvivorState, type Team } from "./types.ts";
+import { CLASSES, NO_INPUT, type ClassName, type EndReason, type GameState, type SurvivorState, type Team } from "./types.ts";
 import { createGame, step, STEP } from "./game.ts";
 import type { AiTrace, SimConfig } from "./config.ts";
 
@@ -62,10 +62,8 @@ export interface HeadlessResult {
   replans: number;
   layout: string;
   /**
-   * Episódios de perseguição que terminaram em captura (métrica do R4/R5, GDD-v0.3 §8.5): duração (s) de cada
-   * trecho contínuo com o caçador em `chase`/`attack`/`recoil` (§8.2) encerrado pela passagem a `cage` (alvo
-   * derrubado: preso ou morto na 2ª captura). Trechos que voltam a patrulhar ou investigar não entram. Só existe
-   * com `hunter_brain: utility`; com o cérebro `basic` fica vazio.
+   * Episódios de perseguição que terminaram em captura (métrica do R4/R5, GDD-v0.3 §8.5), ver `chaseEpisodes`.
+   * Só existe com `hunter_brain: utility`; com o cérebro `basic` fica vazio.
    */
   chases: number[];
   /** estado final de cada sobrevivente (classe sorteada, uso de classe do GDD-v0.2 §7.6) */
@@ -73,7 +71,29 @@ export interface HeadlessResult {
 }
 
 /** modos do caçador que contam como perseguição (GDD-v0.3 §8.2) */
-const CHASE_MODES: readonly HunterMode[] = ["chase", "attack", "recoil"];
+const CHASE_MODES: readonly string[] = ["chase", "attack", "recoil"];
+
+/**
+ * Durações (s) dos episódios de perseguição que terminaram em captura, a partir das transições do caçador em ordem.
+ * Episódio = trecho contínuo em `chase`/`attack`/`recoil` (§8.2), medido da entrada no trecho até o golpe que
+ * derrubou o alvo (a última `attack→recoil` antes da passagem `recoil→cage`; o recuo pós-golpe não entra). Só conta
+ * se o trecho terminar em `cage` (alvo preso, ou morto na 2ª captura); trecho que volta a patrulhar ou investigar é
+ * descartado. Recuos sem captura (`recoil→chase`) continuam o mesmo episódio.
+ */
+export function chaseEpisodes(trace: readonly AiTrace[]): number[] {
+  const out: number[] = [];
+  let start = -1, lastHit = -1;
+  for (const e of trace) {
+    const from = CHASE_MODES.includes(e.from), to = CHASE_MODES.includes(e.to);
+    if (!from && to) { start = e.t; lastHit = -1; }
+    if (e.from === "attack" && e.to === "recoil") lastHit = e.t;
+    if (from && !to) {
+      if (e.to === "cage" && start >= 0) out.push((lastHit >= 0 ? lastHit : e.t) - start);
+      start = -1; lastHit = -1;
+    }
+  }
+  return out;
+}
 
 /**
  * Joga uma partida inteira sem jogador humano: o sobrevivente 0 também vira bot. Para no fim da partida ou, por
@@ -82,17 +102,8 @@ const CHASE_MODES: readonly HunterMode[] = ["chase", "attack", "recoil"];
  */
 export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
   const transitions: Record<string, number> = {};
-  const chases: number[] = [];
-  let chaseStart = -1;
-  const trace = (e: AiTrace) => {
-    const k = `${e.from}>${e.to}`; transitions[k] = (transitions[k] ?? 0) + 1;
-    const from = CHASE_MODES.includes(e.from as HunterMode), to = CHASE_MODES.includes(e.to as HunterMode);
-    if (!from && to) chaseStart = e.t;
-    else if (from && !to) {
-      if (e.to === "cage" && chaseStart >= 0) chases.push(e.t - chaseStart);
-      chaseStart = -1;
-    }
-  };
+  const log: AiTrace[] = [];
+  const trace = (e: AiTrace) => { const k = `${e.from}>${e.to}`; transitions[k] = (transitions[k] ?? 0) + 1; log.push(e); };
   const c: SimConfig = { ...cfg, trace };
   const g = createGame(c, CLASSES[seed % CLASSES.length], seed);
   g.survivors[0].bot = true;
@@ -111,6 +122,6 @@ export function playHeadless(cfg: SimConfig, seed: number): HeadlessResult {
     captures: g.survivors.reduce((n, s) => n + s.captures, 0),
     stuck: meter, transitions, replans: g.hunter.ai?.replans ?? 0,
     layout: `g${g.arena.layout.generators}c${g.arena.layout.cage}e${g.arena.layout.exit}`,
-    chases, survivors: g.survivors.map(s => ({ cls: s.cls, st: s.st, captures: s.captures })),
+    chases: chaseEpisodes(log), survivors: g.survivors.map(s => ({ cls: s.cls, st: s.st, captures: s.captures })),
   };
 }
