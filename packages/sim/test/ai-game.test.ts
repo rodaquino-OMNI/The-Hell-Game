@@ -6,12 +6,15 @@ import { BalanceSchema } from "@thehell/shared";
 import { createGame, hit, makeConfig, spawnPoints, step, NO_INPUT, type GameState, type PlayerInput } from "../src/index.ts";
 import { chooseLayout, resolveLayout } from "../src/nav/index.ts";
 import { aiCfg, b, map, normal } from "./ai-helpers.ts";
+import { withMapFlags } from "./helpers.ts";
 
 // Integração do layout, da saída e dos spawns (regras do game.ts, não da IA): caçador `basic` e bots do protótipo
 // fixados explicitamente desde o marco MJ-B (o padrão dos dados virou utility + competent); `proto` = ruleset do
 // protótipo explícito.
 const v1 = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
 const proto = makeConfig(b, map, { ruleset: "prototype" });
+// D-25 desligada: a saída 1 volta a ser a do sul (z > exit_z), como antes do R7-mapas
+const v1South = makeConfig(withMapFlags(b, { side_exit: false }), map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
 const seedFor = (pred: (c: ReturnType<typeof chooseLayout>) => boolean) => {
   for (let s = 1; s < 500; s++) if (pred(chooseLayout(map, s))) return s;
   throw new Error("sem semente");
@@ -21,12 +24,13 @@ describe("layout pela semente (GDD-v0.3 §9.3) no v1", () => {
   it("geradores, gaiola e saída da combinação escolhida; o protótipo usa sempre o topo do mapa", () => {
     const seen = new Set<string>();
     for (let s = 1; s <= 40; s++) {
-      const choice = chooseLayout(map, s), m = resolveLayout(map, choice);
+      const choice = chooseLayout(map, s), m = resolveLayout(v1.map, choice);
       const g = createGame(v1, "Curandeiro", s);
       expect(g.arena.layout).toEqual(choice);
       expect(g.gens.filter(x => !x.bonus).map(x => [x.x, x.z])).toEqual(m.generators);
       expect(g.gens.filter(x => x.bonus).map(x => [x.x, x.z])).toEqual(m.bonus);
-      expect(g.arena).toMatchObject({ cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] }, exitZ: m.exit_z });
+      expect(g.arena).toMatchObject({ cage: { x: m.cage[0], z: m.cage[1] }, gate: { x: m.gate[0], z: m.gate[1] } });
+      expect([g.arena.exitZ, g.arena.exitX]).toEqual([m.exit_z, m.exit_x]);
       seen.add(JSON.stringify(choice));
       const p = createGame(proto, "Curandeiro", s);
       expect(p.arena).toEqual({ layout: { generators: 0, cage: 0, exit: 0 }, cage: { x: map.cage[0], z: map.cage[1] }, gate: { x: map.gate[0], z: map.gate[1] }, exitZ: map.exit_z });
@@ -50,9 +54,9 @@ describe("layout pela semente (GDD-v0.3 §9.3) no v1", () => {
   });
 });
 
-describe("saída por crossedExit (norte e sul)", () => {
-  function open(s: number) {
-    const g = createGame(v1, "Curandeiro", s);
+describe("saída por crossedExit (norte, sul e lateral)", () => {
+  function open(s: number, c = v1) {
+    const g = createGame(c, "Curandeiro", s);
     g.hunter.stun = 1e9; g.hunter.x = 25; g.hunter.z = 25; g.reveal = 1e9;
     for (const x of g.gens) if (!x.bonus) x.done = true;
     g.gateStarted = true; g.gateOpen = true;
@@ -60,24 +64,42 @@ describe("saída por crossedExit (norte e sul)", () => {
   }
   it("saída sul (exit 1): escapa cruzando z > exit_z perto do portão; z < exit_z do norte não vale", () => {
     const ex = map.layouts!.exits[1], s = seedFor(c => c.exit === 1);
-    const g = open(s), P = g.survivors[0];
-    P.x = map.gate[0]; P.z = map.exit_z - 0.5; // linha do norte (saída 0)
+    const g = open(s, v1South), P = g.survivors[0];
+    P.x = map.gate[0]; P.z = map.exit_z! - 0.5; // linha do norte (saída 0)
+    step(v1South, g, NO_INPUT);
+    expect(P.st).toBe("ok");
+    P.x = ex.gate[0]; P.z = ex.exit_z! + 0.5;
+    step(v1South, g, NO_INPUT);
+    expect(P.st).toBe("out");
+  });
+  it("D-25: saída lateral (exit 1 com maps.v1.side_exit): cruzar a linha x = exit_x perto do portão conta como escapar", () => {
+    const se = map.v1!.side_exit!, s = seedFor(c => c.exit === se.replaces);
+    const g = open(s), P = g.survivors[0], hw = b.prototype_extras.gate_exit_half_width;
+    expect(g.arena).toMatchObject({ gate: { x: se.gate[0], z: se.gate[1] }, exitX: se.exit_x });
+    expect(g.arena.exitZ).toBeUndefined();
+    const out = Math.sign(se.gate[0] - se.exit_x); // lado de fora da linha (oeste: −1)
+    P.x = map.gate[0]; P.z = map.exit_z! - 0.5; // linha do norte não vale
     step(v1, g, NO_INPUT);
     expect(P.st).toBe("ok");
-    P.x = ex.gate[0]; P.z = ex.exit_z + 0.5;
+    P.x = se.exit_x - out * 0.5; P.z = se.gate[1]; // ainda do lado de dentro
     step(v1, g, NO_INPUT);
+    expect(P.st).toBe("ok");
+    P.x = se.exit_x + out * 0.5; P.z = se.gate[1] + hw + 0.1; // fora da largura do portão
+    step(v1, g, NO_INPUT);
+    expect(P.st).toBe("ok");
+    P.z = se.gate[1]; step(v1, g, NO_INPUT);
     expect(P.st).toBe("out");
   });
   it("saída norte (exit 0): como no protótipo", () => {
     const g = open(seedFor(c => c.exit === 0)), P = g.survivors[0];
-    P.x = map.gate[0] + b.prototype_extras.gate_exit_half_width + 0.1; P.z = map.exit_z - 0.5;
+    P.x = map.gate[0] + b.prototype_extras.gate_exit_half_width + 0.1; P.z = map.exit_z! - 0.5;
     step(v1, g, NO_INPUT);
     expect(P.st).toBe("ok"); // fora da largura do portão
     P.x = map.gate[0]; step(v1, g, NO_INPUT);
     expect(P.st).toBe("out");
   });
   it("bots vão para o portão do layout quando ele abre", () => {
-    const ex = map.layouts!.exits[1], g = open(seedFor(c => c.exit === 1)), bot = g.survivors[1];
+    const ex = v1.map.layouts!.exits[1], g = open(seedFor(c => c.exit === 1)), bot = g.survivors[1];
     bot.x = ex.gate[0] + 6; bot.z = ex.gate[1] - 4;
     const d0 = Math.hypot(bot.x - ex.gate[0], bot.z - ex.gate[1]);
     step(v1, g, NO_INPUT);

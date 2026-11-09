@@ -219,7 +219,15 @@ export interface Arena {
   layout: { generators: number; cage: number; exit: number };
   cage: Vec;
   gate: Vec;
-  exitZ: number;
+  /** linha da saída na parede norte/sul (z); ausente com saída lateral */
+  exitZ?: number;
+  /** linha da saída na parede lateral (x; D-25, ruleset v1); ausente com saída norte/sul */
+  exitX?: number;
+  /**
+   * caixas [x, z, largura, profundidade] da partida (mapa efetivo, com os pilares da D-23); só no ruleset v1 com
+   * `maps.v1.short_loop_pillars`. Sem o campo, valem as paredes do mapa.
+   */
+  walls?: [number, number, number, number][];
 }
 
 export interface Hunter extends Vec {

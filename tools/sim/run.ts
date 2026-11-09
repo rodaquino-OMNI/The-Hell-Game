@@ -10,7 +10,9 @@
 //
 // Uso: pnpm sim [--n=1000] [--seed=1] [--difficulty=normal|easy|hard|nightmare|all] [--map=all|patio]
 //               [--workers=4] [--nav=grid|recast] [--bot-brain=prototype|competent] [--json=saida.json] [--md=saida.md]
-//               [--compare=data/sim/baseline.json]   (--bot-brain sobrepõe `ai.bot_brain`; o check usa o padrão dos dados)
+//               [--compare=data/sim/baseline.json] [--map-flags=none|all|fifth_generator,short_loop_pillars,side_exit]
+//               (--bot-brain sobrepõe `ai.bot_brain`; --map-flags liga só as flags de `maps.v1` listadas, item R7-mapas;
+//               o check usa o padrão dos dados)
 //      pnpm sim:check      = --check: parâmetros de `sim.check` (data/balance.yaml), compara com data/sim/baseline.json
 //      pnpm sim:baseline   = --check --write-baseline: regrava data/sim/baseline.json com o mesmo lote do check
 //      pnpm sim:nightly    = --nightly: como o check, com `sim.nightly.matches_per_group` partidas por grupo (10.000 no
@@ -35,8 +37,9 @@ import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { loadBalanceFile, loadMapFile } from "../../packages/shared/src/node.ts";
+import type { Balance } from "../../packages/shared/src/schema.ts";
 import { HUNTER_TRANSITIONS, makeConfig, playHeadless, type HunterMode } from "../../packages/sim/src/index.ts";
-import type { NavQuery } from "../../packages/sim/src/nav/index.ts";
+import { mapForV1, type NavQuery } from "../../packages/sim/src/nav/index.ts";
 import { groupMetrics, hardFailures, METRICS, type GroupMetrics, type MatchRow } from "./metrics.ts";
 import { compare, comparisonMarkdown, metaMismatch, POOLED, type Baseline, type Rules } from "./regression.ts";
 
@@ -45,16 +48,20 @@ const DIFFS: Difficulty[] = ["easy", "normal", "hard", "nightmare"];
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const BASELINE = root + "data/sim/baseline.json";
 
-interface Job { map: string; difficulty: Difficulty; seeds: number[]; nav: "grid" | "recast"; botBrain?: "prototype" | "competent" }
+type MapFlags = Balance["maps"]["v1"];
+interface Job { map: string; difficulty: Difficulty; seeds: number[]; nav: "grid" | "recast"; botBrain?: "prototype" | "competent"; mapFlags?: MapFlags }
 
 async function runJob(job: Job): Promise<MatchRow[]> {
-  const balance = loadBalanceFile(root + "data/balance.yaml");
+  const data = loadBalanceFile(root + "data/balance.yaml");
+  // --map-flags: sobrepõe `maps.v1` (item R7-mapas) para medir o efeito isolado de cada mudança de mapa
+  const balance: Balance = job.mapFlags ? { ...data, maps: { ...data.maps, v1: job.mapFlags } } : data;
   const map = loadMapFile(`${root}data/maps/${job.map}.json`);
   let nav: NavQuery | undefined;
   if (job.nav === "recast") {
     const { initRecast, navParams, RecastNav } = await import("../../packages/sim/src/nav/recast.ts");
     await initRecast();
-    nav = RecastNav.build(map, navParams(balance, balance.hunter.radius));
+    // o navmesh é do mapa efetivo do v1 (pilares da D-23 em walls, item R7-mapas), o mesmo da colisão
+    nav = RecastNav.build(mapForV1(map, balance.maps.v1), navParams(balance, balance.hunter.radius));
   }
   const cfg = makeConfig(balance, map, { ruleset: "v1", hunterBrain: "utility", difficulty: job.difficulty, nav, botBrain: job.botBrain });
   return job.seeds.map(seed => {
@@ -73,14 +80,14 @@ async function runJob(job: Job): Promise<MatchRow[]> {
 const isValid = (from: string, to: string) => !!HUNTER_TRANSITIONS[from as HunterMode]?.includes(to as HunterMode);
 
 /** joga todos os grupos (mapa × dificuldade) com as sementes seed0..seed0+n−1 */
-async function runAll(maps: string[], diffs: Difficulty[], n: number, seed0: number, nav: Job["nav"], workers: number, botBrain?: Job["botBrain"]) {
+async function runAll(maps: string[], diffs: Difficulty[], n: number, seed0: number, nav: Job["nav"], workers: number, botBrain?: Job["botBrain"], mapFlags?: MapFlags) {
   const rows: Record<string, MatchRow[]> = {};
   for (const map of maps) {
     for (const difficulty of diffs) {
       const seeds = Array.from({ length: n }, (_, i) => seed0 + i);
       const chunks = Array.from({ length: workers }, (_, w) => seeds.filter((_, i) => i % workers === w)).filter(c => c.length);
-      const parts = await Promise.all(chunks.map(c => workers === 1 ? runJob({ map, difficulty, seeds: c, nav, botBrain }) : new Promise<MatchRow[]>((ok, ko) => {
-        const w = new Worker(new URL(import.meta.url), { workerData: { map, difficulty, seeds: c, nav, botBrain } satisfies Job });
+      const parts = await Promise.all(chunks.map(c => workers === 1 ? runJob({ map, difficulty, seeds: c, nav, botBrain, mapFlags }) : new Promise<MatchRow[]>((ok, ko) => {
+        const w = new Worker(new URL(import.meta.url), { workerData: { map, difficulty, seeds: c, nav, botBrain, mapFlags } satisfies Job });
         w.once("message", ok); w.once("error", ko);
       })));
       rows[`${map}/${difficulty}`] = parts.flat().sort((a, b) => a.seed - b.seed);
@@ -107,7 +114,11 @@ if (!isMainThread) {
   const diffs = diffArg === "all" ? (check ? sim.check.difficulties : DIFFS) : [diffArg as Difficulty];
   const noise = Number(arg("noise", "0"));
   const botArg = arg("bot-brain", ""), botBrain = botArg ? (botArg as NonNullable<Job["botBrain"]>) : undefined;
-  if (!diffs.every(d => DIFFS.includes(d)) || !["grid", "recast"].includes(nav) || !(n > 0) || !Number.isInteger(seed0) || !(noise >= 0)
+  // --map-flags=none|all|nome,nome: liga só as flags de `maps.v1` listadas (as outras desligadas)
+  const flagNames = Object.keys(balance.maps.v1) as (keyof MapFlags)[];
+  const flagsArg = arg("map-flags", ""), flagList = flagsArg === "all" ? flagNames : flagsArg === "none" ? [] : flagsArg.split(",").filter(Boolean);
+  const mapFlags = flagsArg ? Object.fromEntries(flagNames.map(k => [k, flagList.includes(k)])) as MapFlags : undefined;
+  if (flagList.some(k => !flagNames.includes(k as keyof MapFlags)) || !diffs.every(d => DIFFS.includes(d)) || !["grid", "recast"].includes(nav) || !(n > 0) || !Number.isInteger(seed0) || !(noise >= 0)
     || (botBrain && !["prototype", "competent"].includes(botBrain))) {
     console.error("argumentos inválidos; veja o cabeçalho de tools/sim/run.ts");
     process.exit(2);
@@ -122,7 +133,7 @@ if (!isMainThread) {
   const shown = argv.filter(a => !/^--(json=|md=|workers=|write-baseline$)/.test(a)).join(" ");
   const meta = {
     command: ({ "--check": "pnpm sim:check", "--nightly": "pnpm sim:nightly" } as Record<string, string>)[shown] ?? `pnpm sim ${shown}`.trim(),
-    ruleset: "v1", hunter_brain: "utility", bot_brain: botBrain ?? balance.ai.bot_brain, nav,
+    ruleset: "v1", hunter_brain: "utility", bot_brain: botBrain ?? balance.ai.bot_brain, nav, map_flags: mapFlags ?? balance.maps.v1,
     maps, difficulties: diffs, matches_per_group: n, seeds: `${seed0}..${seed0 + n - 1} em todos os grupos`,
     short_match_seconds: sim.short_match_seconds,
   };
@@ -135,7 +146,7 @@ if (!isMainThread) {
       "a comparação só vale com o mesmo lote (use pnpm sim:check, ou regrave a linha de base em PR explícito)");
     process.exit(1);
   }
-  const rows = await runAll(maps, diffs, n, seed0, nav, workers, botBrain);
+  const rows = await runAll(maps, diffs, n, seed0, nav, workers, botBrain, mapFlags);
   const groups: Record<string, GroupMetrics> = {};
   for (const [k, r] of Object.entries(rows)) groups[k] = groupMetrics(r, sim.short_match_seconds, isValid);
 

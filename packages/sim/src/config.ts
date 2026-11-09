@@ -2,6 +2,7 @@
 // Nenhum número de jogo fica na simulação: todos vêm daqui.
 import type { Balance, GameMap } from "@thehell/shared";
 import { gridFromMap, type GridNav, type NavQuery } from "./nav/grid.ts";
+import { mapForV1 } from "./nav/layout.ts";
 
 export type Difficulty = Balance["difficulty"];
 export type HunterBrain = Balance["ai"]["hunter_brain"];
@@ -13,6 +14,10 @@ export interface AiTrace { t: number; from: string; to: string }
 
 export interface SimConfig {
   balance: Balance;
+  /**
+   * mapa efetivo: no protótipo, o mapa de topo; no v1, `mapForV1` com as flags `maps.v1` (item R7-mapas: pilares
+   * em `walls`, loops curtos, saída lateral, obrigatórios para equipe grande). Colisão, visão e navegação usam este.
+   */
   map: GameMap;
   /** true com `ruleset: v1` (regras do GDD v0.3); false reproduz o protótipo (paridade da fase 0) */
   v1: boolean;
@@ -69,8 +74,9 @@ export interface ConfigOptions {
   trace?: (e: AiTrace) => void;
 }
 
-export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions = {}): SimConfig {
+export function makeConfig(balance: Balance, topMap: GameMap, opts: ConfigOptions = {}): SimConfig {
   const v1 = (opts.ruleset ?? balance.ruleset) === "v1";
+  const map = v1 ? mapForV1(topMap, balance.maps.v1) : topMap;
   const difficulty = opts.difficulty ?? balance.difficulty;
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";

@@ -304,6 +304,13 @@ maps:
   cage_positions: 2                 # §9.3
   exits: 2                          # §9.3
   layout_hunter_dist_spread_max: 0.2  # §9.3 aceite: (maior − menor) ÷ menor distância média caçador → geradores
+  short_loops_min: 1                # D-23 (Rodrigo, 09/11/2026; GDD-v0.2 §9.1 loops curtos 8–12 m): o mapa v1 com pilares tem ≥ 1 loop curto
+  # Item R7-mapas (docs/plano-construcao.md §7): mudanças de mapa só do ruleset v1, cada uma atrás de uma flag para
+  # medir o efeito isolado no simulador. O protótipo (ruleset: prototype) usa sempre o mapa de topo (paridade).
+  v1:
+    fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5)
+    short_loop_pillars: true        # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
+    side_exit: true                 # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
