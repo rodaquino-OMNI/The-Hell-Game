@@ -4,7 +4,7 @@
 import type { Balance, GameMap } from "@thehell/shared";
 import { boxGap, clearance, pathLength, pointBoxDist, pointInPolygon, polygonPerimeter, type P2 } from "./geometry.ts";
 import { gridFromMap, type NavQuery } from "./grid.ts";
-import { allLayoutChoices, layoutCounts, maxTeamSize, resolveLayout, survivorSpawns } from "./layout.ts";
+import { allLayoutChoices, layoutCounts, maxTeamSize, resolveLayout, survivorSpawns, type MapFlags } from "./layout.ts";
 
 /** consulta do backend num raio de agente, com o número de ilhas desconexas de área caminhável */
 export interface NavBackend {
@@ -33,7 +33,12 @@ export function gridBackend(balance: Balance): NavBackend {
 const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : "∞");
 const pt = (p: P2) => `(${p[0]}, ${p[1]})`;
 
-export function validateMap(map: GameMap, balance: Balance, backend: NavBackend): RuleResult[] {
+/**
+ * Valida o mapa efetivo (o de topo, ou `mapForV1(map, flags)` no ruleset v1). `flags` (item R7-mapas) liga as regras
+ * das mudanças do v1: com short_loop_pillars, ≥ `maps.short_loops_min` loops curtos (D-23); com fifth_generator,
+ * cada layout tem obrigatórios para a maior equipe de `generator.by_team_size` (D-22), alcançáveis e a ≥ 25 m.
+ */
+export function validateMap(map: GameMap, balance: Balance, backend: NavBackend, flags?: MapFlags): RuleResult[] {
   const M = balance.maps, N = balance.nav;
   const out: RuleResult[] = [];
   const add = (rule: string, ok: boolean, detail: string) => out.push({ rule, status: ok ? "ok" : "falha", detail });
@@ -99,6 +104,10 @@ export function validateMap(map: GameMap, balance: Balance, backend: NavBackend)
   // --- loops (§9.1): perímetro pela classe, rota caminhável em volta de um obstáculo ---
   const loops = map.loops ?? [];
   add("loops marcados", loops.length > 0, `${loops.length} loop(s)`);
+  if (flags?.short_loop_pillars) {
+    const short = loops.filter(l => l.kind === "short").length;
+    add("loops curtos ≥ short_loops_min (D-23)", short >= M.short_loops_min, `${short} loop(s) curto(s) (mínimo ${M.short_loops_min})`);
+  }
   for (const l of loops) {
     const per = polygonPerimeter(l.polygon);
     const [s0, s1] = M.loop_short_perimeter;
@@ -164,10 +173,35 @@ export function validateMap(map: GameMap, balance: Balance, backend: NavBackend)
     add(`geradores g${choice.generators}: distância ≥ generator_min_dist`, minG >= M.generator_min_dist, `menor ${fmt(minG)} m ${pair} (mínimo ${M.generator_min_dist} m)`);
     avgHunter.push(m.generators.reduce((s, p) => s + navDist(map.hunter_spawn, p), 0) / m.generators.length);
   }
-  const lo = Math.min(...avgHunter), hi = Math.max(...avgHunter);
-  const spread = (hi - lo) / lo;
-  add("equilíbrio dos layouts (caçador → geradores)", spread <= M.layout_hunter_dist_spread_max,
-    `médias ${avgHunter.map(fmt).join(", ")} m; diferença ${(spread * 100).toFixed(1)}% (máximo ${M.layout_hunter_dist_spread_max * 100}%)`);
+  const balanceRule = (label: string, avgs: number[]) => {
+    const lo = Math.min(...avgs), hi = Math.max(...avgs);
+    const spread = (hi - lo) / lo;
+    add(label, spread <= M.layout_hunter_dist_spread_max,
+      `médias ${avgs.map(fmt).join(", ")} m; diferença ${(spread * 100).toFixed(1)}% (máximo ${M.layout_hunter_dist_spread_max * 100}%)`);
+  };
+  balanceRule("equilíbrio dos layouts (caçador → geradores)", avgHunter);
+
+  // --- D-22: obrigatórios para a maior equipe (generator.by_team_size), em cada layout de geradores ---
+  if (flags?.fifth_generator) {
+    const need = balance.generator.by_team_size[String(team)].required;
+    const avgBig: number[] = [];
+    for (let gi = 0; gi < n.generators; gi++) {
+      const m = resolveLayout(map, { generators: gi, cage: 0, exit: 0 }, need);
+      const tag = `geradores g${gi} (equipe de ${team})`;
+      add(`${tag}: ${need} obrigatórios`, m.generators.length >= need, `${m.generators.length} obrigatório(s) (by_team_size.${team}.required = ${need})`);
+      const bad = m.generators.filter(p => clear(p) < N.agent_radius || !Number.isFinite(navDist(origin, p)) || !Number.isFinite(navDist(map.hunter_spawn, p)));
+      add(`${tag}: alcançáveis`, bad.length === 0, bad.length ? `inalcançável ou encostado na parede: ${bad.map(pt).join("; ")}` : `${m.generators.length} geradores`);
+      let minG = Infinity, pair = "";
+      for (let i = 0; i < m.generators.length; i++)
+        for (let j = i + 1; j < m.generators.length; j++) {
+          const d = navDist(m.generators[i], m.generators[j]);
+          if (d < minG) { minG = d; pair = `${pt(m.generators[i])}–${pt(m.generators[j])}`; }
+        }
+      add(`${tag}: distância ≥ generator_min_dist`, minG >= M.generator_min_dist, `menor ${fmt(minG)} m ${pair} (mínimo ${M.generator_min_dist} m)`);
+      avgBig.push(m.generators.reduce((s, p) => s + navDist(map.hunter_spawn, p), 0) / m.generators.length);
+    }
+    balanceRule(`equilíbrio dos layouts da equipe de ${team} (caçador → geradores)`, avgBig);
+  }
 
   out.push({ rule: "vantagem de loop_advantage por volta", status: "lacuna", detail: `${M.loop_advantage.join("–")} s: medido no simulador (R5) com a IA do caçador (R3); depende de C-07 (GDD v0.3 §9.1)` });
   nav.dispose?.();

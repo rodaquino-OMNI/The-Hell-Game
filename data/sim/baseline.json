@@ -5,6 +5,11 @@
   "hunter_brain": "utility",
   "bot_brain": "competent",
   "nav": "grid",
+  "map_flags": {
+   "fifth_generator": true,
+   "short_loop_pillars": false,
+   "side_exit": false
+  },
   "maps": [
    "patio"
   ],

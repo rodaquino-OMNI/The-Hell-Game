@@ -68,11 +68,11 @@ describe("layouts do mapa", () => {
   it("saída ao norte (protótipo) e ao sul", () => {
     const [north, south] = patio.layouts!.exits;
     const hw = balance.prototype_extras.gate_exit_half_width;
-    expect(crossedExit(north, north.gate[0], north.exit_z - 0.1, hw)).toBe(true);
-    expect(crossedExit(north, north.gate[0], north.exit_z + 0.1, hw)).toBe(false);
-    expect(crossedExit(north, north.gate[0] + hw + 1, north.exit_z - 0.1, hw)).toBe(false);
-    expect(crossedExit(south, south.gate[0], south.exit_z + 0.1, hw)).toBe(true);
-    expect(crossedExit(south, south.gate[0], south.exit_z - 0.1, hw)).toBe(false);
+    expect(crossedExit(north, north.gate[0], north.exit_z! - 0.1, hw)).toBe(true);
+    expect(crossedExit(north, north.gate[0], north.exit_z! + 0.1, hw)).toBe(false);
+    expect(crossedExit(north, north.gate[0] + hw + 1, north.exit_z! - 0.1, hw)).toBe(false);
+    expect(crossedExit(south, south.gate[0], south.exit_z! + 0.1, hw)).toBe(true);
+    expect(crossedExit(south, south.gate[0], south.exit_z! - 0.1, hw)).toBe(false);
     expect(crossedExit({ gate: [0, 5], exit_z: 5 }, 0, 4, hw)).toBe(true);
   });
 

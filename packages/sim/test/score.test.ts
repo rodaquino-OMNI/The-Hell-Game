@@ -7,7 +7,7 @@ import {
   step, NO_INPUT, SCORE_CATEGORIES, type ClassName, type Difficulty, type GameEvent, type GameState, type HunterPointEvent,
   type SimConfig, type SurvivorPointEvent,
 } from "../src/index.ts";
-import { balance as b, map, run, SPOT, tap } from "./helpers.ts";
+import { balance as b, map, outsideExit, run, SPOT, tap } from "./helpers.ts";
 
 type PointsEv = Extract<GameEvent, { type: "points" }>;
 type EndEv = Extract<GameEvent, { type: "end" }>;
@@ -161,7 +161,7 @@ describe("eventos do sobrevivente (v1)", () => {
   });
   it("escapar: +100 de Sobrevivência; o resumo do fim traz as 4 categorias", () => {
     const g = quiet(); g.gateOpen = g.gateStarted = true;
-    P(g).x = g.arena.gate.x; P(g).z = g.arena.exitZ + (g.arena.gate.z < g.arena.exitZ ? -1 : 1);
+    Object.assign(P(g), outsideExit(g));
     tap(g, {}, all);
     expect(P(g).st).toBe("out");
     expect(P(g).score.survival).toBe(ev("escape").value);
@@ -329,7 +329,7 @@ describe("moedas por dificuldade (GDD-v0.2 §7.2, GDD-v0.3 D-04)", () => {
     const notOut = quiet(esc); notOut.hunter.hp = 0; tap(notOut, {}, esc);
     expect(endOf(notOut)).toMatchObject({ win: true, coins: e.base_coins });
     const out = quiet(esc); out.gateOpen = out.gateStarted = true;
-    P(out).x = out.arena.gate.x; P(out).z = out.arena.exitZ + (out.arena.gate.z < out.arena.exitZ ? -1 : 1);
+    Object.assign(P(out), outsideExit(out));
     tap(out, {}, esc);
     expect(endOf(out)).toMatchObject({ individual: "escaped", coins: e.base_coins + e.win_coins + ev("escape").value * e.points_to_coins }); // escapar pontua (D-30)
   });
@@ -388,7 +388,7 @@ describe("ajustes da revisão QA", () => {
     const g = quiet(); g.gateOpen = g.gateStarted = true;
     g.hunter.target = 0; // caçador atordoado, ainda com o jogador como alvo
     g.scoreTrack.chase = { target: 0, since: g.t - b.points.events.chase_escape.min_time - 1 };
-    P(g).x = g.arena.gate.x; P(g).z = g.arena.exitZ + (g.arena.gate.z < g.arena.exitZ ? -1 : 1);
+    Object.assign(P(g), outsideExit(g));
     tap(g, {}, all);
     const e = g.events.find((x): x is EndEv => x.type === "end")!;
     expect(e.score).toMatchObject({ boldness: ev("chase_escape").value, survival: ev("escape").value });

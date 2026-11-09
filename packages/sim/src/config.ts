@@ -2,6 +2,7 @@
 // Nenhum número de jogo fica na simulação: todos vêm daqui.
 import type { Balance, GameMap } from "@thehell/shared";
 import { gridFromMap, type GridNav, type NavQuery } from "./nav/grid.ts";
+import { mapForV1, topMapOf } from "./nav/layout.ts";
 
 export type Difficulty = Balance["difficulty"];
 export type HunterBrain = Balance["ai"]["hunter_brain"];
@@ -13,13 +14,16 @@ export interface AiTrace { t: number; from: string; to: string }
 
 export interface SimConfig {
   balance: Balance;
+  /**
+   * mapa efetivo: no protótipo, o mapa de topo; no v1, `mapForV1` com as flags `maps.v1` (item R7-mapas: pilares
+   * em `walls`, loops curtos, saída lateral, obrigatórios para equipe grande). Colisão, visão e navegação usam este.
+   */
   map: GameMap;
   /** true com `ruleset: v1` (regras do GDD v0.3); false reproduz o protótipo (paridade da fase 0) */
   v1: boolean;
   difficulty: Difficulty;
   /** velocidade de perseguição efetiva: ruleset "prototype" usa o valor do protótipo (paridade da fase 0) */
   chaseSpeed: number;
-  requiredGenerators: number;
   // Valores efetivos da tabela de dificuldade (GDD-v0.2 §7.3). No ruleset "prototype" valem os do protótipo (§2.3).
   meleeCooldown: number;
   /** raio de detecção (no v1, alcance do cone de visão; GDD-v0.3 §8.1) */
@@ -71,13 +75,22 @@ export interface ConfigOptions {
   botBrain?: BotBrain;
   /** cérebro por vaga (só vale no v1; ver SimConfig.botBrainBySlot) */
   botBrainBySlot?: Readonly<Record<number, BotBrain>>;
+  /**
+   * sobrepõe flags de `maps.v1` (item R7-mapas) só nesta config, ex.: capturas do cliente com os pilares e a saída
+   * lateral ligados: `makeConfig(balance, map, { ruleset: "v1", mapFlags: { short_loop_pillars: true, side_exit: true } })`.
+   * As flags omitidas valem as dos dados. Sem efeito no protótipo.
+   */
+  mapFlags?: Partial<Balance["maps"]["v1"]>;
   /** navmesh para a IA (ex.: RecastNav de "@thehell/sim/nav/recast"); sem isto, a grade A* de reserva (GDD-v0.3 §8.6) */
   nav?: NavQuery;
   trace?: (e: AiTrace) => void;
 }
 
-export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions = {}): SimConfig {
+export function makeConfig(balance: Balance, topMap: GameMap, opts: ConfigOptions = {}): SimConfig {
   const v1 = (opts.ruleset ?? balance.ruleset) === "v1";
+  if (opts.mapFlags) balance = { ...balance, maps: { ...balance.maps, v1: { ...balance.maps.v1, ...opts.mapFlags } } };
+  // makeConfig(balance, cfg.map) com um mapa já efetivo remonta do topo (sem pilares duplicados; o protótipo volta ao topo)
+  const map = v1 ? mapForV1(topMap, balance.maps.v1) : topMapOf(topMap);
   const difficulty = opts.difficulty ?? balance.difficulty;
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";
@@ -87,7 +100,6 @@ export function makeConfig(balance: Balance, map: GameMap, opts: ConfigOptions =
   const grid = brain === "utility" || anyCompetent ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
   const base = {
     balance, map, v1, difficulty,
-    requiredGenerators: map.generators.length,
     brain, botBrain, botBrainBySlot, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
   };
   if (!v1) {
