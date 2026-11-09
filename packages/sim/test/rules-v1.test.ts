@@ -431,13 +431,14 @@ describe("8. regras de gerador do §6.2", () => {
     expect(g.hunter.alertTime).toBe(b.ai.hearing_investigate_time);
     run(g, b.generator.completed_reveal + 0.05, {}, v1);
     expect(g.gens[0].revealed).toBeLessThanOrEqual(0);
-    const far = quiet(); complete(v1, far);
+    const local = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: false } }, map, { ruleset: "v1" });
+    const far = quiet(local); complete(local, far);
     expect(far.gens[0].revealed).toBeGreaterThan(0);
     expect(far.hunter.alert).toBeNull();
   });
-  it("com generator.completed_reveal_global, a revelação alcança o caçador de qualquer distância", () => {
-    const gl = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: true } }, map, { ruleset: "v1" });
-    const g = quiet(gl); complete(gl, g);
+  it("padrão (D-21, completed_reveal_global: true): a revelação alcança o caçador de qualquer distância", () => {
+    expect(b.generator.completed_reveal_global).toBe(true);
+    const g = quiet(); complete(v1, g);
     expect(g.hunter.alert).toEqual({ x: -22, z: -22 });
     expect(g.hunter.alertTime).toBe(b.generator.completed_reveal);
   });
