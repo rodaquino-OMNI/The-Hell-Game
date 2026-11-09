@@ -235,6 +235,7 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-36 (simulação) | parte da Frente R da D-36: toda habilidade do caçador com preparo visível ≥ `hunter.telegraph_min` (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | GDD v0.2 §4.1; nos dois cérebros do v1 o preparo não é descontado no passo em que nasce (≥ 24 passos a 60 Hz) e projétil e armadilha do `basic` passam a ter preparo; `packages/sim/test/telegraph.test.ts` (4 habilidades × 2 cérebros); protótipo intacto |
 | D-40 | `audio.captions.durations` = [3, 5, 8] s, padrão 3 s (`default_duration_index: 0`) (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | duração da legenda na tela ajustável no menu (`setCaptionDuration`, só valores da lista, gravada no localStorage) |
 | D-41 | diretor de áudio ligado (`audio.director_enabled: true`) no PR de ligação, commit separado e revertível (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | V5 fecha pelo critério do plano-audio-v5 §5; mudo em M até os sliders do V8 |
+| D-42 | `packages/server/**`, `Dockerfile`, `fly*.toml` e `tools/smoke.mjs` ficam com a supervisão; outras sessões abrem PR pequeno e aditivo e pedem revisão dela (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | lacuna de propriedade apontada no PR #46 (V7); o servidor hoje só serve o cliente estático e `/healthz`, e o deploy de produção é da supervisão |
 
 ## 8. Riscos principais
 
