@@ -56,11 +56,8 @@ Leia também os relatórios dos PRs #13, #14 e #17 (corpo do PR e comentários):
 
 ### R8 — Calibração (F1-11; GDD v0.3 C-07)
 
-- **Decisão pendente D-16 (perguntar ao Rodrigo primeiro, em múltipla escolha):** com D-01 b ("basta 1 escapar"), as metas do §7.6 "vitória do caçador 45–55%" e "fuga por sobrevivente 45–55%" não cabem juntas. Opções a apresentar, com números do simulador:
-  - a) vale a vitória do caçador por partida (45–55%); a fuga por sobrevivente fica mais baixa (estimar a faixa com o simulador) ★ recomendada, porque é o resultado que o jogador sente;
-  - b) vale a fuga por sobrevivente (45–55%); o caçador vence menos;
-  - c) rever D-01 (voltar para "metade escapa").
-- Depois da resposta: relatório do simulador em `docs/balanceamento-v1.md`, ajuste de valores em dados com justificativa, e 5 partidas do Rodrigo e do filho no staging (pedir na sessão). Registrar o resultado e confirmar ou rever D-03 (4,3 m/s).
+- **Decisão D-16 tomada pelo Rodrigo (09/11/2026): opção (a).** Com D-01 b ("basta 1 escapar"), a meta de balanceamento é a **vitória do caçador por partida em 45–55%** (é o resultado que o jogador sente). A taxa de fuga por sobrevivente fica livre e mais baixa; o R8 mede e registra a faixa que resultar, sem forçá-la para 45–55%. As outras metas do §7.6 (duração 6–8 min, capturas 1,5–2,5, < 5% abaixo de 3 min, uso de classe 20–35%) continuam valendo.
+- Relatório do simulador em `docs/balanceamento-v1.md`, ajuste de valores em dados com justificativa, e 5 partidas do Rodrigo e do filho no staging (pedir na sessão). Registrar o resultado e confirmar ou rever D-03 (4,3 m/s).
 - Lição do Caçada Sombria (GDD v0.3 C-15): bots não representam pessoas; nenhum ajuste fino só por simulação.
 - Agentes: `qa` (autor), `produtor` (relatório e pergunta).
 
@@ -70,7 +67,7 @@ Leia também os relatórios dos PRs #13, #14 e #17 (corpo do PR e comentários):
 2. R6 (sim) em paralelo com o R4; telas do R6 depois.
 3. Linha de base do R5 regravada com `competent` (PR explícito).
 4. MJ-B (troca de padrões).
-5. Pergunta D-16 ao Rodrigo assim que o R5 der números; R8 depois da resposta.
+5. R8 com a meta da D-16 (vitória do caçador 45–55% por partida).
 
 ## 4. Perguntas 1–8 pendentes
 
@@ -78,4 +75,4 @@ O orquestrador Visual enviou ao Rodrigo perguntas 1–8 sobre regras e mapas (va
 
 ## 5. Critério de saída da Frente R
 
-CI verde com `pnpm sim:check` ativo; `ruleset: v1` como padrão no staging; 1.000 partidas por dificuldade sem trava; mediana de perseguição ≥ 15 s; cobertura de `packages/sim` ≥ 90%; D-16 respondida e R8 registrado; resumo de 1 página ao Rodrigo e relato à supervisão.
+CI verde com `pnpm sim:check` ativo; `ruleset: v1` como padrão no staging; 1.000 partidas por dificuldade sem trava; mediana de perseguição ≥ 15 s; cobertura de `packages/sim` ≥ 90%; R8 registrado com a vitória do caçador por partida em 45–55% (D-16 a); resumo de 1 página ao Rodrigo e relato à supervisão.
