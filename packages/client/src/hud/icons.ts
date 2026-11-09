@@ -30,5 +30,17 @@ export const STATE_ICON = {
   escaped: svg(`<path d="M2 8h9"/><path d="M8 5l3 3-3 3"/><path d="M13 2v12"/>`),
 } as const;
 
+/**
+ * ícones das categorias do resumo de fim de partida (R6, issue #66 resposta 2b; GDD v0.2 §7.1): formas simples no
+ * mesmo traço 16×16 dos ícones do HUD, sempre ao lado do nome da categoria (aria-hidden: o leitor de tela lê só o
+ * nome). Objetivos: caixa marcada; Altruísmo: cruz de socorro; Sobrevivência: ampulheta; Audácia: raio
+ */
+export const SCORE_ICON = {
+  objectives: svg(`<rect x="2" y="2" width="12" height="12"/><path d="M5 8l2 2 4-5"/>`),
+  altruism: svg(`<path d="M6 2h4v4h4v4h-4v4H6v-4H2V6h4z"/>`),
+  survival: svg(`<path d="M4 2h8L4 14h8z"/>`),
+  boldness: svg(`<path d="M9 1L3 9h4l-1 6 6-8H8z"/>`),
+} as const;
+
 /** seta da ameaça, apontando para cima (girada pelo setor) */
 export const THREAT_ARROW = `<svg viewBox="0 0 32 32" width="48" height="48" aria-hidden="true" focusable="false"><path d="M16 2L28 22H20V30H12V22H4Z" fill="currentColor"/></svg>`;

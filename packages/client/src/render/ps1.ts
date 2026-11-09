@@ -53,10 +53,19 @@ export const rimUniforms = {
   uRimColor: { value: rimColor(tok(ho.color), ho.amount) },
   uRimPower: { value: ho.power },
 };
-/** intensidade atual do contorno do caçador (0 a 1) */
-export const getHunterOutline = () => rimUniforms.uRim.value;
+/** intensidade escolhida (opção do jogador, V8) e se a vista atual é a 1ª pessoa do modo Retro (issue #48) */
+const rim = { chosen: ho.intensity, retroFirstPerson: false };
+/** uRim = intensidade escolhida × render.hunter_outline.retro_scale só no Retro em 1ª pessoa (issue #48, 3b) */
+const applyRim = () => { rimUniforms.uRim.value = rim.chosen * (rim.retroFirstPerson ? ho.retro_scale : 1); };
+/** intensidade escolhida do contorno do caçador (0 a 1), sem o fator do Retro em 1ª pessoa */
+export const getHunterOutline = () => rim.chosen;
 /** setter para o menu de opções (V8): 0 desliga o contorno; fora de 0..1 é limitado */
-export function setHunterOutline(v: number) { rimUniforms.uRim.value = clamp01(v); }
+export function setHunterOutline(v: number) { rim.chosen = clamp01(v); applyRim(); }
+/**
+ * issue #48 (3b): a vista desenhada é a 1ª pessoa do modo Retro (`?retro=1`)? Nela o contorno leva o fator
+ * render.hunter_outline.retro_scale; na 3ª pessoa (jogo normal e o V do Retro) fica a intensidade escolhida
+ */
+export function setHunterOutlineRetroView(on: boolean) { rim.retroFirstPerson = on; applyRim(); }
 /**
  * forma do contorno (amount e power; null volta a render.hunter_outline). Só para capturas de comparação de arte
  * (tools/art/a3-capturas.mjs --forma); o jogo usa os dados

@@ -79,7 +79,9 @@ function checkContrast({ min, bg }) {
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const el = n.parentElement, txt = n.textContent.trim();
     if (!txt || !/\p{L}|\d/u.test(txt) || !el) continue;
-    if (el.closest("[hidden],[inert],button:disabled,.sr,[aria-hidden=true]") || !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+    // .rsv: número que conta no resumo de fim (aria-hidden só para o leitor de tela ler o final uma vez); é visível,
+    // então o contraste vale para ele
+    if (el.closest("[hidden],[inert],button:disabled,.sr,[aria-hidden=true]:not(.rsv)") || !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     const st = getComputedStyle(el), fg = parse(st.color), back = bgOf(el);
@@ -314,6 +316,35 @@ async function captionsCheck(page, locale, T) {
   report.push(`${n}: sem sobreposição com espectador/dica/barra/pings (${pairs} pares medidos em 2 telas, 3 fontes, com e sem dica e pings); seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
 }
 
+/**
+ * resumo de pontos do fim v1 (issue #66) com a contagem congelada no meio: foco já em "Jogar de novo", axe no meio da
+ * contagem, Enter só pula (sem recarregar), e axe com os valores finais nos 3 tamanhos de fonte (ui.options.font_scales),
+ * sem o resumo estourar a largura da tela
+ */
+async function endCountCheck(page, locale, pt) {
+  const n = `${locale}/fim-v1`;
+  const st = await game(page, () => window.__thehellResults.state());
+  if (!st?.counting) { fail(`${n}: contagem não estava em andamento: ${JSON.stringify(st)}`); return; }
+  if ((await active(page)) !== "again") fail(`${n}: foco não foi para "Jogar de novo" durante a contagem`);
+  await axe(page, `${n}-contando`);
+  if (pt) await shot(page, "fim-v1-contando");
+  await page.evaluate(() => { window.__a11yNoReload = true; });
+  await page.keyboard.press("Enter");
+  if (!(await page.evaluate(() => window.__a11yNoReload === true))) { fail(`${n}: Enter durante a contagem recarregou a página`); return; }
+  const after = await page.evaluate(() => ({ st: window.__thehellResults.state(), shown: [...document.querySelectorAll("#rs .rsv")].map(e => e.textContent), sr: [...document.querySelectorAll("#rs .sr")].map(e => e.textContent) }));
+  if (after.st?.counting !== false || after.shown.join() !== after.sr.join()) fail(`${n}: Enter não pulou para os valores finais: ${JSON.stringify(after)}`);
+  if ((await active(page)) !== "again") fail(`${n}: foco saiu de "Jogar de novo" ao pular`);
+  const scales = balance.ui.options.font_scales;
+  for (const [size, sc] of Object.entries(scales)) {
+    if (size === balance.ui.options.font_default) continue;
+    await page.evaluate((s) => document.documentElement.style.setProperty("--ui-scale", String(s)), sc);
+    const over = await page.evaluate(() => { const r = document.getElementById("rs").getBoundingClientRect(); return r.left < 0 || r.right > innerWidth; });
+    if (over) fail(`${n}: resumo estoura a largura com a fonte ${size}`);
+    await axe(page, `${n}-fonte-${sc}`);
+  }
+  await page.evaluate((s) => document.documentElement.style.setProperty("--ui-scale", String(s)), scales[balance.ui.options.font_default]);
+}
+
 try {
   const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   for (const locale of balance.ui.locales) {
@@ -429,8 +460,12 @@ try {
     if (await page.isVisible("#me")) fail(`${locale}: painel do jogador visível no modo espectador`);
     await axe(page, `${locale}/espectador`);
     if (pt) await shot(page, "espectador");
+    // resumo de pontos (issue #66): pontos em todas as categorias e a contagem congelada no meio (gancho de depuração)
+    await game(page, () => { const sc = window.__thehell().survivors[0].score; for (const k of Object.keys(sc)) sc[k] += 120; });
+    await game(page, () => window.__thehellResults.hold(0.5));
     await game(page, (lim) => { window.__thehell().t = lim; }, balance.match.hard_time_limit);
     await page.waitForSelector("#end", { state: "visible", timeout: STALL_MS });
+    await endCountCheck(page, locale, pt);
     const v1Title = await page.textContent("#et"), v1Sub = await page.textContent("#es");
     const expectTitle = T["end.v1.title"].match(/dead \{([^}]*)\}/)[1];
     if (v1Title !== expectTitle) fail(`${locale}: fim v1 (morto, limite de tempo) com título "${v1Title}", esperado "${expectTitle}"`);

@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { balance } from "../../data.ts";
 import { skinDef, tok, WORLD } from "../../look.ts";
-import type { Ps1Material } from "../ps1.ts";
+import { setHunterOutlineRetroView, type Ps1Material } from "../ps1.ts";
 import type { RenderCtx } from "../scene.ts";
 import { animateCharacter, charactersReady, createCharacter, setTelegraph } from "./runtime.ts";
 
@@ -43,6 +43,8 @@ function portraitMaterial(src: THREE.Material, mode: PortraitOptions["mode"]): T
 }
 
 export async function portrait(ctx: RenderCtx, o: PortraitOptions) {
+  // retrato não é a 1ª pessoa do Retro: contorno com a intensidade cheia (issue #48)
+  setHunterOutlineRetroView(false);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tok(o.bg));
   const roots = o.ids.map(id => createCharacter(id, o.skin ? skinDef(o.skin) : undefined));

@@ -29,6 +29,8 @@ const UiSchema = z.object({
     font_default: z.enum(["normal", "large", "xlarge"]),
     reduced_bob: num.min(0).max(1),
   }).strict(),
+  /** R6 (issue #66): contagem dos pontos na tela de fim (s; 0 = valores na hora) */
+  results: z.object({ count_up_s: pos }).strict(),
   /** V8: controles (GDD v0.3 §12.2): remapeamento, sensibilidade, inversão do Y, alternar em vez de segurar, gamepad */
   controls: z.object({
     mouse_rad_per_px: num.positive(), pitch_limit: num.positive(), key_turn_speed: num.positive(),
@@ -305,8 +307,11 @@ const render = z.object({
     warmup_rounds: z.number().int().nonnegative(),
   }).strict(),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
-  /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */
-  hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive() }).strict(),
+  /**
+   * D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token;
+   * retro_scale (issue #48, 3b) = fator de 0 a 1 sobre a intensidade só no modo Retro em 1ª pessoa
+   */
+  hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive(), retro_scale: unit }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({
