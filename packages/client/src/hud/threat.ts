@@ -3,27 +3,16 @@
 // nem a posição. No multijogador (fase 3) o servidor envia só o setor; aqui o cliente calcula a partir do estado
 // local e o HUD só recebe o setor.
 import type { Vec } from "@thehell/sim";
+import { relativeSector } from "../geom/sector.ts";
+
+/** reexportado do módulo neutro (geom/sector.ts), também usado pelas legendas de som (audio/captions.ts) */
+export { relativeSector };
 
 export interface ThreatUi { threat_radius: number; threat_sectors: number }
 
 /** nomes das 8 direções, no sentido horário a partir da frente (chaves `dir.*`) */
 export const DIRECTIONS = ["front", "front_right", "right", "back_right", "back", "back_left", "left", "front_left"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
-
-/**
- * Setor de `to` visto de `from` com a câmera em `yaw`: 0 = à frente, crescendo no sentido horário (com 8 setores,
- * 2 = direita, 4 = atrás, 6 = esquerda). Frente da câmera = (−sen yaw, −cos yaw), direita = (cos yaw, −sen yaw),
- * as mesmas da entrada (input.ts). Devolve null se os pontos coincidem.
- */
-export function relativeSector(from: Vec, yaw: number, to: Vec, sectors: number): number | null {
-  const dx = to.x - from.x, dz = to.z - from.z;
-  if (dx === 0 && dz === 0) return null;
-  const fwd = -Math.sin(yaw) * dx - Math.cos(yaw) * dz;
-  const right = Math.cos(yaw) * dx - Math.sin(yaw) * dz;
-  const step = (2 * Math.PI) / sectors;
-  const s = Math.round(Math.atan2(right, fwd) / step) % sectors;
-  return (s + sectors) % sectors; // também normaliza −0
-}
 
 /** setor da seta de ameaça, ou null se o caçador está fora do raio e não está revelado */
 export function threatSector(player: Vec, yaw: number, hunter: Vec, ui: ThreatUi, revealed = false): number | null {

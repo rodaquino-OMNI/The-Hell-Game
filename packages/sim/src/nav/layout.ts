@@ -108,17 +108,31 @@ export function resolveLayout(map: GameMap, choice: LayoutChoice, required = 0):
 }
 
 /**
+ * Vetor unitário do portão para fora do mapa (lado de fora da linha da saída), para o cliente girar o portão:
+ * saída lateral {x: ±1, z: 0} pelo sinal de gate.x − exit_x; norte/sul {x: 0, z: ±1} pelo sinal de gate.z − exit_z.
+ * Portão sobre a linha (sinal 0) segue crossedExit: oeste (−1) ou norte (−1).
+ */
+export function gateFacing(exit: Pick<MapExit, "gate" | "exit_x" | "exit_z">): { x: number; z: number } {
+  if (exit.exit_x !== undefined) return { x: Math.sign(exit.gate[0] - exit.exit_x) || -1, z: 0 };
+  if (exit.exit_z === undefined) throw new Error("saída sem exit_z nem exit_x");
+  return { x: 0, z: Math.sign(exit.gate[1] - exit.exit_z) || -1 };
+}
+
+/**
  * Sobrevivente cruzou a linha da saída perto do portão. O lado de fora é o lado do portão em relação à linha:
  * parede norte/sul, linha z = exit_z (norte: z < exit_z, como no protótipo; sul: z > exit_z); parede lateral (D-25),
  * linha x = exit_x (oeste: x < exit_x; leste: x > exit_x), com a meia-largura medida em z a partir do portão.
  */
 export function crossedExit(exit: MapExit, x: number, z: number, halfWidth: number): boolean {
   if (exit.exit_x !== undefined) {
+    // portão exatamente sobre a linha (sinal 0): vale o lado oeste (−1), como o norte (−1) na regra de exit_z; os mapas
+    // válidos sempre põem o portão fora da linha
     const side = Math.sign(exit.gate[0] - exit.exit_x) || -1;
     return side * (x - exit.exit_x) > 0 && Math.abs(z - exit.gate[1]) < halfWidth;
   }
   const ez = exit.exit_z;
   if (ez === undefined) throw new Error("saída sem exit_z nem exit_x");
+  // portão sobre a linha (sinal 0): vale o norte (z < exit_z), a saída do protótipo
   const side = Math.sign(exit.gate[1] - ez) || -1;
   return side * (z - ez) > 0 && Math.abs(x - exit.gate[0]) < halfWidth;
 }

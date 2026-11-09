@@ -195,8 +195,13 @@ export interface HunterAi {
   pathOk: boolean;
   /** força replanejamento pelo A* (anti-travamento) */
   forceAstar: boolean;
-  /** contagem de voltas no loop em que o alvo corre (GDD-v0.3 §8.4) */
-  loop: { id: string; target: number; acc: number; last: number } | null;
+  /**
+   * contagem de voltas no loop em que o alvo corre (GDD-v0.3 §8.4). `src` = de onde veio o último ângulo: "target"
+   * (alvo percebido) ou "self" (o próprio caçador, enquanto segue o alvo lembrado atrás do obstáculo, R8 passo 1)
+   */
+  loop: { id: string; target: number; acc: number; last: number; src: "target" | "self" } | null;
+  /** alvo visível (no cone, não só revelado) na decisão anterior (-1 = nenhum): reencontro do alvo (R8 passo 1) */
+  seenTarget: number;
   /** ponto de corte pelo navmesh quando o alvo corre num loop longo (Pesadelo, "evita loops longos") */
   intercept: Vec | null;
   /** o último golpe capturou o alvo (Recuo → Prender) */
@@ -221,11 +226,23 @@ export interface Arena {
   gate: Vec;
   /** linha da saída na parede norte/sul (z); ausente com saída lateral */
   exitZ?: number;
-  /** linha da saída na parede lateral (x; D-25, ruleset v1); ausente com saída norte/sul */
+  /**
+   * linha da saída na parede lateral (x; D-25, ruleset v1, `maps.v1.side_exit`); ausente com saída norte/sul.
+   * Regra do portão lateral para o cliente: a parede do portão (o lado de fora) é o sinal de `gate.x − exitX`
+   * (−1 = oeste, +1 = leste; o mesmo vetor está em `gateFacing`); a abertura corre em z, centrada em `gate.z`, com
+   * meia-largura `prototype_extras.gate_exit_half_width`. Escapa quem cruza a linha x = exitX para o lado de fora.
+   */
   exitX?: number;
   /**
-   * caixas [x, z, largura, profundidade] da partida (mapa efetivo, com os pilares da D-23); só no ruleset v1 com
-   * `maps.v1.short_loop_pillars`. Sem o campo, valem as paredes do mapa.
+   * vetor unitário do portão para fora do mapa, em todas as saídas e nos dois rulesets: lateral {x: ±1, z: 0},
+   * norte/sul {x: 0, z: ±1} (norte do protótipo: {x: 0, z: −1}). O cliente gira o portão por ele sem deduzir a parede;
+   * a abertura é perpendicular a ele, com meia-largura `prototype_extras.gate_exit_half_width`.
+   */
+  gateFacing: { x: number; z: number };
+  /**
+   * Cópia opcional das caixas [x, z, largura, profundidade] da partida, só no v1 com `maps.v1.short_loop_pillars`.
+   * A FONTE ÚNICA das paredes no cliente é `cfg.map.walls` (SimConfig.map, o mapa efetivo: no v1 inclui os pilares
+   * da D-23; no protótipo é o mapa de topo). Este campo repete a mesma lista e pode faltar.
    */
   walls?: [number, number, number, number][];
 }

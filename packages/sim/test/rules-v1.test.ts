@@ -549,6 +549,10 @@ describe("determinismo no ruleset v1", () => {
     const g = createGame(c, "Mecânico", 42);
     g.hunter.dash = 1e9; g.hunter.projectile = 1e9; g.hunter.trap = 1e9;
     for (let i = 0; i < 60 * 60 && !g.over; i++) step(c, g, scripted(i));
+    // R7-mapas: a arena ganhou gateFacing (descritor do portão para o cliente, não muda a partida); o hash de referência
+    // é o do estado sem ele
+    expect(g.arena.gateFacing).toEqual({ x: 0, z: Math.sign(g.arena.gate.z - g.arena.exitZ!) || -1 });
+    delete (g.arena as Partial<typeof g.arena>).gateFacing;
     expect(createHash("sha256").update(JSON.stringify(g)).digest("hex")).toBe("2f9b008d36779918272a309e6112cfa33fef0d144dec99ade6248de97c4925a6");
   });
   it("hash de referência do v1 com as flags de mapa ligadas (R7-mapas: pilares, saída lateral, 5º gerador; pega desvio)", () => {
@@ -556,6 +560,7 @@ describe("determinismo no ruleset v1", () => {
     const g = createGame(c, "Mecânico", 42);
     g.hunter.dash = 1e9; g.hunter.projectile = 1e9; g.hunter.trap = 1e9;
     for (let i = 0; i < 60 * 60 && !g.over; i++) step(c, g, scripted(i));
+    delete (g.arena as Partial<typeof g.arena>).gateFacing; // como acima: o hash é o de antes do gateFacing
     expect(createHash("sha256").update(JSON.stringify(g)).digest("hex")).toBe("5a5ed1de0a8f0301af037ad081177beee68c139ccc57007ca9b9fea988476f0c");
   });
 });

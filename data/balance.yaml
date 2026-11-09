@@ -236,6 +236,11 @@ ai:
   # hoje; campo próprio porque não é audição). Ruído ouvido durante a perseguição pela memória é ignorado (LACUNA: o
   # caçador não sabe quem o fez; segui-lo trocaria de alvo sem vê-lo).
   memory_investigate_time: 8
+  # R8 passo 1 (D-46; GDD-v0.3 §8.4 e §9.1 "dash e projétil quebram loops"; valor LACUNA): ao reencontrar o alvo
+  # perseguido ferido (vida < survivor.wounded_hp) a menos disto, o dash vem antes do projétil. 6 m ≈ percurso do
+  # dash (hunter.dash.speed × duration = 3,85 m) + alcance do golpe (hunter.melee.range = 1,8 m) = 5,65 m: o dash
+  # termina no alcance do golpe. A faixa de uso do dash (hunter.dash.min..max, GDD-v0.2 §2.3) continua valendo.
+  dash_reacquire_dist: 6
   by_difficulty:
     easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
     normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}
@@ -308,9 +313,15 @@ maps:
   # Item R7-mapas (docs/plano-construcao.md §7): mudanças de mapa só do ruleset v1, cada uma atrás de uma flag para
   # medir o efeito isolado no simulador. O protótipo (ruleset: prototype) usa sempre o mapa de topo (paridade).
   v1:
-    fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5)
-    short_loop_pillars: true        # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
-    side_exit: true                 # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
+    fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5); inerte com 3 sobreviventes
+    # D-23 b e D-25 b: desligadas até o cliente desenhar cfg.map.walls e o portão lateral (coordenação com a sessão
+    # Visual; revisão do R7-mapas, B-1). Ligar quando o cliente desenhar cfg.map.walls e o portão lateral.
+    short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
+    side_exit: false                # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
+    # LACUNA (revisão do R7-mapas): o pilar de 1 × 1 m deixa o caçador acertar sem linha de visão pela quina:
+    # alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre os centros de caçador e sobrevivente em lados
+    # opostos da quina (medido na revisão do R7-mapas); o golpe não confere linha de visão. Possível pilar de 1,6–2 m
+    # no R8 (a medir no simulador).
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
@@ -383,8 +394,41 @@ render:
   # tempo de CPU do processo de GPU, mediana de 11 pares). Medido em 08/11/2026 com a máquina carregada: 1,25 a 1,38×
   # (antes das otimizações: 1,87×). Teto com folga para o ruído; a meta da revisão é 1,3×. V7 (09/11/2026): mediana de
   # 21 pares de 32 quadros, na vista das capturas e com o caçador no cone da lanterna; com a máquina carregada (load
-  # ~10 em 4 núcleos): mediana 1,35× (mín 1,11×, p90 1,43×, máx 1,46×) e 1,33× no cone (1,15×, 1,40×, 1,43×)
+  # ~10 em 4 núcleos): mediana 1,35× (mín 1,11×, p90 1,43×, máx 1,46×) e 1,33× no cone (1,15×, 1,40×, 1,43×).
+  # Na CI (sem GPU; SwiftShader na CPU) a razão depende do tipo de runner: runners de ~34–49 ms/quadro sem camadas
+  # dão 1,26–1,32×, runners de ~65 ms dão 1,39–1,43× (o PR #53 falhou com 1,43×). D-44 (supervisão por delegação do
+  # Rodrigo, 09/11/2026; docs/plano-construcao.md §7): na CI a medida é proxy de regressão (render.cost_check abaixo);
+  # o teto de 1,4× vale para hardware real e a otimização de bloom/dither segue; subir o teto foi rejeitado
   layer_cost_factor: 1.4
+  # D-44 (b): como tools/visual/compare.mjs mede o custo das camadas contra layer_cost_factor (tools/visual/cost-stats.mjs).
+  # pairs pares intercalados ABBA (A = sem camadas, B = A+B), cada medida com warmup quadros descartados e frames
+  # quadros medidos; razão pareada B/A; IC da mediana por bootstrap percentil com nível ci, bootstrap_resamples
+  # reamostragens e PRNG mulberry32 com semente seed (determinístico: mesmas razões, mesmo IC). A CI falha só se o
+  # limite inferior do IC passar de layer_cost_factor × (1 + ci_runner_margin) (regressão certa); aviso, sem falha,
+  # se a mediana passar de layer_cost_factor. ci_runner_margin 0,07 (D-44, opção a da supervisão): o tipo de runner
+  # enviesa a razão no SwiftShader (1,26–1,43× medidos na CI para o mesmo código, acima), então o teto da CI é
+  # 1,4 × 1,07 ≈ 1,50×. Não sobe o orçamento de hardware (layer_cost_factor segue 1,4, conferido no procedimento manual
+  # da UHD 620 em docs/runbook.md)
+  # pairs e frames: os do V7 (21 × 32); warmup: os 2 quadros que já eram descartados ao trocar de camadas. pairs ≥ 5
+  # (schema): com menos pares a mediana reamostrada só assume poucos valores distintos e o IC percentil degenera
+  # (com 1 par o IC é um ponto, e a regra "falha só se o limite inferior passar" vira a regra da mediana crua)
+  # ci_mode (D-48, supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): warn | fail. Em warn
+  # o resultado de falha do custo das camadas vira aviso visível (anotação ::warning e resumo do job) e não reprova a
+  # CI; o resto de tools/visual/compare.mjs e os portões de tools/perf/budget.mjs (draw calls, triângulos, download)
+  # seguem reprovando. Motivo: viés do tipo de runner; um runner novo com base 36,3 ms/quadro sem camadas mediu 1,52×
+  # (IC [1,52, 1,53]) em 09/11/2026 num PR que não mexe no render (PR #68, job 128986770134), acima do teto da CI 1,50×.
+  # PRAZO cumprido: volta para fail com a issue #59 (D-49, abaixo)
+  # main_delta (D-49, issue #59; supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): na CI
+  # o build de main é medido no mesmo job e na mesma máquina, em rodadas intercaladas com o PR (crossOrder em
+  # tools/visual/cost-stats.mjs; pairs rodadas). A CI reprova só se o limite inferior do IC da mediana de (razão do PR −
+  # razão de main) passar de main_delta; aviso se a mediana passar. Imune ao tipo de runner: o viés (1,26–1,52× para o
+  # mesmo código, acima) afeta os dois builds igual. 0,05 = a proposta da issue #59: 2,5× a meia largura do IC de uma
+  # razão num run (IC [1,28, 1,32] com a dispersão do PR #53; [1,52, 1,53] no PR #68); para código igual com ruído
+  # independente nos dois builds o IC da diferença fica em [−0,04, +0,05] (packages/client/test/cost-stats.test.ts),
+  # então lo > 0,05 só com regressão real, e uma alta de 0,10 na razão do PR já reprova (mesmo teste).
+  # Com o build de main, o teto absoluto (layer_cost_factor × (1 + ci_runner_margin))
+  # vira só aviso; sem ele (main sem o gancho de custo ou build ausente) volta o portão absoluto de D-44, com aviso
+  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_delta: 0.05}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,
@@ -406,7 +450,15 @@ render:
   # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
   # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
   hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
-  models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
+  models:
+    survivor_tris: [300, 600]
+    hunter_tris: [800, 1200]
+    atlas: 64
+    # D-45: modelo de reserva (caixa na cor da classe ou do caçador) enquanto o .glb não chega ou se ele falhar; o caçador
+    # tem olhos que acendem no preparo como os do modelo (telegraph, Art Bible §1.5 e §4). Medidas de arte em metros:
+    # altura do sobrevivente = altura do manifesto (1,75 m) e do Espectro 2,5 m (plano-fases-1-2 §5 V2); eyes = largura,
+    # altura e profundidade da faixa dos olhos, eyes_below = distância do topo da caixa ao centro dos olhos
+    fallback: {survivor: [0.6, 1.75, 0.4], hunter: [0.7, 2.5, 0.5], eyes: [0.4, 0.1, 0.05], eyes_below: 0.3}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
   states:
     # feixe do gerador: largura e altura (m); min_px = largura mínima na resolução interna (o feixe distante não vira
@@ -856,6 +908,13 @@ ui:
   ftue_target_min: 10
   min_contrast: 4.5
   locales: [pt-BR, en, es]
+  # ---- V8b: faixa de legendas de som no HUD (GDD-v0.3 §12.4, §11 L218; dados de audio.captions, A-6) ----
+  # LACUNA (GDD e Art Bible não definem a saída da legenda). Proposta: esmaecer nos últimos 0,5 s em 5 degraus (no
+  # máximo 5 escritas de estilo por legenda, nada por quadro); com "reduzir flicker" some sem esmaecer
+  captions: {fade: 0.5, opacity_steps: 5}
+  # D-45: a partida só começa com os personagens carregados (charactersReady); teto da espera em s, depois do qual a
+  # partida começa com o modelo de reserva (render.models.fallback), para um download travado não prender o jogo
+  start_wait_s: 10
   # ---- V8 (F2-08): menu de opções, controles e acessibilidade (GDD-v0.3 §12.2 e §12.4) ----
   options:
     # passo dos sliders de intensidade (render.ps1.*, render.layer_a.*: 0 a 1, GDD-v0.3 §10.1 e §10.2) e de volume
@@ -929,6 +988,13 @@ ui:
 client:
   max_frame_dt: 0.25                # s (4 fps); padrão de "Fix Your Timestep!" (Glenn Fiedler, gafferongames.com)
   max_steps_per_frame: 15           # = 0,25 s × 60 Hz
+  # Mouse da câmera (packages/client/src/pointer-filter.ts). Bug: ao adquirir o pointer lock (clique em "#go") o
+  # Chromium pode emitir um mousemove com movementX espúrio (medido ≈ −568 px, o clientX do cursor) e a câmera saltava
+  # ≈ 1,4 rad. A primeira leitura de cada lock já é descartada; além disso, um evento isolado com |movementX| ou
+  # |movementY| acima deste limite é ignorado. D-47 (docs/plano-construcao.md §7; GDD v0.2/v0.3 não definem): 300 px por evento
+  # (o Chromium agrupa o mousemove por quadro, https://developer.chrome.com/blog/aligning-input-events: a 60 Hz
+  # equivale a 18.000 px/s, acima de um giro rápido real).
+  mouse_max_delta: 300              # px por evento
 
 # ---------- 17. Rede (GDD-v0.3 §13.4) ----------
 net:
@@ -976,20 +1042,20 @@ net:
 # reprova). O check de 200 partidas NÃO ativa o piso no Normal (3 episódios < min_samples): só o noturno vigia
 # (2.500 partidas por dificuldade; ~64 episódios a cada 1.000 partidas no Normal, mediana 18,5 s).
 # Ao regravar a linha de base com outro comportamento (R7-mapas, R8), medir de novo e revisar estes valores no mesmo PR.
-# R7-mapas (09/11/2026, flags maps.v1 ligadas): --noise=10 sugeriu (3 × √2 × desvio máx) duration_mean 52,0 s,
-# captures 0,54, short_match agregado 0,074, chase_median 39,5 s / agregado 16,7 s, chases_per_match 0,59; os valores
-# abaixo do sugerido subiram para ele (arredondado para cima); os demais ficam (já acima do sugerido).
 sim:
   short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
   check: {matches_per_group: 50, seed: 1, difficulties: [easy, normal, hard, nightmare]}  # 200 partidas no Pátio
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
+  # R8 passo 1 (pnpm sim --check --noise=10, 09/11/2026): o desvio entre lotes de 50 partidas no Pesadelo subiu para
+  # 0,146 capturas e 0,136 perseguições por partida (3 × √2 × desvio = 0,62 e 0,58); as outras tolerâncias seguem acima
+  # do sugerido e ficam como estavam.
   regression:
     hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.23, pooled_max_worsening: 0.05}   # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 52, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.55, pooled_max_worsening: 0.20}     # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.19, pooled_max_worsening: 0.08}                     # §7.6: < 5%
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 51, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.62, pooled_max_worsening: 0.20}     # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.20, pooled_max_worsening: 0.07}                     # §7.6: < 5%
     # GDD-v0.3 §8.5 (aceite: mediana ≥ 15 s "contra o caçador Normal"): piso absoluto de 15 s só no Normal; com < 10
     # episódios a mediana oscila > 12 s entre lotes, então nem a tolerância nem o piso comparam o grupo.
-    chase_median:       {worse: lower, floor: 15, floor_groups: [normal], max_worsening: 40, pooled_max_worsening: 17, min_samples: 10}
+    chase_median:       {worse: lower, floor: 15, floor_groups: [normal], max_worsening: 39, pooled_max_worsening: 10, min_samples: 10}
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
-    chases_per_match:   {worse: lower, max_worsening: 0.60, pooled_max_worsening: 0.20}
+    chases_per_match:   {worse: lower, max_worsening: 0.58, pooled_max_worsening: 0.20}

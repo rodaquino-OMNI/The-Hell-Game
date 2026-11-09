@@ -14,6 +14,8 @@ import { withMapFlags } from "./helpers.ts";
 const v1 = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
 const proto = makeConfig(b, map, { ruleset: "prototype" });
 // D-25 desligada: a saída 1 volta a ser a do sul (z > exit_z), como antes do R7-mapas
+// D-25 ligada explicitamente (os dados a deixam desligada até o cliente desenhar o portão lateral, revisão B-1)
+const v1Side = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype", mapFlags: { side_exit: true } });
 const v1South = makeConfig(withMapFlags(b, { side_exit: false }), map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
 const seedFor = (pred: (c: ReturnType<typeof chooseLayout>) => boolean) => {
   for (let s = 1; s < 500; s++) if (pred(chooseLayout(map, s))) return s;
@@ -33,7 +35,7 @@ describe("layout pela semente (GDD-v0.3 §9.3) no v1", () => {
       expect([g.arena.exitZ, g.arena.exitX]).toEqual([m.exit_z, m.exit_x]);
       seen.add(JSON.stringify(choice));
       const p = createGame(proto, "Curandeiro", s);
-      expect(p.arena).toEqual({ layout: { generators: 0, cage: 0, exit: 0 }, cage: { x: map.cage[0], z: map.cage[1] }, gate: { x: map.gate[0], z: map.gate[1] }, exitZ: map.exit_z });
+      expect(p.arena).toEqual({ layout: { generators: 0, cage: 0, exit: 0 }, cage: { x: map.cage[0], z: map.cage[1] }, gate: { x: map.gate[0], z: map.gate[1] }, exitZ: map.exit_z, gateFacing: { x: 0, z: -1 } });
       expect(p.gens.filter(x => !x.bonus).map(x => [x.x, x.z])).toEqual(map.generators);
     }
     expect(seen.size).toBeGreaterThan(8);
@@ -74,20 +76,20 @@ describe("saída por crossedExit (norte, sul e lateral)", () => {
   });
   it("D-25: saída lateral (exit 1 com maps.v1.side_exit): cruzar a linha x = exit_x perto do portão conta como escapar", () => {
     const se = map.v1!.side_exit!, s = seedFor(c => c.exit === se.replaces);
-    const g = open(s), P = g.survivors[0], hw = b.prototype_extras.gate_exit_half_width;
+    const g = open(s, v1Side), P = g.survivors[0], hw = b.prototype_extras.gate_exit_half_width;
     expect(g.arena).toMatchObject({ gate: { x: se.gate[0], z: se.gate[1] }, exitX: se.exit_x });
     expect(g.arena.exitZ).toBeUndefined();
     const out = Math.sign(se.gate[0] - se.exit_x); // lado de fora da linha (oeste: −1)
     P.x = map.gate[0]; P.z = map.exit_z! - 0.5; // linha do norte não vale
-    step(v1, g, NO_INPUT);
+    step(v1Side, g, NO_INPUT);
     expect(P.st).toBe("ok");
     P.x = se.exit_x - out * 0.5; P.z = se.gate[1]; // ainda do lado de dentro
-    step(v1, g, NO_INPUT);
+    step(v1Side, g, NO_INPUT);
     expect(P.st).toBe("ok");
     P.x = se.exit_x + out * 0.5; P.z = se.gate[1] + hw + 0.1; // fora da largura do portão
-    step(v1, g, NO_INPUT);
+    step(v1Side, g, NO_INPUT);
     expect(P.st).toBe("ok");
-    P.z = se.gate[1]; step(v1, g, NO_INPUT);
+    P.z = se.gate[1]; step(v1Side, g, NO_INPUT);
     expect(P.st).toBe("out");
   });
   it("saída norte (exit 0): como no protótipo", () => {

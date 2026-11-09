@@ -5,7 +5,7 @@ import { MapSchema } from "@thehell/shared";
 import { describe, expect, it } from "vitest";
 import { collide, createGame, insideWall, makeConfig, NO_INPUT, step, type GameState } from "../src/index.ts";
 import { lineOfSight } from "../src/perception.ts";
-import { allLayoutChoices, chooseLayout, crossedExit, gridBackend, maxTeamSize, pointInPolygon, polygonPerimeter, resolveLayout, validateMap } from "../src/nav/index.ts";
+import { allLayoutChoices, chooseLayout, crossedExit, gateFacing, gridBackend, mapForV1, maxTeamSize, pointInPolygon, polygonPerimeter, resolveLayout, validateMap } from "../src/nav/index.ts";
 import { balance as b, map, NO_MAP_FLAGS, withMapFlags } from "./helpers.ts";
 
 const ALL = { fifth_generator: true, short_loop_pillars: true, side_exit: true } as const;
@@ -14,14 +14,22 @@ const cfgOf = (flags: Partial<typeof ALL>, ruleset: "v1" | "prototype" = "v1") =
 const extra = map.v1!;
 
 describe("flags de mapa do v1 (maps.v1)", () => {
-  it("os dados ligam as três por padrão", () => {
-    expect(b.maps.v1).toEqual(ALL);
+  it("os dados: 5º gerador ligado (inerte com 3 sobreviventes); pilares e saída lateral desligados até o cliente desenhá-los (B-1)", () => {
+    expect(b.maps.v1).toEqual({ fifth_generator: true, short_loop_pillars: false, side_exit: false });
+  });
+  it("makeConfig({ mapFlags }) sobrepõe só as flags dadas (capturas do cliente com ?debug=1)", () => {
+    const c = makeConfig(b, map, { ruleset: "v1", mapFlags: { short_loop_pillars: true, side_exit: true } });
+    expect(c.balance.maps.v1).toEqual(ALL);
+    expect(c.map.walls).toEqual([...map.walls, ...extra.pillars!]);
+    expect(c.map.layouts!.exits[extra.side_exit!.replaces]).toEqual({ gate: extra.side_exit!.gate, exit_x: extra.side_exit!.exit_x });
+    expect(makeConfig(b, map, { ruleset: "prototype", mapFlags: ALL }).map).toBe(map);
+    expect(b.maps.v1.short_loop_pillars).toBe(false); // o balanço de origem não muda
   });
   it("protótipo: o mapa da config é o de topo, mesmo com as flags ligadas (paridade)", () => {
     const p = cfgOf(ALL, "prototype");
     expect(p.map).toBe(map);
     const g = createGame(p, "Curandeiro", 3);
-    expect(g.arena).toEqual({ layout: { generators: 0, cage: 0, exit: 0 }, cage: { x: map.cage[0], z: map.cage[1] }, gate: { x: map.gate[0], z: map.gate[1] }, exitZ: map.exit_z });
+    expect(g.arena).toEqual({ layout: { generators: 0, cage: 0, exit: 0 }, cage: { x: map.cage[0], z: map.cage[1] }, gate: { x: map.gate[0], z: map.gate[1] }, exitZ: map.exit_z, gateFacing: { x: 0, z: -1 } });
     expect(g.gens.filter(x => !x.bonus).map(x => [x.x, x.z])).toEqual(map.generators);
   });
   it("v1 com as flags desligadas: mesmo mapa de topo (sem o bloco v1) e partida idêntica à do mapa sem acréscimos", () => {
@@ -173,6 +181,53 @@ describe("D-25: segunda saída na parede lateral", () => {
     bot.x = se.gate[0] + 6; bot.z = se.gate[1];
     for (let i = 0; i < 60 * 10 && bot.st === "ok"; i++) step(c, g, NO_INPUT);
     expect(bot.st).toBe("out");
+  });
+});
+
+describe("gateFacing: vetor do portão para fora, nas duas saídas", () => {
+  it("unidade: lateral oeste/leste e norte/sul", () => {
+    expect(gateFacing({ gate: [-29, -10], exit_x: -28 })).toEqual({ x: -1, z: 0 });
+    expect(gateFacing({ gate: [29, 4], exit_x: 28 })).toEqual({ x: 1, z: 0 });
+    expect(gateFacing({ gate: [0, -29], exit_z: -28 })).toEqual({ x: 0, z: -1 });
+    expect(gateFacing({ gate: [-20, 29], exit_z: 28 })).toEqual({ x: 0, z: 1 });
+  });
+  it("na partida: as duas saídas do v1 (com e sem D-25) e o protótipo; um passo na direção sai pela linha", () => {
+    const hw = b.prototype_extras.gate_exit_half_width;
+    for (const c of [cfgOf({ side_exit: true }), cfgOf({}), cfgOf({}, "prototype")])
+      for (const exit of c.v1 ? [0, 1] : [0]) {
+        let s = 1;
+        while (c.v1 && chooseLayout(map, s).exit !== exit) s++;
+        const g = createGame(c, "Curandeiro", s), f = g.arena.gateFacing;
+        expect(Math.hypot(f.x, f.z)).toBe(1);
+        const ex = { gate: [g.arena.gate.x, g.arena.gate.z] as [number, number], exit_x: g.arena.exitX, exit_z: g.arena.exitZ };
+        expect(crossedExit(ex, g.arena.gate.x + f.x, g.arena.gate.z + f.z, hw)).toBe(true);
+        expect(crossedExit(ex, g.arena.gate.x - 2 * f.x, g.arena.gate.z - 2 * f.z, hw)).toBe(false);
+      }
+  });
+});
+
+describe("validador: bloco da D-22 (obrigatórios da maior equipe)", () => {
+  const flags = { ...NO_MAP_FLAGS, fifth_generator: true };
+  const d22 = (r: ReturnType<typeof validateMap>) => r.filter(x => x.rule.includes("equipe de"));
+  it("mapa do v1 com o 5º gerador: todas as regras verdes, uma por layout", () => {
+    const r = validateMap(mapForV1(map, flags), b, gridBackend(b), flags);
+    expect(r.filter(x => x.status === "falha")).toEqual([]);
+    expect(d22(r)).toHaveLength(map.layouts!.generators.length * 3 + 1);
+    expect(d22(r).every(x => x.status === "ok")).toBe(true);
+  });
+  it("falha forçada: dois geradores da lista de 5 a menos de 25 m", () => {
+    const bad = JSON.parse(JSON.stringify(map)) as typeof map;
+    const l0 = bad.v1!.large_team_generators![0];
+    l0[4] = [l0[0][0] + 3, l0[0][1]]; // a 3 m do primeiro
+    const r = validateMap(mapForV1(bad, flags), b, gridBackend(b), flags);
+    const rule = r.find(x => x.rule === `geradores g0 (equipe de ${maxTeamSize(b)}): distância ≥ generator_min_dist`);
+    expect(rule?.status).toBe("falha");
+  });
+  it("falha forçada: lista com menos obrigatórios que by_team_size pede", () => {
+    const bad = JSON.parse(JSON.stringify(map)) as typeof map;
+    bad.v1!.large_team_generators![1] = bad.v1!.large_team_generators![1].slice(0, 4);
+    const r = validateMap(mapForV1(bad, flags), b, gridBackend(b), flags);
+    expect(r.find(x => x.rule === `geradores g1 (equipe de ${maxTeamSize(b)}): ${b.generator.by_team_size[String(maxTeamSize(b))].required} obrigatórios`)?.status).toBe("falha");
   });
 });
 

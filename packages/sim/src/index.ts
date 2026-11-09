@@ -1,11 +1,11 @@
 export * from "./types.ts";
 export * from "./game.ts";
-export { makeConfig, hunterMaxHp, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type BotBrain, type AiDifficulty, type AiTrace } from "./config.ts";
+export { makeConfig, hunterMaxHp, botBrainOf, anyCompetentBot, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type BotBrain, type AiDifficulty, type AiTrace } from "./config.ts";
 export { matchEnd, individualResult, isTerminal, type MatchEnd } from "./match.ts";
 export { canSee, inCone, lineOfSight, segmentHitsBox } from "./perception.ts";
 export { nextRandom } from "./rng.ts";
 export {
-  HUNTER_TRANSITIONS, aimPoint, canBreakLoop, loopAt, newHunterAi, project, projectileAllowed, setMode, think, trackLoop,
+  HUNTER_TRANSITIONS, aimPoint, canBreakLoop, choosePatrol, trackLoopMemory, loopAt, newHunterAi, project, projectileAllowed, setMode, think, trackLoop,
   updateHunterAi, type HunterEffects,
 } from "./ai/hunter.ts";
 export { perceive } from "./ai/percept.ts";

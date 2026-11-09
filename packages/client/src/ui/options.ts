@@ -5,8 +5,9 @@
 // ao abrir, Esc ou "Voltar" fecham e o foco volta ao botão "Opções". Cada mudança vale na hora e é gravada.
 // Faixas e passos em data/balance.yaml (`ui.options`, `ui.controls`, `ui.fov`); textos só por chave (i18n/).
 import { $, balance, px } from "../data.ts";
+import { captionDuration, captionDurations, captionsEnabled, setCaptionDuration, setCaptionsEnabled } from "../audio/captions.ts";
 import { BUSES, getBusVolume, setBusVolume, type VolumeName } from "../audio/engine.ts";
-import { CONTROL_ACTIONS, rebind, bindable, type ControlAction } from "../bindings.ts";
+import { CONTROL_ACTIONS, keyName, keysText, rebind, bindable, type ControlAction } from "../bindings.ts";
 import { locale, t, type Key } from "../i18n/index.ts";
 import { COLOR_MODE_OPTIONS, type ColorModeOption } from "../look.ts";
 import { pingName } from "../text.ts";
@@ -29,8 +30,6 @@ const ACTION_LABEL: Record<Exclude<ControlAction, "ping_1" | "ping_2" | "ping_3"
 const PING_ACTIONS = ["ping_1", "ping_2", "ping_3", "ping_4"] as const;
 /** nomes dos botões no layout "standard" da Gamepad API (https://w3c.github.io/gamepad/#remapping); símbolos, sem idioma */
 const PAD_BUTTON = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "Select", "Start", "L3", "R3", "↑", "↓", "←", "→", "Home"];
-const ARROW_KEY: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
-const NAMED_KEY: Record<string, Key> = { Space: "key.space", ShiftLeft: "key.shift_left", ShiftRight: "key.shift_right", ControlLeft: "key.ctrl_left", ControlRight: "key.ctrl_right", AltLeft: "key.alt_left", AltRight: "key.alt_right", Enter: "key.enter", Backspace: "key.backspace" };
 
 /** nome da ação no idioma atual (pings: "Ping: <tipo>") */
 export function actionName(a: ControlAction): string {
@@ -38,16 +37,6 @@ export function actionName(a: ControlAction): string {
   return pi >= 0 ? t("act.ping", { name: pingName(balance.ui.ping_types[pi]) }) : t(ACTION_LABEL[a as keyof typeof ACTION_LABEL]);
 }
 
-/** nome legível de uma tecla (KeyboardEvent.code) */
-export function keyName(code: string): string {
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
-  if (/^Digit\d$/.test(code)) return code.slice(5);
-  if (/^Numpad\d$/.test(code)) return t("key.numpad", { n: code.slice(6) });
-  if (ARROW_KEY[code]) return ARROW_KEY[code];
-  if (NAMED_KEY[code]) return t(NAMED_KEY[code]);
-  return code;
-}
-const keysText = (codes: readonly string[]) => (codes.length ? codes.map(keyName).join(" / ") : t("key.unbound"));
 
 let opts: Options = defaultOptions();
 let onLanguage: () => void = () => {};
@@ -186,6 +175,10 @@ function build(): HTMLElement[] {
     slider("o-fov", t("opt.fov"), o.fov ?? px.camera.fov, fr.min, fr.max, ob.fov_step, v => t("opt.value_deg", { v }), v => commit({ ...opts, fov: v })));
   const audio = section("os-audio", t("opt.sec.audio"),
     ...(["master", ...BUSES] as VolumeName[]).map(b => slider("o-vol-" + b, t(VOLUME_LABEL[b]), getBusVolume(b), 0, 1, step, pct, v => { setBusVolume(b, v); })));
+  // legendas de som (V8b; A-6, D-39/D-40): liga/desliga e tempo na tela; o barramento do áudio grava as duas
+  const caps = section("os-cap", t("opt.sec.captions"),
+    checkbox("o-cap", t("opt.captions"), captionsEnabled(), v => { setCaptionsEnabled(v); }),
+    radios("o-capd", t("opt.caption_duration"), captionDurations().map(String), s => t("opt.caption_seconds", { s: Number(s) }), String(captionDuration()), v => { setCaptionDuration(Number(v)); }));
   const langBox = el("div", { id: "olangs", className: "olangs" });
   langBox.setAttribute("role", "group");
   langBox.setAttribute("aria-labelledby", "olangl");
@@ -208,14 +201,14 @@ function build(): HTMLElement[] {
   const reset = el("button", { type: "button", id: "orst" }, t("opt.reset"));
   reset.onclick = () => {
     const d = defaultOptions();
-    for (const b of ["master", ...BUSES] as VolumeName[]) setBusVolume(b, balance.audio.buses[b]);
+    resetOwnedDefaults();
     commit(d);
     render("orst");
     announce(t("opt.reset_done"));
   };
   const close = el("button", { type: "button", id: "ox" }, t("opt.back"));
   close.onclick = closeOptions;
-  return [head, el("p", { className: "dim" }, t("opt.note")), el("div", { className: "ogrid" }, video, layer, comfort, audio, iface, controls, keys, pad), live, el("div", {}, reset, close)];
+  return [head, el("p", { className: "dim" }, t("opt.note")), el("div", { className: "ogrid" }, video, layer, comfort, audio, caps, iface, controls, keys, pad), live, el("div", {}, reset, close)];
 }
 
 function render(focusId?: string) {
@@ -239,6 +232,17 @@ export function refreshVolumeSliders() {
     input.setAttribute("aria-valuetext", pct(v));
     $("o-vol-" + b + "-v").textContent = pct(v);
   }
+}
+
+/**
+ * "Restaurar padrões" do que tem persistência própria fora de ui/settings.ts: volumes (audio.buses, engine.ts) e
+ * legendas (audio.captions: ligadas por padrão e tempo padrão, captions.ts). Exportada para o teste.
+ */
+export function resetOwnedDefaults() {
+  for (const b of ["master", ...BUSES] as VolumeName[]) setBusVolume(b, balance.audio.buses[b]);
+  const ac = balance.audio.captions;
+  setCaptionsEnabled(ac.enabled_default);
+  setCaptionDuration(ac.durations[ac.default_duration_index]);
 }
 
 export function openOptions(focusId?: string) {

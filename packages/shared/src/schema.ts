@@ -3,7 +3,7 @@
 // detalhada até o agente dono implementá-la. nav e maps: item R2 (GDD v0.3 §8.6, §9); ui: item R7 (GDD v0.3 §12);
 // audio: item A-1 do V5 (GDD v0.3 §11).
 import { z } from "zod";
-import { CONTROL_ACTIONS } from "./controls.ts";
+import { CONTROL_ACTIONS, SAFE_KEY_CODE } from "./controls.ts";
 
 const num = z.number().finite();
 const pos = num.nonnegative();
@@ -18,6 +18,10 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+  /** V8b: faixa de legendas de som (GDD v0.3 §12.4) */
+  captions: z.object({ fade: pos, opacity_steps: z.number().int().positive() }).strict(),
+  /** D-45: teto da espera pelos personagens antes da partida (s) */
+  start_wait_s: pos.positive(),
   /** V8 (F2-08): menu de opções (GDD v0.3 §12.4) */
   options: z.object({
     intensity_step: num.positive().max(1), fov_step: num.positive(),
@@ -31,7 +35,7 @@ const UiSchema = z.object({
     sensitivity: z.object({ min: num.positive(), max: num.positive(), default: num.positive(), step: num.positive() }).strict()
       .refine(s => s.min <= s.default && s.default <= s.max, "sensitivity: min ≤ default ≤ max"),
     invert_y: z.boolean(),
-    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(/^[A-Za-z0-9]+$/))),
+    keyboard: z.record(z.enum(CONTROL_ACTIONS), z.array(z.string().regex(SAFE_KEY_CODE, "tecla fora do conjunto seguro (controls.ts SAFE_KEY_CODE)"))),
     toggle_run: z.boolean(), toggle_interact: z.boolean(),
     gamepad: z.object({
       deadzone: num.min(0).lt(1), look_speed: num.positive(), trigger_threshold: num.gt(0).max(1), menu_stick: num.gt(0).max(1),
@@ -284,12 +288,28 @@ const render = z.object({
     dust: z.object({ count: z.number().int().nonnegative(), box: pos.positive(), size_px: pos.positive(), opacity: unit, ambient: unit, color: token, fall: pos, sway: pos }).strict(),
   }).strict(),
   layer_cost_factor: num.min(1),
+  /** D-44 (b): pares ABBA, quadros, aquecimento descartado e IC por bootstrap determinístico do custo das camadas na CI */
+  cost_check: z.object({
+    pairs: z.number().int().min(5), frames: z.number().int().positive(), warmup: z.number().int().nonnegative(),
+    bootstrap_resamples: z.number().int().positive(), ci: num.positive().lt(1), seed: z.number().int(), ci_runner_margin: pos,
+    /** D-48: "warn" = resultado de falha do custo vira aviso visível e não reprova a CI; "fail" = reprova (D-44) */
+    ci_mode: z.enum(["warn", "fail"]),
+    /** D-49 (issue #59): diferença máxima de razão PR − main (mesmo job) no limite inferior do IC antes de reprovar */
+    main_delta: pos,
+  }).strict(),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */
   hunter_outline: z.object({ intensity: unit, color: token, amount: pos, power: num.positive() }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
-  models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
+  models: z.object({
+    survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive(),
+    /** D-45: modelo de reserva (caixas em metros) enquanto o .glb não chega */
+    fallback: z.object({
+      survivor: z.tuple([pos.positive(), pos.positive(), pos.positive()]), hunter: z.tuple([pos.positive(), pos.positive(), pos.positive()]),
+      eyes: z.tuple([pos.positive(), pos.positive(), pos.positive()]), eyes_below: pos,
+    }).strict(),
+  }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
   states: z.object({
     beam: z.object({ width: num.positive(), height: num.positive(), min_px: pos, snap: unit }).strict(),
@@ -449,6 +469,7 @@ export const BalanceSchema = z.object({
     target_switch_margin: pos, isolated_radius: pos, protected_radius: pos, // §8.3
     patrol_reach: pos.positive(), search_radius: pos, loop_band: pos, static_target_speed: pos, // técnicos (§8.1, §8.2, §8.4)
     search_samples: z.number().int().positive(), chase_projection: pos, memory_investigate_time: pos,      // técnicos (§8.1; D-35)
+    dash_reacquire_dist: pos.positive(),                                                                   // §8.4, §9.1 (R8 passo 1; LACUNA)
     by_difficulty: z.object({ easy: aiDifficulty, normal: aiDifficulty, hard: aiDifficulty, nightmare: aiDifficulty }).strict(), // §8.4
     loop_partial_laps_before_break: z.number().int().nonnegative(), // §8.4
     anti_stuck: z.object({ min_progress_ratio: z.number().min(0).max(1), window: pos.positive() }).strict(), // §8.6
@@ -464,7 +485,11 @@ export const BalanceSchema = z.object({
   net: z.record(z.string(), z.unknown()),
   sim: SimSchema,
   /** laço do cliente: passo fixo (GDD-v0.3 §13.3) com tetos por quadro */
-  client: z.object({ max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive() }).strict(),
+  client: z.object({
+    max_frame_dt: num.positive(), max_steps_per_frame: z.number().int().positive(),
+    /** px; mousemove com |movementX| ou |movementY| acima disso não gira a câmera (salto ao adquirir o pointer lock) */
+    mouse_max_delta: num.positive(),
+  }).strict(),
 }).strict();
 
 export type Balance = z.infer<typeof BalanceSchema>;
