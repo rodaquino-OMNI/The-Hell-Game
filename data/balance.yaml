@@ -838,6 +838,10 @@ ui:
   ftue_target_min: 10
   min_contrast: 4.5
   locales: [pt-BR, en, es]
+  # ---- V8b: faixa de legendas de som no HUD (GDD-v0.3 §12.4, §11 L218; dados de audio.captions, A-6) ----
+  # LACUNA (GDD e Art Bible não definem a saída da legenda). Proposta: esmaecer nos últimos 0,5 s em 5 degraus (no
+  # máximo 5 escritas de estilo por legenda, nada por quadro); com "reduzir flicker" some sem esmaecer
+  captions: {fade: 0.5, opacity_steps: 5}
   # ---- V8 (F2-08): menu de opções, controles e acessibilidade (GDD-v0.3 §12.2 e §12.4) ----
   options:
     # passo dos sliders de intensidade (render.ps1.*, render.layer_a.*: 0 a 1, GDD-v0.3 §10.1 e §10.2) e de volume

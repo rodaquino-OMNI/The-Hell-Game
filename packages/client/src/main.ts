@@ -3,11 +3,13 @@
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
 import { createGame, drainEvents, makeConfig, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
+import { getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
 import { installMuteKey } from "./audio/mute.ts";
 import { updateListener, updateSpatial } from "./audio/spatial.ts";
 import { $, balance, cfg, map, ruleset } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
+import { captionsFrame, setupCaptions } from "./hud/captions.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
@@ -89,6 +91,10 @@ function start() {
 setupInput(() => G);
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
+setupCaptions();
+/** gancho de teste das legendas (tools/a11y/axe.mjs; só com ?debug=1): publica a legenda de um efeito como se ele
+ *  tivesse tocado em `pos` (sem `pos`, sem direção), ouvida pelo jogador com a câmera atual */
+exposeDebugHook("__thehellCaptions", { emit: (name: string, pos?: { x: number; z: number }) => getCaptionBus().emit({ name, pos: pos ?? null, ear: G?.survivors[0] ?? null, yaw: view.yaw }) });
 startPadLoop(() => G);
 // mudo do master (D-41) na tecla da ação `mute` (remapeável, V8; padrão M), com aviso na linha de mensagens do HUD;
 // o slider de volume geral do menu de opções acompanha
@@ -111,6 +117,7 @@ function loop(now: number) {
     else if (e.type === "end") {
       save.co += e.coins; persist();
       document.exitPointerLock?.();
+      captionsFrame(false);
       showEnd(e);
     }
   }
@@ -134,6 +141,8 @@ function draw(dt: number) {
     updateSpatial(at);
     updateAudio(G, G.survivors[0].id, dt, at, view.yaw);
   }
+  // legendas de som (V8b): só esmaecer e aria-live; a lista é refeita quando o barramento avisa
+  captionsFrame(!G.over);
   hud(G, dt, view.yaw);
   if (urlRetro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);

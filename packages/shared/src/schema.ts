@@ -18,6 +18,8 @@ const UiSchema = z.object({
   fov: z.object({ min: pos, max: pos, default: pos }).strict(),
   tutorial_time: pos, ftue_target_min: pos, min_contrast: z.number().min(1).max(21),
   locales: z.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/)).min(1),
+  /** V8b: faixa de legendas de som (GDD v0.3 §12.4) */
+  captions: z.object({ fade: pos, opacity_steps: z.number().int().positive() }).strict(),
   /** V8 (F2-08): menu de opções (GDD v0.3 §12.4) */
   options: z.object({
     intensity_step: num.positive().max(1), fov_step: num.positive(),
