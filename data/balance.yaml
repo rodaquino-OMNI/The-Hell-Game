@@ -951,6 +951,12 @@ ui:
     font_default: normal
     # "redução de balanço de câmera" (GDD-v0.3 §12.4): multiplicador de render.retro.bob com a opção ligada (0 = zera)
     reduced_bob: 0
+  # ---- R6 (issue #66): resumo de pontos no fim da partida (GDD-v0.2 §7.1, categorias; GDD-v0.3 §12.4) ----
+  # contagem dos pontos de 0 até o valor (resposta 3b da issue #66). LACUNA (GDD v0.2/v0.3 e Art Bible não definem a
+  # duração). Proposta: 1,2 s para as 4 categorias e o total juntos; Enter/A pula para os valores finais; com
+  # "reduzir balanço de câmera" ligado ou prefers-reduced-motion do sistema os valores aparecem na hora
+  results:
+    count_up_s: 1.2
   # GDD-v0.3 §12.2: remapeamento de todas as ações, sensibilidade e inversão do eixo Y
   controls:
     mouse_rad_per_px: 0.0025        # rad por pixel de mouse com sensibilidade 1 (prototype/the-hell.html L114)
