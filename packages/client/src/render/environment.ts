@@ -7,7 +7,7 @@
 // Números em data/balance.yaml `render.layer_b` e `render.layer_c`; cores por token de data/art/palette.json.
 import * as THREE from "three";
 import { insideWall } from "@thehell/sim";
-import { balance, cfg, map } from "../data.ts";
+import { balance, cfg } from "../data.ts";
 import { paletteColor } from "./layers.ts";
 
 const rc = balance.render;
@@ -182,7 +182,7 @@ export function createAmbience(rand: () => number): Ambience {
   const group = new THREE.Group();
   group.name = "camada-c";
   const fb = lc.fog_billboards;
-  const [w, d] = map.size;
+  const [w, d] = cfg.map.size;
   const lerp = (r: readonly number[], u: number) => r[0] + (r[1] - r[0]) * u;
 
   const fogMat = new THREE.ShaderMaterial({

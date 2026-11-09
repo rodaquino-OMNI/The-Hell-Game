@@ -4,7 +4,7 @@
 // Números em data/balance.yaml `render.retro.industrial`; cores só por token world.industrial.* de data/art/palette.json.
 import * as THREE from "three";
 import { insideWall } from "@thehell/sim";
-import { balance, cfg, map } from "../../data.ts";
+import { balance, cfg } from "../../data.ts";
 import { tok, tokCss } from "../../look.ts";
 import { Ps1Material } from "../ps1.ts";
 
@@ -92,7 +92,7 @@ export interface Industrial {
  */
 export function lampPoints(): { x: number; z: number; rotY: number; fx: number; fz: number }[] {
   const out: { x: number; z: number; rotY: number; fx: number; fz: number }[] = [];
-  const [W, D] = map.size;
+  const [W, D] = cfg.map.size;
   for (const [wx, wz, ww, wd] of cfg.map.walls) {
     const alongX = ww >= wd, len = alongX ? ww : wd, half = (alongX ? wd : ww) / 2;
     const count = Math.max(1, Math.floor(len / ind.lamp_spacing));

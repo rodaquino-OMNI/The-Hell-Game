@@ -7,7 +7,7 @@ import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
 import { installMuteKey } from "./audio/mute.ts";
 import { updateListener, updateSpatial } from "./audio/spatial.ts";
-import { $, balance, cfg, map, ruleset } from "./data.ts";
+import { $, balance, cfg, map, mapFlags, ruleset } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { captionsFrame, setupCaptions } from "./hud/captions.ts";
 import { setupBottomLayout } from "./hud/layout.ts";
@@ -69,7 +69,7 @@ setupOptions(saved, refreshMenuText);
 function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
   gameCfg = currentOptions().puzzleAccessible
-    ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty() })
+    ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty(), ...(mapFlags ? { mapFlags } : {}) })
     : matchConfig(cfg);
   G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
   resetInput();
