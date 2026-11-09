@@ -2,7 +2,16 @@ name: Fumaça do staging
 # Portão de publicação (D-32, D-42): roda tools/smoke.mjs N vezes seguidas contra uma URL já publicada
 # (staging por padrão; produção depois do deploy), num runner limpo. Falha se qualquer execução falhar; sem retry.
 # Os logs e as capturas de cada execução ficam como artefato.
+# Gatilhos: (1) manual; (2) push de tag `fumaca-staging-*` (20 execuções; a integração das sessões não pode
+# disparar workflow_dispatch, ver docs/runbook.md); (3) depois de cada CI verde em main, que já fez o deploy de
+# staging (5 execuções, para não pesar nos minutos de runner).
 on:
+  push:
+    tags: ["fumaca-staging-*"]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       url:
@@ -24,6 +33,11 @@ jobs:
     name: Fumaça repetida contra a URL publicada
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    env:
+      # entradas só existem no disparo manual; tag → 20 execuções; depois da CI → 5
+      ALVO: ${{ inputs.url || 'https://the-hell-staging.fly.dev' }}
+      VEZES: ${{ inputs.runs || (github.event_name == 'push' && '20') || '5' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6.1.1 # v6.1.1 (03/11/2026) tem menos de 2 semanas
@@ -32,12 +46,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Versão servida
-        env: { URL: "${{ inputs.url }}" }
+        env: { URL: "${{ env.ALVO }}" }
         run: curl -fsS "$URL/healthz" | tee "$RUNNER_TEMP/healthz.json"
       - name: Fumaça × N
         env:
-          URL: ${{ inputs.url }}
-          RUNS: ${{ inputs.runs }}
+          URL: ${{ env.ALVO }}
+          RUNS: ${{ env.VEZES }}
         run: |
           case "$RUNS" in ''|*[!0-9]*) echo "runs inválido: $RUNS"; exit 1;; esac
           if [ "$RUNS" -lt 1 ] || [ "$RUNS" -gt 50 ]; then echo "runs fora de 1–50: $RUNS"; exit 1; fi
