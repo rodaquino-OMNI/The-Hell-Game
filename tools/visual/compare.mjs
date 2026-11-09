@@ -418,9 +418,16 @@ try {
         // lado do PR: tempo inválido é erro e reprova (costVerdict lança)
         const c = costVerdict(ms.pr.A, ms.pr.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
         console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento) ou limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : "AVISO (teto absoluto)"}`);
-        // com o PR já validado por costVerdict, erro aqui vem das medidas de main
-        const rel = await onMain(async () => costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC), `medida de main inválida (vista ${v.name})`);
+        // só as amostras de main são conferidas como "lado de main"; costVsMain roda fora de onMain, então um bug
+        // do próprio PR nessa conta (ou cost_check inválido) reprova em vez de virar aviso
+        await onMain(async () => {
+          for (const l of ["A", "B"]) {
+            const xs = ms.main[l];
+            if (xs.length !== ms.pr[l].length || !xs.every((t) => Number.isFinite(t) && t > 0)) throw new Error(`amostras ${l}: ${xs.length} de ${ms.pr[l].length}, alguma não finita ou ≤ 0`);
+          }
+        }, `medida de main inválida (vista ${v.name})`);
         if (mainError) break;
+        const rel = costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC);
         console.log(`custo × main (vista ${v.name}): main sem camadas ${median(ms.main.A).toFixed(1)} ms/quadro, A+B ${median(ms.main.B).toFixed(1)} ms/quadro, razão mediana ${x2(rel.mainMedian)}; diferença PR − main mediana ${d2(rel.median)}, IC ${Math.round(CC.ci * 100)}% [${d2(rel.lo)}, ${d2(rel.hi)}]; falha se limite inferior > ${d2(rel.delta)} → ${rel.verdict === "pass" ? "ok" : rel.verdict === "warn" ? "AVISO" : "FALHA"}`);
         summary(`**Custo das camadas, vista ${v.name}** (issue #59): PR ${x2(rel.prMedian)} × main ${x2(rel.mainMedian)} no mesmo job, diferença ${d2(rel.median)} [${d2(rel.lo)}, ${d2(rel.hi)}], limite ${d2(rel.delta)} → ${rel.verdict}. Máquina: ${machine}`);
         const out = gate({ rel, abs: c }, { view: v.name, baseMs: median(ms.pr.A), mainBaseMs: median(ms.main.A), ciLevel: CC.ci });
