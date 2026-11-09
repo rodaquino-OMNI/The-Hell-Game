@@ -86,11 +86,52 @@ noise:
   heal: 6
   generator_done: 25
 
-# ---------- 6. Pontos (GDD-v0.2 §2.3, §7.1 — só os implementados; propostas ficam desligadas) ----------
-points: {puzzle: 10, generator: 40, bonus_puzzle: 25, bonus_generator: 75}
+# ---------- 6. Pontos (GDD-v0.2 §2.3, §7.1) ----------
+# D-30 (a), 09/11/2026 (supervisão por delegação do Rodrigo): os 7 eventos [Proposta] do sobrevivente ficam ligados com
+# os valores do §7.1. D-31 (a): os 6 eventos do caçador ficam desligados até o caçador humano da fase 3 (D-09).
+# Cada evento credita quem fez, numa das 4 categorias do §7.1 (Objetivos, Altruísmo, Sobrevivência, Audácia).
+# O valor é multiplicado por `difficulty_table.<dif>.points_mult` (§7.3; 1 no protótipo) e arredondado.
+# LACUNA §7.1 × §7.3: o GDD não diz como arredondar (25 × 1,3 = 32,5). Padrão: `round` (meio para cima); `floor` trunca.
+# O arredondamento é POR EVENTO, não pelo total: um gerador bônus no Difícil dá 5 × 33 + 98 = 263 (pelo total seriam
+# 200 × 1,3 = 260); o placar e o evento `points` só carregam inteiros.
+# LACUNA §7.1: o GDD lista as categorias, mas não liga cada evento a uma; o mapeamento abaixo segue os emblemas de
+# DBD citados no §7.1 (conserto = Objetivos; resgate e cura = Altruísmo; escapar = Sobrevivência; perseguição,
+# bloqueio, atordoar e sabotagem = Audácia).
+# LACUNA §7.1 (créditos combinados, escolha conservadora): o parafuso conta só como "bloqueio ou parafuso útil" (+25),
+# não também como "atrasar o caçador" (+40), para não pagar duas vezes a mesma ação; "atrasar" fica sem gatilho próprio.
+# O Turbo do Mecânico (v1) conta como `puzzle` (avança um quebra-cabeça) e, se concluir o gerador, `generator`
+# (o protótipo não pontua o Turbo; paridade). Do lado do caçador, a captura que mata credita captura + abate e o golpe
+# que captura credita golpe + captura.
+points:
+  rounding: round
+  events:
+    puzzle:          {value: 10,  category: objectives, enabled: true}   # §7.1 [Implementado]
+    generator:       {value: 40,  category: objectives, enabled: true}   # §7.1 [Implementado] (P-12: 5 × 10 + 40 = 90)
+    bonus_puzzle:    {value: 25,  category: objectives, enabled: true}   # §7.1, §6.3 [Implementado]
+    bonus_generator: {value: 75,  category: objectives, enabled: true}   # §7.1, §6.3 [Implementado]
+    rescue:          {value: 60,  category: altruism,   enabled: true}   # §7.1 [Proposta] D-30: resgatar aliado
+    heal:            {value: 30,  category: altruism,   enabled: true, min_effective: 20}  # §7.1 [Proposta] D-30: por aliado, vida efetivamente curada ≥ 20
+    block_bolt:      {value: 25,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: bloqueio que anula golpe ou parafuso que acerta
+    stun:            {value: 40,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: golpe do Atacador que atordoa
+    chase_escape:    {value: 30,  category: boldness,   enabled: true, min_time: 15}  # §7.1 [Proposta] D-30: perseguição > 15 s sem ser capturado. LACUNA: perseguição > 15 s ainda em curso no fim da partida (limite de tempo ou caçador a 0) também credita quem segue livre
+    trap_disarm:     {value: 15,  category: boldness,   enabled: true}   # §7.1 [Proposta] D-30: desativar armadilha
+    escape:          {value: 100, category: survival,   enabled: true}   # §7.1 [Proposta] D-30: escapar
+  # Pontos do caçador (§7.1, linha sob a tabela; sem marca de status): desligados por D-31 (a) até a fase 3 (D-09).
+  # LACUNA §7.1: o GDD não dá categorias ao caçador; o placar dele é um total.
+  hunter_events:
+    capture:     {value: 50,  enabled: false}                # captura (sobrevivente vai à gaiola)
+    hit:         {value: 15,  enabled: false}                # golpe corpo a corpo que causa dano
+    kill:        {value: 100, enabled: false}                # abate (sobrevivente morre)
+    long_chase:  {value: 30,  enabled: false, min_time: 15}  # perseguição longa: captura ao fim de perseguição > 15 s
+    reveal:      {value: 20,  enabled: false}                # revelação eficaz: acerto em sobrevivente revelado (1 por revelação)
+    deny_rescue: {value: 40,  enabled: false}                # evitar resgate: acerto em quem está resgatando
 
 # ---------- 7. Economia (D-04 b: 1 moeda por ponto, skins 8× mais caras que no protótipo) ----------
-economy: {start_coins: 150, base_coins: 20, win_coins: 30, points_to_coins: 1.0}
+# moedas = base_coins + win_coins × vitória + pontos × points_to_coins (GDD-v0.2 §7.2; GDD-v0.3 D-04); pontos já com points_mult.
+# win_coins_to (v1): quem recebe o bônus de vitória quando a equipe vence. `alive` = todos os vivos do time vencedor
+# (comportamento do R1); `escaped` = só quem escapou. `alive`: decisão do Rodrigo 09/11/2026 (pergunta 1 da sessão
+# Visual), diverge da leitura literal do GDD v0.3 §3.3 item 1.
+economy: {start_coins: 150, base_coins: 20, win_coins: 30, points_to_coins: 1.0, win_coins_to: alive}
 skins:   # preço em moedas; protótipo: 0 / 100 / 80 / 120 / 150 / 200 / 250
   std: 0
   abo: 800
