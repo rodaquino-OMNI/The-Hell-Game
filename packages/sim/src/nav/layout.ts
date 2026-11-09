@@ -49,6 +49,14 @@ export function chooseLayout(map: GameMap, seed: number): LayoutChoice {
   return all[Math.floor(nextRandom(state) * all.length)];
 }
 
+/** mapa efetivo → mapa de topo de onde saiu (referência fora do objeto: não entra em JSON nem em toEqual) */
+const TOP = new WeakMap<GameMap, GameMap>();
+
+/** mapa de topo de um mapa efetivo de `mapForV1`; qualquer outro mapa volta como está */
+export function topMapOf(map: GameMap): GameMap {
+  return TOP.get(map) ?? map;
+}
+
 /** flags de mapa do ruleset v1 (`maps.v1`, item R7-mapas) */
 export type MapFlags = Balance["maps"]["v1"];
 
@@ -60,10 +68,13 @@ export type MapFlags = Balance["maps"]["v1"];
  * Sem flag ligada (ou mapa sem `v1`) devolve um mapa com os mesmos campos do topo, sem o bloco `v1`. O protótipo não
  * chama esta função (makeConfig usa o mapa de topo), então o layout 0 do protótipo não muda.
  */
-export function mapForV1(map: GameMap, flags: MapFlags): GameMap {
+export function mapForV1(input: GameMap, flags: MapFlags): GameMap {
+  // idempotente: um mapa efetivo (ex.: cfg.map passado de novo a makeConfig) remonta sempre a partir do mapa de topo
+  const map = topMapOf(input);
   const { v1: extra, ...base } = map;
   if (!extra) return map;
   const out: GameMap = { ...base };
+  TOP.set(out, map);
   if (flags.short_loop_pillars && extra.pillars?.length) {
     out.walls = [...map.walls, ...extra.pillars.map(w => [w[0], w[1], w[2], w[3]] as [number, number, number, number])];
     out.loops = [...(map.loops ?? []), ...(extra.short_loops ?? [])];

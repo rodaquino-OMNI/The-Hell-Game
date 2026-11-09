@@ -2,7 +2,7 @@
 // Nenhum número de jogo fica na simulação: todos vêm daqui.
 import type { Balance, GameMap } from "@thehell/shared";
 import { gridFromMap, type GridNav, type NavQuery } from "./nav/grid.ts";
-import { mapForV1 } from "./nav/layout.ts";
+import { mapForV1, topMapOf } from "./nav/layout.ts";
 
 export type Difficulty = Balance["difficulty"];
 export type HunterBrain = Balance["ai"]["hunter_brain"];
@@ -89,7 +89,8 @@ export interface ConfigOptions {
 export function makeConfig(balance: Balance, topMap: GameMap, opts: ConfigOptions = {}): SimConfig {
   const v1 = (opts.ruleset ?? balance.ruleset) === "v1";
   if (opts.mapFlags) balance = { ...balance, maps: { ...balance.maps, v1: { ...balance.maps.v1, ...opts.mapFlags } } };
-  const map = v1 ? mapForV1(topMap, balance.maps.v1) : topMap;
+  // makeConfig(balance, cfg.map) com um mapa já efetivo remonta do topo (sem pilares duplicados; o protótipo volta ao topo)
+  const map = v1 ? mapForV1(topMap, balance.maps.v1) : topMapOf(topMap);
   const difficulty = opts.difficulty ?? balance.difficulty;
   const h = balance.hunter;
   const brain: HunterBrain = v1 ? opts.hunterBrain ?? balance.ai.hunter_brain : "basic";

@@ -53,6 +53,22 @@ describe("flags de mapa do v1 (maps.v1)", () => {
   });
 });
 
+describe("montagem idempotente do mapa efetivo (makeConfig com cfg.map)", () => {
+  it("makeConfig(balance, makeConfig(balance, map).map) dá o mesmo cfg.map, com flags ligadas e desligadas", () => {
+    for (const flags of [ALL, NO_MAP_FLAGS, { short_loop_pillars: true }, { side_exit: true }]) {
+      const bal = withMapFlags(b, flags), once = makeConfig(bal, map, { ruleset: "v1" }).map;
+      const twice = makeConfig(bal, once, { ruleset: "v1" }).map;
+      expect(twice).toEqual(once);
+      expect(twice.walls).toHaveLength(map.walls.length + (bal.maps.v1.short_loop_pillars ? extra.pillars!.length : 0));
+      expect(twice.loops).toHaveLength(once.loops!.length);
+      expect(makeConfig(bal, once, { ruleset: "prototype" }).map).toBe(map);
+    }
+    // o mapa efetivo de uma combinação remonta com outras flags a partir do topo
+    const on = makeConfig(withMapFlags(b, ALL), map, { ruleset: "v1" }).map;
+    expect(makeConfig(withMapFlags(b, NO_MAP_FLAGS), on, { ruleset: "v1" }).map.walls).toEqual(map.walls);
+  });
+});
+
 describe("D-23: pilares com loops curtos de 8–12 m", () => {
   const c = cfgOf({ short_loop_pillars: true });
   it("pilares entram em walls do mapa efetivo e do layout resolvido; a arena traz as caixas para o cliente", () => {
