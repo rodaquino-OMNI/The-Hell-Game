@@ -190,6 +190,14 @@ const MapsSchema = z.object({
   hideouts_min: int.nonnegative(), generator_min_dist: pos,
   generator_layouts: z.tuple([int.positive(), int.positive()]), cage_positions: int.positive(), exits: int.positive(),
   layout_hunter_dist_spread_max: pos,
+  /** D-23 (GDD v0.3 §9.1): mínimo de loops curtos marcados no mapa do ruleset v1 com os pilares ligados */
+  short_loops_min: int.nonnegative(),
+  /**
+   * Item R7-mapas: mudanças de mapa só do ruleset v1, cada uma atrás de uma flag (o protótipo usa sempre o mapa de
+   * topo). fifth_generator = D-22 (5 obrigatórios para equipes de 4–5), short_loop_pillars = D-23 (pilares com loop
+   * curto), side_exit = D-25 (segunda saída na parede lateral).
+   */
+  v1: z.object({ fifth_generator: z.boolean(), short_loop_pillars: z.boolean(), side_exit: z.boolean() }).strict(),
 }).strict();
 
 const unit = num.min(0).max(1);
@@ -486,10 +494,23 @@ export const BalanceSchema = z.object({
 
 export type Balance = z.infer<typeof BalanceSchema>;
 
-/** saída: portão e linha que o sobrevivente cruza para escapar (lado do portão em relação à linha) */
-const ExitSchema = z.object({ gate: vec, exit_z: num }).strict();
+/**
+ * saída: portão e linha que o sobrevivente cruza para escapar (lado do portão em relação à linha). Parede norte/sul:
+ * linha z = exit_z; parede lateral (leste/oeste, D-25): linha x = exit_x. Exatamente um dos dois.
+ */
+const oneExitLine = (e: { exit_z?: number; exit_x?: number }) => (e.exit_z === undefined) !== (e.exit_x === undefined);
+const ExitSchema = z.object({ gate: vec, exit_z: num.optional(), exit_x: num.optional() }).strict()
+  .refine(oneExitLine, { message: "saída precisa de exatamente um entre exit_z e exit_x" });
 /** um layout de geradores (GDD v0.3 §9.3): obrigatórios e bônus */
-const GeneratorLayoutSchema = z.object({ generators: z.array(vec).min(1), bonus: z.array(vec) }).strict();
+const GeneratorLayoutSchema = z.object({
+  generators: z.array(vec).min(1),
+  bonus: z.array(vec),
+  /**
+   * D-22: obrigatórios para equipes maiores (`generator.by_team_size[n].required` acima de `generators.length`).
+   * Só no mapa efetivo do ruleset v1 (vem de `v1.large_team_generators` com `maps.v1.fifth_generator`).
+   */
+  large_team: z.array(vec).optional(),
+}).strict();
 /** loop marcado nos metadados (GDD v0.3 §9.1, §9.4): rota em volta de um obstáculo, polígono fechado */
 const LoopSchema = z.object({ id: z.string(), kind: z.enum(["short", "long"]), polygon: z.array(vec).min(3) }).strict();
 
@@ -508,7 +529,9 @@ export const MapSchema = z.object({
   bonus: z.array(vec),
   cage: vec,
   gate: vec,
-  exit_z: num,
+  /** linha da saída do topo (parede norte/sul); exit_x só aparece no mapa resolvido com saída lateral (D-25) */
+  exit_z: num.optional(),
+  exit_x: num.optional(),
   survivor_spawn: z.object({ origin: vec, spacing: pos }).strict(),
   /**
    * GDD v0.3 §9.4 (spawns): pontos explícitos de nascimento dos sobreviventes, 1 por jogador (até 5, §3.5).
@@ -528,15 +551,34 @@ export const MapSchema = z.object({
   /** GDD v0.3 §9.4: loops (polígono) e esconderijos nos metadados do mapa */
   loops: z.array(LoopSchema).optional(),
   hideouts: z.array(vec).optional(),
+  /**
+   * Item R7-mapas: acréscimos só do ruleset v1, cada um atrás da flag `maps.v1.*` (o layout 0 do protótipo não muda).
+   * large_team_generators (D-22): por layout de geradores, a lista de obrigatórios para a maior equipe (5).
+   * pillars + short_loops (D-23): caixas [x, z, largura, profundidade] somadas a `walls` e os loops curtos em volta.
+   * side_exit (D-25): troca a saída `layouts.exits[replaces]` por uma na parede lateral (linha x = exit_x).
+   */
+  v1: z.object({
+    large_team_generators: z.array(z.array(vec).min(1)).optional(),
+    pillars: z.array(z.tuple([num, num, pos, pos])).optional(),
+    short_loops: z.array(LoopSchema).optional(),
+    side_exit: z.object({ replaces: int.nonnegative(), gate: vec, exit_x: num }).strict().optional(),
+  }).strict().optional(),
 }).strict().superRefine((m, ctx) => {
+  if (!oneExitLine(m)) ctx.addIssue({ code: "custom", path: ["exit_z"], message: "mapa precisa de exatamente um entre exit_z e exit_x" });
   const l = m.layouts;
   if (!l) return;
   if (!sameVecs(l.generators[0].generators, m.generators) || !sameVecs(l.generators[0].bonus, m.bonus))
     ctx.addIssue({ code: "custom", path: ["layouts", "generators", 0], message: "layout 0 deve repetir generators/bonus do topo" });
   if (!sameVec(l.cages[0], m.cage))
     ctx.addIssue({ code: "custom", path: ["layouts", "cages", 0], message: "gaiola 0 deve repetir cage do topo" });
-  if (!sameVec(l.exits[0].gate, m.gate) || l.exits[0].exit_z !== m.exit_z)
+  if (!sameVec(l.exits[0].gate, m.gate) || l.exits[0].exit_z !== m.exit_z || l.exits[0].exit_x !== m.exit_x)
     ctx.addIssue({ code: "custom", path: ["layouts", "exits", 0], message: "saída 0 deve repetir gate/exit_z do topo" });
+  const big = m.v1?.large_team_generators;
+  if (big && big.length !== l.generators.length)
+    ctx.addIssue({ code: "custom", path: ["v1", "large_team_generators"], message: "uma lista por layout de geradores" });
+  const se = m.v1?.side_exit;
+  if (se && (se.replaces === 0 || se.replaces >= l.exits.length))
+    ctx.addIssue({ code: "custom", path: ["v1", "side_exit", "replaces"], message: "a saída lateral troca uma saída que não é a 0 (paridade)" });
 });
 export type GameMap = z.infer<typeof MapSchema>;
 export type MapExit = z.infer<typeof ExitSchema>;

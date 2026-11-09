@@ -309,6 +309,19 @@ maps:
   cage_positions: 2                 # §9.3
   exits: 2                          # §9.3
   layout_hunter_dist_spread_max: 0.2  # §9.3 aceite: (maior − menor) ÷ menor distância média caçador → geradores
+  short_loops_min: 1                # D-23 (Rodrigo, 09/11/2026; GDD-v0.2 §9.1 loops curtos 8–12 m): o mapa v1 com pilares tem ≥ 1 loop curto
+  # Item R7-mapas (docs/plano-construcao.md §7): mudanças de mapa só do ruleset v1, cada uma atrás de uma flag para
+  # medir o efeito isolado no simulador. O protótipo (ruleset: prototype) usa sempre o mapa de topo (paridade).
+  v1:
+    fifth_generator: true           # D-22 a: 5 obrigatórios para equipes de 4–5 (generator.by_team_size; GDD-v0.2 §3.5); inerte com 3 sobreviventes
+    # D-23 b e D-25 b: desligadas até o cliente desenhar cfg.map.walls e o portão lateral (coordenação com a sessão
+    # Visual; revisão do R7-mapas, B-1). Ligar quando o cliente desenhar cfg.map.walls e o portão lateral.
+    short_loop_pillars: false       # D-23 b: 2–3 pilares com loops curtos de 8–12 m (GDD-v0.2 §9.1)
+    side_exit: false                # D-25 b: segunda saída na parede lateral, longe dos spawns (GDD-v0.3 §9.3)
+    # LACUNA (revisão do R7-mapas): o pilar de 1 × 1 m deixa o caçador acertar sem linha de visão pela quina:
+    # alcance do golpe hunter.melee.range = 1,8 m contra ~1,45 m entre os centros de caçador e sobrevivente em lados
+    # opostos da quina (medido na revisão do R7-mapas); o golpe não confere linha de visão. Possível pilar de 1,6–2 m
+    # no R8 (a medir no simulador).
 
 # ---------- 14. Render (GDD-v0.3 §10) ----------
 render:
