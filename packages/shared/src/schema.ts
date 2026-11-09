@@ -24,8 +24,13 @@ const gain01 = num.min(0).max(1);
 /** GDD v0.3 §11 (música em camadas, vozes, oclusão, mixagem) e GDD v0.2 §11; barramentos e rampa: item A-1 do V5 */
 const AudioSchema = z.object({
   music: z.object({
-    stems: z.array(z.string().regex(/^[a-z_]+$/)).min(3).max(5),   // GDD-v0.2 §11: 3 a 5 stems
+    // GDD-v0.2 §11: 3 a 5 stems; cada um é um estado musical do A-2 (GDD-v0.3 §11), sem repetição
+    stems: z.array(z.enum(["ambient", "tension", "chase", "final_pressure", "rescue"])).min(3).max(5)
+      .refine(a => new Set(a).size === a.length, "stems repetidos"),
     tension_radius: pos.positive(), crossfade_bars: pos,
+    /** A-2: andamento e compasso (decisão do Rodrigo, 09/11/2026) e tom lido pelo A-3 */
+    bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
+    layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
   }).strict(),
   max_voices: z.number().int().positive(),
   occlusion_lowpass_hz: pos.positive(),
