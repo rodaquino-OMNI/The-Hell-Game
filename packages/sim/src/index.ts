@@ -10,7 +10,7 @@ export {
 } from "./ai/hunter.ts";
 export { perceive } from "./ai/percept.ts";
 export { chooseTarget, nearAttacker, utilityScore, utilityTerms, type TargetChoice, type UtilityTerms } from "./ai/utility.ts";
-export { chaseEpisodes, playHeadless, measureStuck, newStuckMeter, type HeadlessResult, type StuckMeter } from "./headless.ts";
+export { chaseEpisodes, playHeadless, playHeadlessReport, measureStuck, newStuckMeter, type HeadlessResult, type StuckMeter } from "./headless.ts";
 export {
   chasedTarget, closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, scaledPoints, scoreTotal, winsCoins,
 } from "./score.ts";
@@ -19,3 +19,8 @@ export { newBotAi, updateBotAi, type BotEffects } from "./ai/bots.ts";
 // TutorialTarget saem de types.ts
 export { rescueAllowed, skipTutorialStep, startTutorial, tutorialGoal, tutorialFrame, updateTutorial, type TutorialFrame } from "./tutorial.ts";
 export { TUTORIAL_STEPS } from "@thehell/shared";
+// relatório de playtest (R8): createGame(cfg, cls, seed, { report: true }) e matchReport(g) no fim
+export {
+  matchReport, newMatchLog, puzzleSolves, type PuzzleSolve, observeStep, reportConfig, REPORT_VERSION, type ChaseEnd, type ChaseRecord, type GeneratorReport, type MatchLog,
+  type MatchReport, type PuzzleRecord, type PuzzleResult,
+} from "./report.ts";

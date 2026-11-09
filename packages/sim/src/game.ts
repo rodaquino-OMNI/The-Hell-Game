@@ -10,6 +10,7 @@ import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
 import { canSee, lineOfSight } from "./perception.ts";
 import { nextRandom } from "./rng.ts";
+import { newMatchLog, observeStep, reportConfig } from "./report.ts";
 import { rescueAllowed, startTutorial, tutorialFrame, updateTutorial } from "./tutorial.ts";
 import { closeChase, coinsFor, credit, creditHunter, newScore, newScoreTrack, onCapture, onHeal, onHunterHit, trackScore, winsCoins } from "./score.ts";
 import {
@@ -74,6 +75,7 @@ export function createGame(cfg: SimConfig, playerClass: ClassName, seed: number,
     over: false, gens, survivors, hunter, arena, traps: [], projectiles: [], puzzle: null, nextId: 1, events: [],
   };
   if (tutorial) startTutorial(cfg, g);
+  if (opts.report) g.report = newMatchLog(cfg, g, tutorial ? "tutorial" : "normal");
   return g;
 }
 
@@ -539,6 +541,16 @@ function updateBot(cfg: SimConfig, g: GameState, s: Survivor, dt: number) {
 // ---------- passo da simulação (L132–L156) ----------
 
 export function step(cfg: SimConfig, g: GameState, input: PlayerInput, dt: number = STEP) {
+  const log = g.report;
+  if (!log || g.over) { stepGame(cfg, g, input, dt); return; }
+  // relatório de playtest (report.ts): ganchos de perseguição encadeados só neste passo e leitura do estado e dos
+  // eventos deste passo depois dele; nada disso muda a partida
+  const n0 = g.events.length, c = reportConfig(cfg, g, log);
+  stepGame(c, g, input, dt);
+  observeStep(c, g, log, g.events.slice(n0), dt);
+}
+
+function stepGame(cfg: SimConfig, g: GameState, input: PlayerInput, dt: number) {
   if (g.over) return;
   const b = cfg.balance, sv = b.survivor, px = b.prototype_extras, P = player(g), H = g.hunter;
   const tf = g.tutorial ? tutorialFrame(g) : null; // modo tutorial (D-34): foto do início do passo

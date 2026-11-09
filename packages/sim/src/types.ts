@@ -1,5 +1,6 @@
 // Tipos do estado da partida. Todo o estado é dado puro (serializável), sem DOM nem three.js.
 import type { Balance } from "@thehell/shared";
+import type { MatchLog } from "./report.ts";
 
 export const CLASSES = ["Curandeiro", "Mecânico", "Atacador"] as const;
 export type ClassName = (typeof CLASSES)[number];
@@ -359,7 +360,11 @@ export type GameEvent =
 
 /** modo da partida: normal (protótipo ou v1) ou o Treino do GDD-v0.3 §12.3 (D-34) */
 export type GameMode = "normal" | "tutorial";
-export interface GameOptions { mode?: GameMode }
+export interface GameOptions {
+  mode?: GameMode;
+  /** liga a coleta passiva do relatório de playtest (`g.report`, `matchReport`); não muda a partida */
+  report?: boolean;
+}
 /** etapa do Treino (`tutorial.steps` em data/balance.yaml, GDD-v0.3 §12.3) */
 export type TutorialStepName = Balance["tutorial"]["steps"][number];
 /** alvo da etapa: gerador (`id` = índice em `gens`) ou aliado preso (`id` = id do sobrevivente), com a posição */
@@ -421,6 +426,8 @@ export interface GameState {
   events: GameEvent[];
   /** só no modo tutorial (D-34); ausente na partida normal (o hash da partida normal não muda) */
   tutorial?: TutorialState;
+  /** só com `createGame(..., { report: true })`: acumulador do relatório de playtest (report.ts); ausente por padrão */
+  report?: MatchLog;
 }
 
 /** Entrada do jogador num passo. `interact`, `ability`, `attack` e os campos de `puzzle` são eventos de um quadro (borda de subida). */
