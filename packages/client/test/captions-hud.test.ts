@@ -11,6 +11,16 @@ import { captionHtml, captionOpacity, fadeWrites, liveFor } from "../src/hud/cap
 import { captionDuration, captionsEnabled, setCaptionDuration, setCaptionsEnabled } from "../src/audio/captions.ts";
 import { getBusVolume, setBusVolume } from "../src/audio/engine.ts";
 import { resetOwnedDefaults } from "../src/ui/options.ts";
+import { needsLift } from "../src/hud/layout.ts";
+
+describe("coluna do centro × painel de pings", () => {
+  it("sobe só quando as larguras se cruzam e o painel tem largura", () => {
+    const pings = { left: 8, right: 228, width: 220 };
+    expect(needsLift({ left: 200, right: 600 }, pings)).toBe(true);   // 800×600 com fonte grande
+    expect(needsLift({ left: 440, right: 840 }, pings)).toBe(false);  // 1280×720: a coluna começa depois dos pings
+    expect(needsLift({ left: 200, right: 600 }, { left: 0, right: 0, width: 0 })).toBe(false);
+  });
+});
 
 const cu = balance.ui.captions;
 const cap = (o: Partial<Caption>): Caption => ({ id: 1, key: "caption.hunter_steps", category: "hunter_steps", text: "Passos pesados: o caçador", dir: 2, intensity: 1, t: 0, ttl: 3, count: 1, priority: 1, ...o });

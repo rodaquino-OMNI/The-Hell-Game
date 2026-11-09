@@ -10,6 +10,7 @@ import { updateListener, updateSpatial } from "./audio/spatial.ts";
 import { $, balance, cfg, map, ruleset } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { captionsFrame, setupCaptions } from "./hud/captions.ts";
+import { setupBottomLayout } from "./hud/layout.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
@@ -101,6 +102,7 @@ setupInput(() => G);
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
 setupCaptions();
+setupBottomLayout();
 /** gancho de teste das legendas (tools/a11y/axe.mjs; só com ?debug=1): publica a legenda de um efeito como se ele
  *  tivesse tocado em `pos` (sem `pos`, sem direção), ouvida pelo jogador com a câmera atual, e escolhe o tempo na tela */
 exposeDebugHook("__thehellCaptions", {

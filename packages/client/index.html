@@ -91,6 +91,9 @@ body.retro #pings{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 #bot{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px;width:max-content;max-width:92vw;pointer-events:none}
 #bot>.p{position:static;pointer-events:auto}
 body.retro #bot{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+/* a coluna sobe acima do painel de pings quando as larguras se cruzam (hud/layout.ts; 8px = o gap da coluna) */
+#bot.lift{bottom:calc(14px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
+body.retro #bot.lift{bottom:calc(104px + 8px + var(--pings-lift,0px) + env(safe-area-inset-bottom,0px))}
 #cap{max-width:min(92vw,46ch)}
 #cap ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .cp{display:flex;align-items:center;gap:6px;max-width:100%;background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:3px 8px;overflow-wrap:anywhere}
