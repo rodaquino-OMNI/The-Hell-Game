@@ -432,19 +432,24 @@ render:
   # razão num run (IC [1,28, 1,32] com a dispersão do PR #53; [1,52, 1,53] no PR #68); para código igual com ruído
   # independente nos dois builds o IC da diferença fica em [−0,04, +0,05] (packages/client/test/cost-stats.test.ts),
   # então lo > 0,05 só com regressão real, e uma alta de 0,10 na razão do PR já reprova (mesmo teste).
-  # main_delta foi removido por D-51 (abaixo): a diferença de razão segue no log e no resumo do job, sem limite.
+  # main_delta virou main_ratio_delta com D-51 (abaixo), como metade do critério duplo.
   # Complemento de D-49 (supervisão por delegação do Rodrigo, 09/11/2026): sem build de main
   # utilizável (build ausente, main sem o gancho de custo, exceção do lado de main) a comparação não é feita e fica só
   # um aviso, sem portão absoluto (costGateOutcome em tools/visual/cost-stats.mjs)
-  # main_rel_delta (D-51, supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7; substitui
-  # main_delta): o portão contra main usa o ms/quadro ABSOLUTO com A+B, PR × main no mesmo job. Por rodada de
-  # crossOrder, rel = PR_AB / main_AB − 1; a CI reprova só se o limite inferior do IC (nível ci) da mediana de rel
-  # passar de main_rel_delta = 0,05 (+5%); aviso se a mediana passar. Motivo: a razão A+B ÷ sem camadas penaliza
-  # otimizar a base (o denominador encolhe e a razão sobe sem nada ficar mais lento); a razão e a comparação dela com
-  # main ficam só no log e no resumo do job. 0,05: o valor de D-51, o mesmo de main_delta; ruído independente nos dois
-  # builds com a dispersão do PR #53 dá IC de rel dentro de [−3%, +4%] para código igual, uma alta de 10% em A+B
-  # reprova e uma de 2% passa (packages/client/test/cost-stats.test.ts)
-  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_rel_delta: 0.05}
+  # main_rel_delta e main_ratio_delta (D-51 com a emenda do critério duplo, supervisão por delegação do Rodrigo,
+  # 09/11/2026; docs/plano-construcao.md §7; substitui o critério de D-49): por rodada de crossOrder, rel_AB =
+  # PR_AB / main_AB − 1 (ms/quadro com A+B) e Δrazão = razão do PR − razão de main (A+B ÷ sem camadas). A CI reprova
+  # só se os DOIS limites inferiores dos IC (nível ci) passarem: rel_AB > main_rel_delta (+5%) E Δrazão >
+  # main_ratio_delta (+0,05, o antigo main_delta); aviso se qualquer mediana passar do seu limite. Motivo: a razão
+  # sozinha penaliza otimizar a base (o denominador encolhe); rel_AB sozinho reprova um viés de quadro inteiro entre os
+  # builds (run 42578537893, PR #80, sem mudança de render: A+B 46,6 contra 49,4 ms/quadro, −5,7%, com Δrazão −0,01).
+  # Juntos, só a regressão das camadas reprova; uma lentidão só da base passa (aceito pela supervisão: perf:budget e o
+  # smoke cobrem). Ruído independente nos dois builds com a dispersão do PR #53: código igual dá IC de rel_AB dentro de
+  # [−3%, +4%]; +10% só em A+B reprova, +2% passa, +6% no quadro inteiro passa (packages/client/test/cost-stats.test.ts).
+  # warmup_rounds (D-51, investigação do viés): rodadas de crossOrder medidas e descartadas em cada vista antes das
+  # pairs rodadas, para os dois builds chegarem às medidas com o mesmo aquecimento (a aba do PR abre antes, e o PR já
+  # desenhou as capturas no mesmo navegador)
+  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_rel_delta: 0.05, main_ratio_delta: 0.05, warmup_rounds: 1}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,

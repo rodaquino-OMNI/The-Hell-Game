@@ -295,10 +295,14 @@ const render = z.object({
     /** D-48: "warn" = resultado de falha do custo vira aviso visível e não reprova a CI; "fail" = reprova (D-44) */
     ci_mode: z.enum(["warn", "fail"]),
     /**
-     * D-51 (substitui main_delta de D-49): diferença relativa máxima do ms/quadro com A+B, PR_AB / main_AB − 1 (mesmo
-     * job, pareada por rodada), no limite inferior do IC antes de reprovar
+     * D-51 (critério duplo, com main_ratio_delta): diferença relativa máxima do ms/quadro com A+B, PR_AB / main_AB − 1
+     * (mesmo job, pareada por rodada), no limite inferior do IC antes de reprovar
      */
-    main_rel_delta: pos,
+    main_rel_delta: num.positive(),
+    /** D-51 (critério duplo): diferença máxima de razão A+B ÷ sem camadas, PR − main, no limite inferior do IC */
+    main_ratio_delta: num.positive(),
+    /** D-51: rodadas de crossOrder medidas e descartadas por vista antes das medidas (aquecimento igual nos dois builds) */
+    warmup_rounds: z.number().int().nonnegative(),
   }).strict(),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */

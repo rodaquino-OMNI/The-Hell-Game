@@ -10,10 +10,12 @@
 //     de layer_cost_factor (o orçamento de hardware); "pass" caso contrário;
 //   - costOutcome / ghaWarning (D-48): com cost_check.ci_mode "warn" o "fail" vira aviso que não reprova; o texto do
 //     aviso vai numa anotação ::warning do GitHub Actions e no resumo do job;
-//   - crossOrder / judgeVsMain / costVsMain / vsMainOutcome / costInfo (issue #59, D-49; critério de D-51): o PR e o
-//     build de main medidos no mesmo job, em rodadas intercaladas; reprova só se o limite inferior do IC da diferença
-//     relativa do ms/quadro com A+B (PR_AB / main_AB − 1, pareada por rodada) passar de cost_check.main_rel_delta.
-//     A razão A+B ÷ sem camadas (e a comparação dela com main e com o teto de D-44) fica só no log e no resumo;
+//   - crossOrder / judgeVsMain / judgeDual / costVsMain / vsMainOutcome / costInfo (issue #59, D-49; critério duplo
+//     de D-51): o PR e o build de main medidos no mesmo job, em rodadas intercaladas; reprova só se os DOIS limites
+//     inferiores dos IC passarem: o da diferença relativa do ms/quadro com A+B (rel_AB = PR_AB / main_AB − 1, pareada
+//     por rodada) acima de cost_check.main_rel_delta E o da diferença de razão A+B ÷ sem camadas (razão do PR − razão
+//     de main, pareada por rodada) acima de cost_check.main_ratio_delta. Aviso se qualquer das medianas passar do seu
+//     limite. O teto absoluto de D-44 fica só no log e no resumo;
 //   - costGateOutcome (complemento de D-49, supervisão por delegação do Rodrigo, 09/11/2026): o desfecho do portão.
 //     Sem build de main utilizável (passo falhou, build ou render.layer_a ausentes, main sem o gancho de custo,
 //     servidor de main não subiu, exceção no meio da medida do lado de main) a comparação não é feita: só aviso
@@ -105,7 +107,6 @@ export function costOutcome(c, mode, { view, baseMs, ciLevel }) {
   if (mode !== "warn" && mode !== "fail") throw new Error(`costOutcome: ci_mode inválido (${mode})`);
   if (c.verdict === "pass") return { failing: false, warning: null };
   if (c.verdict === "fail" && mode === "fail") return { failing: true, warning: null };
-  const x2 = (n) => `${n.toFixed(2)}×`;
   const why = c.verdict === "fail"
     ? `limite inferior do IC acima do teto da CI ${x2(c.fail)}: reprovaria, mas ci_mode warn (D-48) não reprova`
     : `mediana acima do orçamento ${x2(c.budget)}, limite inferior do IC ≤ teto da CI ${x2(c.fail)}: aviso, não reprova`;
@@ -133,10 +134,9 @@ export function crossOrder(i) {
 }
 
 /**
- * decisão do portão contra main sobre o IC: "fail" se lo > delta (regressão certa em relação a main, medida na mesma
- * máquina); "warn" se a mediana > delta; senão "pass". Com D-51 o IC é o da diferença relativa do ms/quadro com A+B
- * (PR_AB / main_AB − 1) e delta = cost_check.main_rel_delta. Valor não finito ou delta negativo é erro (nunca "pass"
- * silencioso)
+ * decisão de UMA medida contra main sobre o IC: "fail" se lo > delta (regressão certa em relação a main, medida na
+ * mesma máquina); "warn" se a mediana > delta; senão "pass". Era o portão de D-49 (diferença de razão); com D-51 o
+ * portão é judgeDual, que combina as duas medidas. Valor não finito ou delta negativo é erro (nunca "pass" silencioso)
  */
 export function judgeVsMain({ median: med, lo }, delta) {
   if (![med, lo, delta].every(Number.isFinite) || delta < 0) {
@@ -148,12 +148,29 @@ export function judgeVsMain({ median: med, lo }, delta) {
 }
 
 /**
- * D-51 (supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): portão contra main no ms/quadro
- * ABSOLUTO com A+B. `pr` e `main` = { a, b } (ms por quadro sem camadas e com A+B; mesmo índice = mesma rodada de
- * crossOrder); `cfg` = render.cost_check (main_rel_delta, bootstrap_resamples, ci, seed). Por rodada, a diferença
- * relativa rel = PR_AB / main_AB − 1; IC por bootstrap da mediana de rel e decisão de judgeVsMain contra
- * main_rel_delta. A razão A+B ÷ sem camadas de cada build e a diferença (razão do PR − razão de main), com IC, saem
- * em `ratio` só para informação: a razão penaliza otimizar a base (o denominador encolhe), por isso não reprova
+ * critério duplo de D-51 (emenda da supervisão por delegação do Rodrigo, 09/11/2026): "fail" só se rel.lo > relDelta
+ * E ratio.lo > ratioDelta; "warn" se qualquer mediana passar do seu limite; senão "pass". rel_AB sozinho reprovaria
+ * um viés de quadro inteiro entre os dois builds (o run 42578537893 do PR #80 mediu −5,7% em A+B sem nada mudar no
+ * render); a razão sozinha reprovaria otimizar a base (o denominador encolhe). Exigir os dois isola a regressão das
+ * camadas. Valor não finito ou limite ≤ 0 é erro (nunca "pass" silencioso)
+ */
+export function judgeDual(rel, relDelta, ratio, ratioDelta) {
+  const v = [rel?.median, rel?.lo, ratio?.median, ratio?.lo, relDelta, ratioDelta];
+  if (!v.every(Number.isFinite) || !(relDelta > 0) || !(ratioDelta > 0)) {
+    throw new Error(`judgeDual: valor inválido (rel ${rel?.median}/${rel?.lo}, razão ${ratio?.median}/${ratio?.lo}, limites ${relDelta}/${ratioDelta})`);
+  }
+  if (rel.lo > relDelta && ratio.lo > ratioDelta) return "fail";
+  if (rel.median > relDelta || ratio.median > ratioDelta) return "warn";
+  return "pass";
+}
+
+/**
+ * D-51 (supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): portão contra main. `pr` e
+ * `main` = { a, b } (ms por quadro sem camadas e com A+B; mesmo índice = mesma rodada de crossOrder); `cfg` =
+ * render.cost_check (main_rel_delta, main_ratio_delta, bootstrap_resamples, ci, seed). Por rodada: rel_AB = PR_AB /
+ * main_AB − 1 (topo do objeto: rels, median, lo, hi, delta); diferença de razão = PR_B/PR_A − main_B/main_A (`ratio`:
+ * diffs, median, lo, hi, delta, prMedian, mainMedian); e, só para informação, rel_A = PR_A / main_A − 1 (`base`:
+ * indica viés de quadro inteiro entre os builds). Decisão de judgeDual
  */
 export function costVsMain(pr, main, cfg) {
   const n = pr.a.length;
@@ -167,48 +184,58 @@ export function costVsMain(pr, main, cfg) {
   const prRatios = pr.a.map((x, i) => pr.b[i] / x), mainRatios = main.a.map((x, i) => main.b[i] / x);
   const diffs = prRatios.map((r, i) => r - mainRatios[i]);
   const rci = bootstrapCi(diffs, boot);
-  if (![ci.median, ci.lo, ci.hi, rci.median, rci.lo, rci.hi].every(Number.isFinite)) throw new Error("costVsMain: IC não finito");
+  const baseRels = pr.a.map((x, i) => x / main.a[i] - 1);
+  const bci = bootstrapCi(baseRels, boot);
+  if (![ci, rci, bci].every(c => [c.median, c.lo, c.hi].every(Number.isFinite))) throw new Error("costVsMain: IC não finito");
+  const ratio = { diffs, ...rci, delta: cfg.main_ratio_delta, prMedian: median(prRatios), mainMedian: median(mainRatios) };
   return {
     rels, ...ci, delta: cfg.main_rel_delta,
     prAbMs: median(pr.b), mainAbMs: median(main.b), prBaseMs: median(pr.a), mainBaseMs: median(main.a),
-    ratio: { diffs, ...rci, prMedian: median(prRatios), mainMedian: median(mainRatios) },
-    verdict: judgeVsMain(ci, cfg.main_rel_delta),
+    ratio, base: { rels: baseRels, ...bci },
+    verdict: judgeDual(ci, cfg.main_rel_delta, ratio, cfg.main_ratio_delta),
   };
 }
 
-const x2 = (n) => `${n.toFixed(2)}×`, d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
-const p1 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n * 100).toFixed(1)}%`;
+/** formatos do log e do resumo: razão (1.30×), diferença de razão (+0.05) e diferença relativa (+5.0%) */
+export const x2 = (n) => `${n.toFixed(2)}×`;
+export const d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
+export const p1 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n * 100).toFixed(1)}%`;
 
 /**
- * o que a CI faz com a comparação com main (D-51). `rel` = costVsMain; `mode` = render.cost_check.ci_mode. Devolve
- * { failing, warnings }: failing só com rel.verdict "fail" e mode "fail"; warnings = textos de uma linha para a
- * anotação e o resumo do job (rel "warn", rel "fail" em modo warn). A razão A+B ÷ sem camadas e o teto absoluto de
- * D-44 não entram aqui (são informativos: costInfo). `ctx` = { view, ciLevel }
+ * o que a CI faz com a comparação com main (D-51, critério duplo). `rel` = costVsMain; `mode` =
+ * render.cost_check.ci_mode. Devolve { failing, warnings }: failing só com rel.verdict "fail" e mode "fail"; warnings
+ * = textos de uma linha para a anotação e o resumo do job (verdict "warn", ou "fail" em modo warn), com as duas
+ * medidas. O teto absoluto de D-44 não entra aqui (informativo: costInfo). `ctx` = { view, ciLevel }
  */
 export function vsMainOutcome(rel, mode, { view, ciLevel }) {
   if (mode !== "warn" && mode !== "fail") throw new Error(`vsMainOutcome: ci_mode inválido (${mode})`);
-  const pct = Math.round(ciLevel * 100);
   const warnings = [];
   const failing = rel.verdict === "fail" && mode === "fail";
   if (rel.verdict !== "pass" && !failing) {
     const why = rel.verdict === "fail"
-      ? `limite inferior do IC acima de ${p1(rel.delta)}: reprovaria, mas ci_mode warn não reprova`
-      : `mediana acima de ${p1(rel.delta)}, limite inferior do IC ≤ ${p1(rel.delta)}: aviso, não reprova`;
-    warnings.push(`vista ${view}: A+B ${rel.prAbMs.toFixed(1)} ms/quadro no PR × ${rel.mainAbMs.toFixed(1)} em main no mesmo job, diferença relativa mediana ${p1(rel.median)}, IC ${pct}% [${p1(rel.lo)}, ${p1(rel.hi)}]; ${why}`);
+      ? `os dois limites inferiores acima dos limites: reprovaria, mas ci_mode warn não reprova`
+      : `mediana acima do limite em ${[rel.median > rel.delta && "rel_AB", rel.ratio.median > rel.ratio.delta && "Δrazão"].filter(Boolean).join(" e ")}, sem os dois limites inferiores acima: aviso, não reprova`;
+    warnings.push(`vista ${view}: ${gateText(rel, ciLevel)}; ${why}`);
   }
   return { failing, warnings };
 }
 
+/** as duas medidas do portão de D-51 numa linha: rel_AB e Δrazão com mediana, IC e limite */
+function gateText(rel, ciLevel) {
+  const pct = Math.round(ciLevel * 100), r = rel.ratio;
+  return `rel_AB (A+B ${rel.prAbMs.toFixed(1)} ms/quadro no PR × ${rel.mainAbMs.toFixed(1)} em main) mediana ${p1(rel.median)}, IC ${pct}% [${p1(rel.lo)}, ${p1(rel.hi)}], limite ${p1(rel.delta)}; Δrazão (PR ${x2(r.prMedian)} × main ${x2(r.mainMedian)}) mediana ${d2(r.median)}, IC ${pct}% [${d2(r.lo)}, ${d2(r.hi)}], limite ${d2(r.delta)}`;
+}
+
 /**
- * linha informativa para o log e o resumo do job (D-51): o portão (ms/quadro com A+B, PR × main) e, só para
- * informação, a razão A+B ÷ sem camadas dos dois builds com a diferença e o IC, e a razão do PR contra o teto
- * absoluto de D-44 (`abs` = costVerdict do PR). Nada daqui reprova nem vira anotação
+ * linha para o log e o resumo do job, SEMPRE impressa por vista (D-51, para acompanhar a taxa de avisos): rel_AB e
+ * Δrazão com mediana e IC (o portão duplo) e o desfecho; só para informação, rel_A (sem camadas, PR ÷ main − 1: viés
+ * de quadro inteiro entre os builds) e a razão do PR contra o orçamento e o teto de D-44 (`abs` = costVerdict do PR).
+ * Nada daqui reprova nem vira anotação
  */
 export function costInfo(rel, abs, { view, ciLevel }) {
-  const pct = Math.round(ciLevel * 100), r = rel.ratio;
-  const gate = `A+B ${rel.prAbMs.toFixed(1)} ms/quadro no PR × ${rel.mainAbMs.toFixed(1)} em main, diferença relativa ${p1(rel.median)} [${p1(rel.lo)}, ${p1(rel.hi)}], limite ${p1(rel.delta)} → ${rel.verdict}`;
-  const info = `informativo: sem camadas ${rel.prBaseMs.toFixed(1)} × ${rel.mainBaseMs.toFixed(1)} ms/quadro; razão A+B ÷ sem camadas PR ${x2(r.prMedian)} × main ${x2(r.mainMedian)}, diferença ${d2(r.median)} [${d2(r.lo)}, ${d2(r.hi)}]; razão do PR ${x2(abs.median)} [${x2(abs.lo)}, ${x2(abs.hi)}] contra o orçamento ${x2(abs.budget)} e o teto ${x2(abs.fail)} de D-44 → ${abs.verdict} (não reprova)`;
-  return `vista ${view}: ${gate} (IC ${pct}%, D-51); ${info}`;
+  const pct = Math.round(ciLevel * 100), b = rel.base;
+  const info = `informativo: sem camadas ${rel.prBaseMs.toFixed(1)} × ${rel.mainBaseMs.toFixed(1)} ms/quadro, rel_A ${p1(b.median)} [${p1(b.lo)}, ${p1(b.hi)}]; razão do PR ${x2(abs.median)} [${x2(abs.lo)}, ${x2(abs.hi)}] contra o orçamento ${x2(abs.budget)} e o teto ${x2(abs.fail)} de D-44 → ${abs.verdict} (não reprova)`;
+  return `vista ${view}: ${gateText(rel, ciLevel)} → ${rel.verdict} (IC ${pct}%, D-51: reprova só com os dois limites inferiores acima); ${info}`;
 }
 
 /** título da anotação ::warning do portão de custo das camadas (D-49; critério de D-51) */
