@@ -15,7 +15,8 @@
 //   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
 //   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720);
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
-//     fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A.
+//     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
+//     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A.
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [url]
 //   --update  regrava as referências (revisar as imagens antes de commitar)
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
@@ -55,6 +56,8 @@ const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };
  * do objeto
  */
 const LEG = { view: { yaw: 0.52, pitch: -0.1, thirdPerson: true }, distance: 8, angle: 40, diff: 12 };
+/** a mesma cena com o caçador dentro do cone da lanterna (D-18): `angle`° à esquerda da vista */
+const LEG_IN = { ...LEG, angle: 8 };
 /** tolerância: diferença máxima por canal considerada igual e fração máxima de pixels fora dela */
 const TOL = { channel: 2, fraction: 0.001 };
 const ALL = (v) => ({ snap: v, affine: v, gouraud: v, dither: v });
@@ -149,6 +152,8 @@ function cpuMs(pids) {
 const BAYER_MIN = 3;
 /** intensidades padrão da camada A (data/balance.yaml render.layer_a) */
 const layerADefaults = Object.fromEntries(LAYER_A.map(e => [e, balance.render.layer_a[e]]));
+/** intensidade padrão do contorno do caçador (D-18; data/balance.yaml render.hunter_outline) */
+const outlineDefault = balance.render.hunter_outline.intensity;
 
 async function openGame(browser, preset, viewport) {
   const [w, h] = balance.render.presets[preset].internal;
@@ -170,17 +175,18 @@ async function openGame(browser, preset, viewport) {
  * padrão as de render.layer_a), `o.reduceFlicker`, `o.damage` (pulso de dano) e `o.time` (relógio dos efeitos)
  */
 async function capture(page, ps1, o = {}) {
-  const r = await page.evaluate(([ps1, view, o, layerA0]) => {
+  const r = await page.evaluate(([ps1, view, o, layerA0, outline0]) => {
     const h = window.__thehellRender;
     h.setPs1(ps1);
     h.setPreset(h.info().preset);
     if (o.layers) h.setLayers(o.layers);
     h.setLayerA({ ...layerA0, ...(o.layerA ?? {}) });
     h.setReduceFlicker(o.reduceFlicker ?? false);
+    h.setHunterOutline(o.outline ?? outline0);
     h.setOverrides({ damage: o.damage ?? 0, time: o.time ?? null });
     const c = h.capture(view);
     return { ...c, info: h.info(), t: window.__thehell().t };
-  }, [ps1, VIEW, o, layerADefaults]);
+  }, [ps1, VIEW, o, layerADefaults, outlineDefault]);
   return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")), info: r.info, t: r.t };
 }
 
@@ -307,22 +313,29 @@ try {
   // Cena de prova: o caçador a LEG.distance m da vista LEG.view, fora do cone da lanterna (LEG.angle), contra o muro.
   //  - olhos no preparo (telegraph do V3) e feixe de gerador: contraste WCAG ≥ render.legibility.min_contrast
   //    contra o mesmo pixel sem o objeto;
-  //  - corpo do caçador: a camada A não pode tirar mais que render.legibility.body_keep do contraste que ele tem
-  //    sem ela (o contraste absoluto no escuro é da luz e dos tokens, marco A3)
+  //  - corpo do caçador (sem o contorno, a mesma medida de antes de D-18): a camada A não pode tirar mais que
+  //    render.legibility.body_keep do contraste que ele tem sem ela;
+  //  - corpo do caçador com o contorno (D-18, render.hunter_outline): ≥ render.legibility.min_contrast fora do cone
+  //    (LEG) e dentro dele (LEG_IN), com a camada A ligada; o contraste sem o contorno vai no relatório (antes/depois).
+  //    Com o contorno, a fração conservada é só informativa: as scanlines escurecem a linha em valor de tela
+  //    (≈ 0,8 em luminância linear) e o tom das sombras da LUT ergue o fundo, então todo corpo claro o bastante para
+  //    3:1 conserva ≈ 0,89 (medido em 09/11/2026 de 0,87 a 0,91 em potências 0,7 a 3); quem garante a leitura com a
+  //    camada A ligada é o mínimo absoluto
   {
     const lg = balance.render.legibility;
     const probe = async (o) => {
-      const r = await med.evaluate(([LEG, o, a0]) => {
+      const r = await med.evaluate(([LEG, o, a0, outline0]) => {
         const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
         h.setPreset(h.info().preset);
         h.setLayerA(o.layerA ?? a0);
+        h.setHunterOutline(o.outline ?? outline0);
         h.setOverrides({ damage: 0, time: null });
         const a = LEG.view.yaw + LEG.angle * Math.PI / 180;
         H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
         H.a = Math.atan2(P.x - H.x, P.z - H.z);
         H.windup = o.windup ? { kind: "melee", t: 0, total: 0.4 } : null;
         return h.capture(LEG.view, { hidden: o.hidden ?? [] });
-      }, [LEG, o, layerADefaults]);
+      }, [o.leg ?? LEG, o, layerADefaults, outlineDefault]);
       return { width: r.width, height: r.height, rgba: new Uint8Array(Buffer.from(r.rgba, "base64")) };
     };
     const lum = (p, i) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(p[i]) + 0.7152 * f(p[i + 1]) + 0.0722 * f(p[i + 2]); };
@@ -333,13 +346,25 @@ try {
         const d = Math.abs(a.rgba[i] - b.rgba[i]) + Math.abs(a.rgba[i + 1] - b.rgba[i + 1]) + Math.abs(a.rgba[i + 2] - b.rgba[i + 2]);
         if (d > LEG.diff) { n++; lf += lum(fg.rgba, i); lb += lum(bg.rgba, i); }
       }
-      if (!n) return { n, cr: 0 };
+      if (!n) return { n, cr: 0, lf: 0, lb: 0 };
       lf /= n; lb /= n;
-      return { n, cr: (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05) };
+      return { n, cr: (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05), lf, lb };
     };
     const A0 = A_ALL(0);
-    const bg = await probe({ hidden: ["hunter"] }), body = await probe({}), bgOff = await probe({ hidden: ["hunter"], layerA: A0 }), bodyOff = await probe({ layerA: A0 });
-    const cb = contrast(body, bg, body, bg), cb0 = contrast(bodyOff, bgOff, bodyOff, bgOff);
+    const bg = await probe({ hidden: ["hunter"] }), bgOff = await probe({ hidden: ["hunter"], layerA: A0 });
+    const bare = await probe({ outline: 0 }), bareOff = await probe({ layerA: A0, outline: 0 });
+    const cb = contrast(bare, bg, bare, bg), cb0 = contrast(bareOff, bgOff, bareOff, bgOff);
+    // D-18: o corpo com o contorno, fora e dentro do cone. A máscara de pixels do caçador vem sempre da captura sem o
+    // contorno (a borda não aumenta a área medida)
+    const body = await probe({}), bodyOff = await probe({ layerA: A0 });
+    const cbRim = contrast(bare, bg, body, bg), cbRim0 = contrast(bareOff, bgOff, bodyOff, bgOff);
+    const bgIn = await probe({ leg: LEG_IN, hidden: ["hunter"] }), bareIn = await probe({ leg: LEG_IN, outline: 0 }), bodyIn = await probe({ leg: LEG_IN });
+    const ci = contrast(bareIn, bgIn, bodyIn, bgIn), ciBare = contrast(bareIn, bgIn, bareIn, bgIn);
+    const fmt = (c) => `${c.cr.toFixed(2)}:1 (Y ${c.lf.toFixed(4)} × fundo ${c.lb.toFixed(4)}, ${c.n} px)`;
+    console.log(`legibilidade D-18 (contorno ${outlineDefault}): fora do cone ${fmt(cbRim)} (sem camada A ${cbRim0.cr.toFixed(2)}:1, conserva ${(cbRim.cr / cbRim0.cr).toFixed(3)}), sem contorno ${fmt(cb)}; dentro do cone ${fmt(ci)}, sem contorno ${fmt(ciBare)}`);
+    if (!ci.n) fail("legibilidade: caçador fora da cena de prova dentro do cone");
+    if (cbRim.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador fora do cone com contraste ${cbRim.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
+    if (ci.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador dentro do cone com contraste ${ci.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
     // olhos e feixe: os pixels do objeto vêm de capturas sem bloom (o halo não entra na média); a luminância, das
     // capturas com a camada A completa
     const noBloom = { ...layerADefaults, bloom: 0 };
@@ -351,7 +376,7 @@ try {
       const c = contrast(await probe({ hidden: ["hunter"], layerA: noBloom }), await probe({ hidden: hid, layerA: noBloom }), bg, await probe({ hidden: hid }));
       if (c.n > beam.n) { beam = c; beamId = i; }
     }
-    console.log(`legibilidade: corpo do caçador ${cb.cr.toFixed(2)}:1 (sem camada A ${cb0.cr.toFixed(2)}:1, ${cb.n} px); olhos no preparo ${ce.cr.toFixed(2)}:1 (${ce.n} px); feixe ${beamId} ${beam.cr.toFixed(2)}:1 (${beam.n} px); mínimo ${lg.min_contrast}:1, corpo ≥ ${lg.body_keep} do contraste sem a camada A`);
+    console.log(`legibilidade: corpo do caçador sem contorno ${cb.cr.toFixed(2)}:1 (sem camada A ${cb0.cr.toFixed(2)}:1, ${cb.n} px); olhos no preparo ${ce.cr.toFixed(2)}:1 (${ce.n} px); feixe ${beamId} ${beam.cr.toFixed(2)}:1 (${beam.n} px); mínimo ${lg.min_contrast}:1, corpo ≥ ${lg.body_keep} do contraste sem a camada A`);
     if (!cb.n || !ce.n || !beam.n) fail("legibilidade: caçador, olhos ou feixe fora da cena de prova");
     if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
     if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
