@@ -7,7 +7,9 @@
 // Issue #66: Pesadelo com a cor de perigo, ícone por categoria, total grande, contagem de 0 ao valor congelada no
 // meio pelo gancho `window.__thehellResults` (Enter pula sem recarregar; o foco já está em "Jogar de novo") e
 // valores na hora com "reduzir balanço de câmera".
-//   --shots  grava r6-dificuldade.png, r6-fim-contando.png e r6-fim.png (1280×720, deviceScaleFactor 2)
+// Relatório de playtest (ui/report.ts, só com ?debug=1): "Copiar relatório" e "Baixar .json" na tela de fim (ordem do
+// Tab, alvos, aria-live, falha da área de transferência, nome e conteúdo do arquivo) sem pular a contagem (reportCheck).
+//   --shots  grava r6-dificuldade.png, r6-fim-contando.png, r6-fim-relatorio.png e r6-fim.png (1280×720, deviceScaleFactor 2)
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -35,6 +37,61 @@ const PICK = Object.keys(balance.difficulty_table)[2];
 /** tempo de jogo (s de simulação) antes de encerrar a partida pelo gancho */
 const PLAY_S = 4;
 
+/**
+ * relatório de playtest (ui/report.ts; só com ?debug=1): "Copiar relatório" e "Baixar .json" depois de "Jogar de novo"
+ * na ordem do Tab, alvos ≥ 24 px (WCAG 2.2 2.5.8), aviso em aria-live polite, falha da área de transferência com o
+ * download ainda disponível, nome do arquivo e conteúdo (JSON de matchReport). Roda com a contagem congelada: ativar
+ * os botões (Enter, clique) e Esc neles não pulam a contagem nem recarregam a página. Volta o foco a "Jogar de novo"
+ */
+async function reportCheck(page, game) {
+  const counting = async () => (await game(() => window.__thehellResults.state()))?.counting === true;
+  await page.evaluate(() => { window.__rptNoReload = true; });
+  const order = await page.$$eval("#end button", bs => bs.map(b => b.id));
+  check(order.join() === "again,rptc,rptd", `tela de fim: botões fora da ordem esperada: ${order}`);
+  check((await page.textContent("#rptc")) === T["report.copy"] && (await page.textContent("#rptd")) === T["report.download"], "relatório: rótulos fora do catálogo");
+  check((await page.getAttribute("#rpts", "aria-live")) === "polite", "relatório: aviso sem aria-live polite");
+  for (const id of ["rptc", "rptd"]) {
+    const r = await page.$eval(`#${id}`, b => { const x = b.getBoundingClientRect(); return { w: x.width, h: x.height }; });
+    check(r.w >= 24 && r.h >= 24, `relatório: #${id} menor que 24 px: ${JSON.stringify(r)}`);
+  }
+  await page.keyboard.press("Tab");
+  check((await page.evaluate(() => document.activeElement?.id)) === "rptc", "Tab de Jogar de novo não foi para Copiar relatório");
+  // copiar: Enter no botão; o JSON na área de transferência é o relatório desta partida
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.getElementById("rpts")?.textContent, null, { timeout: 5000 });
+  check((await page.textContent("#rpts")) === T["report.copied"], `relatório: aviso "${await page.textContent("#rpts")}"`);
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  let rep = null;
+  try { rep = JSON.parse(clip); } catch { fail(`relatório copiado não é JSON: ${clip.slice(0, 80)}`); }
+  check(rep?.seed === SEED && rep?.difficulty === PICK && rep?.over === true, `relatório copiado sem seed/dificuldade/fim: ${JSON.stringify({ seed: rep?.seed, difficulty: rep?.difficulty, over: rep?.over })}`);
+  check(await counting(), "Enter em Copiar relatório pulou a contagem");
+  // Esc no botão não quebra a tela
+  await page.keyboard.press("Escape");
+  check(await page.isVisible("#end") && (await counting()), "Esc em Copiar relatório fechou a tela ou pulou a contagem");
+  // área de transferência negada: mensagem de erro, download continua
+  await page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new DOMException("negado", "NotAllowedError")) } }); });
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((m) => document.getElementById("rpts")?.textContent === m, T["report.copy_failed"], { timeout: 5000 }).catch(async () => fail(`relatório: sem aviso de falha (veio "${await page.textContent("#rpts")}")`));
+  check(await counting(), "Enter em Copiar relatório (falha) pulou a contagem");
+  await page.keyboard.press("Tab");
+  check((await page.evaluate(() => document.activeElement?.id)) === "rptd", "Tab não foi para Baixar .json");
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.keyboard.press("Enter")]);
+  const name = dl.suggestedFilename();
+  check(new RegExp(`^the-hell-${SEED}-${PICK}-\\d{8}-\\d{4}\\.json$`).test(name), `nome do arquivo: ${name}`);
+  const path = await dl.path();
+  const saved = JSON.parse(readFileSync(path, "utf8"));
+  check(saved.seed === SEED && saved.difficulty === PICK && JSON.stringify(saved) === JSON.stringify(rep), "arquivo baixado diferente do relatório copiado");
+  check(await counting(), "Enter em Baixar .json pulou a contagem");
+  // clique (mouse) também não pula
+  await page.click("#rptd").catch(() => {});
+  check(await counting(), "clique em Baixar .json pulou a contagem");
+  check(await page.evaluate(() => window.__rptNoReload === true), "botões do relatório recarregaram a página");
+  if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-relatorio.png") });
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Shift+Tab");
+  check((await page.evaluate(() => document.activeElement?.id)) === "again", "Shift+Tab não voltou para Jogar de novo");
+}
+
 let server;
 if (!url) {
   url = "http://127.0.0.1:18086";
@@ -49,6 +106,8 @@ const check = (ok, m) => { if (!ok) fail(m); };
 try {
   const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const ctx = await browser.newContext({ locale: "pt-BR", viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
+  // área de transferência liberada (o relatório copiado é conferido; a falha é simulada depois)
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -154,6 +213,7 @@ try {
   }
   check((await page.textContent("#rstot .rsv")) === fmt(Math.round(total * MID)), "contagem: total visível fora da fração");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-contando.png") });
+  await reportCheck(page, game);
   // Enter em "Jogar de novo" durante a contagem só pula para os finais (não recarrega a página)
   await page.evaluate(() => { window.__r6NoReload = true; });
   await page.keyboard.press("Enter");

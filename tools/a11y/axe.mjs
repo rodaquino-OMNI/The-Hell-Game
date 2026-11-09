@@ -391,6 +391,9 @@ async function endCountCheck(page, locale, pt) {
   const st = await game(page, () => window.__thehellResults.state());
   if (!st?.counting) { fail(`${n}: contagem não estava em andamento: ${JSON.stringify(st)}`); return; }
   if ((await active(page)) !== "again") fail(`${n}: foco não foi para "Jogar de novo" durante a contagem`);
+  // relatório de playtest (ui/report.ts; só com ?debug=1): os botões e o aviso aria-live entram no axe desta tela
+  const rpt = await page.$$eval("#end button", bs => bs.map(b => b.id).join());
+  if (rpt !== "again,rptc,rptd" || (await page.getAttribute("#rpts", "aria-live")) !== "polite") fail(`${n}: botões do relatório ausentes ou fora de ordem: ${rpt}`);
   await axe(page, `${n}-contando`);
   if (pt) await shot(page, "fim-v1-contando");
   await page.evaluate(() => { window.__a11yNoReload = true; });

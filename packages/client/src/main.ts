@@ -1,7 +1,7 @@
 // Cliente THE HELL (fase 0): porte da tela do protótipo (prototype/the-hell.html) sobre a simulação de @thehell/sim.
 // A lógica de jogo está toda em packages/sim; este arquivo só orquestra o laço. Entrada em input.ts, render em render/,
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
-import { createGame, drainEvents, makeConfig, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
+import { createGame, drainEvents, makeConfig, matchReport, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
 import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
@@ -38,6 +38,7 @@ import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
 import { afterLoadIdle, startGate } from "./ui/start-gate.ts";
 import { charactersReady } from "./render/characters/runtime.ts";
 import { prefetchMatchCharacters } from "./render/characters/actors.ts";
+import { reportEnabled, reportOptions } from "./ui/report.ts";
 import { holdCount, resultsCount } from "./ui/results.ts";
 import { persist, save } from "./ui/shop.ts";
 
@@ -75,7 +76,8 @@ function init() {
   gameCfg = currentOptions().puzzleAccessible
     ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty(), ...(mapFlags ? { mapFlags } : {}) })
     : matchConfig(cfg);
-  G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
+  // relatório de playtest (R8; ui/report.ts): a coleta só liga com ?debug=1; sem ela, nenhuma opção
+  G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0), reportOptions());
   resetInput();
   buildActors(ctx, G, save.eq);
   if (urlStress) stress = buildStress(ctx, G);
@@ -172,7 +174,9 @@ function loop(now: number) {
       save.co += e.coins; persist();
       document.exitPointerLock?.();
       captionsFrame(false);
-      showEnd(e);
+      // relatório de playtest (só com ?debug=1): semente e dificuldade do nome do arquivo saem do próprio relatório
+      const r = reportEnabled() && G.report ? matchReport(G) : null;
+      showEnd(e, r ? { json: JSON.stringify(r), seed: r.seed, difficulty: r.difficulty } : null);
     }
   }
   tickTimers(dt);
