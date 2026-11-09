@@ -299,12 +299,15 @@ describe("determinismo do modo tutorial", () => {
     const r = playTutorial(c, "Mecânico", seed);
     return createHash("sha256").update(JSON.stringify([r.g, r.events])).digest("hex");
   };
+  // 202 tutoriais completos: no runner do CI passa dos 5 s padrão do vitest (mesmo caso do teste de determinismo de
+  // rules-v1.test.ts); o limite explícito não afrouxa a asserção, só dá tempo para as 100 repetições.
+  const DETERMINISM_TIMEOUT_MS = 30_000;
   it("mesma semente → mesmo hash em 100 execuções (v1 e protótipo)", () => {
     for (const c of [prod, protoCfg]) {
       const ref = hash(c, 42);
       for (let i = 0; i < 100; i++) expect(hash(c, 42)).toBe(ref);
     }
-  });
+  }, DETERMINISM_TIMEOUT_MS);
   it("semente diferente → partida diferente", () => {
     expect(hash(prod, 42)).not.toBe(hash(prod, 43));
   });
