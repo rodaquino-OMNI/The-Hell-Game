@@ -16,6 +16,7 @@
 //   - custo: medium com A+B / medium sem camadas (tempo síncrono por quadro, 1280×720), na vista das capturas e com o
 //     caçador no cone da lanterna; D-44: pares ABBA, IC por bootstrap (render.cost_check), falha só se o limite inferior
 //     do IC passar de render.layer_cost_factor × (1 + ci_runner_margin), aviso se a mediana passar de layer_cost_factor;
+//     D-48: com render.cost_check.ci_mode "warn" a falha de custo vira aviso (anotação ::warning e resumo do job);
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
@@ -25,14 +26,14 @@
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
 //   --shots   grava também v1-ligado.png, v1-desligado.png e v4-patio-<preset>.png em 1280×720 com deviceScaleFactor 2
 //             (revisão humana; marco A3)
-import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { cpus, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng, encodePng } from "./png.mjs";
 import { startServer } from "../lib/server.mjs";
-import { abbaOrder, costVerdict, median } from "./cost-stats.mjs";
+import { abbaOrder, costOutcome, costVerdict, ghaWarning, median } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -344,8 +345,15 @@ try {
       const c = costVerdict(ms.A, ms.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
       const x2 = (n) => `${n.toFixed(2)}×`;
       console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento), falha se limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : c.verdict === "warn" ? "AVISO" : "FALHA"}`);
-      if (c.verdict === "fail") fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto da CI ${x2(c.fail)} (render.layer_cost_factor × (1 + render.cost_check.ci_runner_margin)): regressão (D-44)`);
-      else if (c.verdict === "warn") console.warn(`AVISO: custo das camadas na vista ${v.name}: mediana ${x2(c.median)} acima do orçamento ${x2(c.budget)} (render.layer_cost_factor), limite inferior do IC ${x2(c.lo)} ≤ teto da CI ${x2(c.fail)}; no SwiftShader a razão depende do runner (proxy de regressão, D-44), não falha. Máquina: ${machine}`);
+      // D-48 (render.cost_check.ci_mode): em "warn" o resultado de falha vira aviso visível (anotação e resumo do
+      // job) e não reprova; as demais provas deste script e os portões de tools/perf/budget.mjs seguem reprovando
+      const out = costOutcome(c, CC.ci_mode, { view: v.name, baseMs: median(ms.A), ciLevel: CC.ci });
+      if (out.warning) {
+        console.log(ghaWarning("Custo das camadas (D-48)", out.warning));
+        if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- **Custo das camadas (D-48, ci_mode ${CC.ci_mode})**: ${out.warning}. Máquina: ${machine}\n`);
+      }
+      if (out.failing) fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto da CI ${x2(c.fail)} (render.layer_cost_factor × (1 + render.cost_check.ci_runner_margin)): regressão (D-44)`);
+      else if (out.warning) console.warn(`AVISO: custo das camadas: ${out.warning}; no SwiftShader a razão depende do runner (proxy de regressão, D-44/D-48). Máquina: ${machine}`);
     }
     await cost.page.close();
   }

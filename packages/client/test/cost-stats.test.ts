@@ -5,7 +5,7 @@
 // mais caro) e medidas quebradas (erro, nunca "pass").
 import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
-import { abbaOrder, bootstrapCi, costThresholds, costVerdict, judgeCost, median } from "../../../tools/visual/cost-stats.mjs";
+import { abbaOrder, bootstrapCi, costOutcome, costThresholds, costVerdict, ghaWarning, judgeCost, median } from "../../../tools/visual/cost-stats.mjs";
 
 const balance = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
 const CC = balance.render.cost_check;
@@ -27,7 +27,7 @@ function pairs(center: number) {
 
 describe("cost-stats (D-44 b)", () => {
   it("dados: render.cost_check, teto de hardware 1,4× intocado e teto da CI 1,4 × 1,07", () => {
-    expect(CC).toEqual({ pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07 });
+    expect(CC).toEqual({ pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: "warn" });
     expect(K).toBe(1.4);
     const t = costThresholds(K, M);
     expect(t.budget).toBe(1.4);
@@ -95,6 +95,54 @@ describe("cost-stats (D-44 b)", () => {
     const c = costVerdict(a, b.map(x => x * 2), CC, K);
     expect(c.median).toBeCloseTo(2.6, 9);
     expect(c.verdict).toBe("fail");
+  });
+
+  describe("ci_mode (D-48)", () => {
+    const ctx = { view: "capturas", baseMs: 36.3, ciLevel: CC.ci };
+    /** o caso medido no PR #68 (job 128986770134): mediana 1,52×, IC [1,52, 1,53] */
+    const pr68 = () => {
+      const a = REAL.map(() => 36.3);
+      const c = costVerdict(a, a.map((x, i) => x * (1.52 + (i % 3) * 0.005)), CC, K);
+      expect(c.verdict).toBe("fail");
+      return c;
+    };
+
+    it("resultado de falha com ci_mode warn: não reprova e produz o aviso (razão, IC, base, tetos)", () => {
+      const out = costOutcome(pr68(), "warn", ctx);
+      expect(out.failing).toBe(false);
+      expect(out.warning).toMatch(/razão mediana 1\.52×/);
+      expect(out.warning).toMatch(/IC 95% \[1\.52×, 1\.53×\]/);
+      expect(out.warning).toMatch(/base 36\.3 ms\/quadro/);
+      expect(out.warning).toMatch(/> 1\.40×/);
+      expect(out.warning).toMatch(/> 1\.50×/);
+      expect(out.warning).toMatch(/D-48/);
+    });
+
+    it("resultado de falha com ci_mode fail: reprova (comportamento de D-44)", () => {
+      expect(costOutcome(pr68(), "fail", ctx)).toEqual({ failing: true, warning: null });
+    });
+
+    it("aviso simples (mediana > 1,4×) produz o aviso nos dois modos; pass não produz nada", () => {
+      const w = costVerdict(pairs(1.43).a, pairs(1.43).b, CC, K);
+      expect(w.verdict).toBe("warn");
+      for (const mode of ["warn", "fail"]) {
+        const out = costOutcome(w, mode, ctx);
+        expect(out.failing).toBe(false);
+        expect(out.warning).toMatch(/mediana acima do orçamento 1\.40×/);
+      }
+      const p = costVerdict(pairs(1.3).a, pairs(1.3).b, CC, K);
+      expect(costOutcome(p, "warn", ctx)).toEqual({ failing: false, warning: null });
+      expect(costOutcome(p, "fail", ctx)).toEqual({ failing: false, warning: null });
+    });
+
+    it("ci_mode inválido é erro", () => {
+      expect(() => costOutcome(pr68(), "off", ctx)).toThrow(/ci_mode inválido/);
+    });
+
+    it("anotação do GitHub Actions: uma linha, com escape de % e quebra de linha", () => {
+      expect(ghaWarning("Custo das camadas (D-48)", "a 50%\nb")).toBe("::warning title=Custo das camadas (D-48)::a 50%25%0Ab");
+      expect(ghaWarning("x: y, z", "m")).toBe("::warning title=x%3A y%2C z::m");
+    });
   });
 
   it("medidas quebradas são erro, nunca pass", () => {
