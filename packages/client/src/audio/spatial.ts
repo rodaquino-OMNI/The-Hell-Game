@@ -2,8 +2,14 @@
 // o raio até a fonte cruza parede", GDD-v0.2 §11). Por voz: source → BiquadFilter(lowpass) → PannerNode(HRTF) → bus.
 // A decisão de oclusão é pura e reusa `lineOfSight` da simulação (packages/sim/src/perception.ts L27), sem duplicar
 // geometria (docs/handoff/plano-audio-v5.md §1 e §3).
-// O ouvinte segue a câmera ativa (RenderCtx.cam em render/scene.ts), não o personagem: em `?retro=1` a câmera é de
-// 1ª pessoa. Coordenadas: as do render (scene.ts `renderFrame`: cam.position.set(P.x, altura, P.z)), isto é, x e z do
+// Dois pontos distintos:
+//   - o OUVINTE do panner (direção e distância do som) segue a câmera ativa (RenderCtx.cam em render/scene.ts), porque
+//     em `?retro=1` a câmera é de 1ª pessoa;
+//   - a OCLUSÃO é decidida pela posição do PERSONAGEM visto (o laço passa `cameraTarget(G) ?? G.survivors[0]` em
+//     `updateSpatial(at)`), não pela câmera: em 3ª pessoa o recuo da câmera (scene.ts `renderFrame`) só evita o
+//     interior do muro, então ela pode parar do outro lado de um muro fino ou dentro de uma caixa e ocluiria tudo.
+//     Sem nenhum `at` recebido ainda, a oclusão usa a posição do ouvinte.
+// Sons do próprio jogador (`pos: null`) vão direto ao barramento: sem panner e sem oclusão. Coordenadas: as do render (scene.ts `renderFrame`: cam.position.set(P.x, altura, P.z)), isto é, x e z do
 // jogo no plano e y para cima; a fonte vai em (x, altura, z).
 // Valores: data/balance.yaml `audio.max_voices`, `audio.voice_priority`, `audio.occlusion_lowpass_hz`,
 // `audio.occlusion_ramp_tc`, `audio.panner`, `audio.source_height`.
@@ -49,7 +55,9 @@ export function rotate(q: Quat, v: Vec3): Vec3 {
 const LOCAL_FORWARD: Vec3 = { x: 0, y: 0, z: -1 };
 const LOCAL_UP: Vec3 = { x: 0, y: 1, z: 0 };
 
-/** frente e topo da câmera em mundo */
+/** frente e topo da câmera em mundo.
+ *  Premissa: a câmera não tem pai (render/scene.ts a põe direto na cena), então o quaternion e a posição locais são
+ *  os de mundo. Se ela ganhar pai, quem chama deve passar `getWorldQuaternion`/`getWorldPosition` no lugar. */
 export function cameraAxes(cam: CameraLike): { forward: Vec3; up: Vec3 } {
   if (cam.quaternion) return { forward: rotate(cam.quaternion, LOCAL_FORWARD), up: rotate(cam.quaternion, LOCAL_UP) };
   if (cam.getWorldDirection) {
@@ -70,13 +78,15 @@ export function cameraAxes(cam: CameraLike): { forward: Vec3; up: Vec3 } {
 export interface SpatialVoice {
   readonly voice: Voice;
   readonly bus: BusName;
-  readonly filter: BiquadFilterNode;
-  readonly panner: PannerNode;
-  /** posição atual da fonte */
-  readonly pos: Readonly<Vec3>;
+  /** null em voz não espacial (`pos: null`) */
+  readonly filter: BiquadFilterNode | null;
+  /** null em voz não espacial (`pos: null`) */
+  readonly panner: PannerNode | null;
+  /** posição atual da fonte; null em voz não espacial */
+  readonly pos: Readonly<Vec3> | null;
   /** estado de oclusão da última avaliação */
   readonly occluded: boolean;
-  /** move a fonte (o panner muda já; a oclusão é reavaliada no próximo updateSpatial) */
+  /** move a fonte (o panner muda já; a oclusão é reavaliada no próximo updateSpatial); no-op em voz não espacial */
   setPosition(p: SourcePos): void;
   /** fim pelo dono: desliga a cadeia e devolve a vaga */
   release(): void;
@@ -84,7 +94,8 @@ export interface SpatialVoice {
 
 export interface PlayOpts {
   bus: BusName;
-  pos: SourcePos;
+  /** posição da fonte; null = som do próprio jogador, não espacial (source → barramento, sem panner nem oclusão) */
+  pos: SourcePos | null;
   /** chamado quando outra voz toma a vaga (a fonte já foi parada e desligada) */
   onSteal?: (v: SpatialVoice) => void;
 }
@@ -108,15 +119,20 @@ export interface SpatialDeps {
 
 export interface Spatial {
   readonly voices: VoiceManager;
-  /** posição do ouvinte (última câmera recebida) */
+  /** posição do ouvinte do panner (última câmera recebida) */
   readonly listener: Readonly<Vec3>;
-  /** liga `source` → filtro → panner → barramento numa vaga de voz; null sem vaga ou sem Web Audio.
+  /** ponto de onde a oclusão é decidida: o último `at` de updateSpatial (personagem) ou, sem nenhum, o ouvinte */
+  readonly occlusionPoint: Readonly<Vec>;
+  /** liga `source` → filtro → panner → barramento numa vaga de voz (ou `source` → barramento com `pos: null`); null
+   *  sem vaga ou sem Web Audio. A oclusão inicial usa `occlusionPoint`.
    *  Fonte com evento `ended` (AudioBufferSourceNode, OscillatorNode) devolve a vaga sozinha no fim natural. */
   play(kind: string, source: AudioNode, opts: PlayOpts): SpatialVoice | null;
-  /** ouvinte na câmera ativa (posição, frente e topo); chamar a cada quadro depois de posicionar a câmera */
+  /** ouvinte do panner na câmera ativa (posição, frente e topo); só direção e distância, não a oclusão. Chamar a cada
+   *  quadro depois de posicionar a câmera */
   updateListener(cam: CameraLike): void;
-  /** reavalia a oclusão das vozes ativas (padrão: ouvinte da última câmera); rampa só quando o estado muda */
-  updateSpatial(listener?: Vec): void;
+  /** reavalia a oclusão das vozes espaciais ativas a partir de `at` = posição do personagem visto (guardada para os
+   *  próximos `play`); sem `at`, usa o último recebido ou, se nunca houve, o ouvinte. Rampa só quando o estado muda */
+  updateSpatial(at?: Vec): void;
   active(): SpatialVoice[];
 }
 
@@ -143,7 +159,11 @@ export function createSpatial(deps: SpatialDeps = {}): Spatial {
   const cfg = deps.cfg ?? balance.audio;
   const voices = deps.voices ?? createVoiceManager();
   const listener: Vec3 = { x: 0, y: 0, z: 0 };
-  const live = new Map<number, SpatialVoice & { occluded: boolean; pos: Vec3 }>();
+  /** último personagem recebido em updateSpatial(at); null = ainda nenhum (usa o ouvinte) */
+  let occAt: Vec | null = null;
+  const occFrom = (): Vec => occAt ?? listener;
+  type Live = SpatialVoice & { occluded: boolean; pos: Vec3 | null };
+  const live = new Map<number, Live>();
 
   const openHz = (ctx: BaseAudioContext) => ctx.sampleRate / 2; // Nyquist: o passa-baixa fica transparente
   const targetHz = (ctx: BaseAudioContext, occ: boolean) => (occ ? cfg.occlusion_lowpass_hz : openHz(ctx));
@@ -155,18 +175,20 @@ export function createSpatial(deps: SpatialDeps = {}): Spatial {
   return {
     voices,
     listener,
+    get occlusionPoint() { return occFrom(); },
     play(kind, source, opts) {
       const ctx = engine.ensure();
       const out = ctx ? engine.busInput(opts.bus) : null;
       if (!ctx || !out) return null;
-      let sv: (SpatialVoice & { occluded: boolean; pos: Vec3 }) | null = null;
+      let sv: Live | null = null;
       const teardown = () => {
         if (!sv) return;
         live.delete(sv.voice.id);
         source.removeEventListener?.("ended", onEnded);
         quiet(() => source.disconnect());
-        quiet(() => sv!.filter.disconnect());
-        quiet(() => sv!.panner.disconnect());
+        const { filter: f, panner: pn } = sv;
+        if (f) quiet(() => f.disconnect());
+        if (pn) quiet(() => pn.disconnect());
       };
       const onEnded = () => { sv?.voice.release(); teardown(); };
       const voice = voices.acquire(kind, {
@@ -179,6 +201,20 @@ export function createSpatial(deps: SpatialDeps = {}): Spatial {
       });
       if (!voice) return null;
 
+      if (opts.pos === null) {
+        // som do próprio jogador: direto no barramento, sem panner nem oclusão
+        source.connect(out);
+        source.addEventListener?.("ended", onEnded);
+        engine.notePlay(opts.bus);
+        sv = {
+          voice, bus: opts.bus, filter: null, panner: null, pos: null, occluded: false,
+          setPosition() { /* não espacial */ },
+          release() { voice.release(); teardown(); },
+        };
+        live.set(voice.id, sv);
+        return sv;
+      }
+
       const filter = ctx.createBiquadFilter();
       filter.type = "lowpass";
       const panner = ctx.createPanner();
@@ -190,7 +226,7 @@ export function createSpatial(deps: SpatialDeps = {}): Spatial {
       panner.rolloffFactor = pc.rolloff_factor;
 
       const pos: Vec3 = { x: opts.pos.x, y: opts.pos.y ?? cfg.source_height, z: opts.pos.z };
-      const occluded = isOccluded(map, listener, pos);
+      const occluded = isOccluded(map, occFrom(), pos);
       filter.frequency.value = targetHz(ctx, occluded); // começa já no estado certo, sem rampa
       placePanner(panner, pos);
       source.connect(filter);
@@ -223,10 +259,12 @@ export function createSpatial(deps: SpatialDeps = {}): Spatial {
       }
     },
     updateSpatial(at) {
+      if (at) occAt = { x: at.x, z: at.z };
       const ctx = engine.context;
       if (!ctx) return;
-      const from = at ?? listener;
+      const from = occFrom();
       for (const sv of live.values()) {
+        if (!sv.pos || !sv.filter) continue;
         const occ = isOccluded(map, from, sv.pos);
         if (occ === sv.occluded) continue;
         sv.occluded = occ;
@@ -249,5 +287,5 @@ export function getSpatial(): Spatial {
 }
 /** ouvinte na câmera ativa (atalho do singleton, para o laço do render chamar a cada quadro) */
 export const updateListener = (cam: CameraLike) => getSpatial().updateListener(cam);
-/** oclusão das vozes ativas (atalho do singleton) */
-export const updateSpatial = (listener?: Vec) => getSpatial().updateSpatial(listener);
+/** oclusão das vozes ativas a partir do personagem visto (atalho do singleton) */
+export const updateSpatial = (at?: Vec) => getSpatial().updateSpatial(at);

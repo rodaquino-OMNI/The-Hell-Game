@@ -171,6 +171,27 @@ describe("audio/spatial: cadeia, vagas e motor (A-4)", () => {
     expect(sp.play("ambience", src(), { bus: "sfx", pos: { x: 0, z: 0 } })).toBeNull();
   });
 
+  it("som do próprio jogador (pos: null): source → barramento, sem panner nem oclusão", () => {
+    const { ctx, engine, sp } = setup();
+    sp.updateListener(cam(BEHIND.listener.x, BEHIND.listener.z));
+    const s = new FakeSource();
+    const v = sp.play("footstep", s as unknown as AudioNode, { bus: "sfx", pos: null })!;
+    expect(v).not.toBeNull();
+    expect(v.filter).toBeNull();
+    expect(v.panner).toBeNull();
+    expect(v.pos).toBeNull();
+    expect(v.occluded).toBe(false);
+    expect(s.out).toEqual([engine.busInput("sfx")]);
+    expect(ctx.filters.length).toBe(0);
+    expect(engine.plays().sfx).toBe(1);
+    expect(() => { v.setPosition(BEHIND.source); sp.updateSpatial(BEHIND.source); }).not.toThrow();
+    expect(v.occluded).toBe(false);
+    expect(sp.voices.count).toBe(1);
+    s.dispatchEvent(new Event("ended"));
+    expect(sp.voices.count).toBe(0);
+    expect(s.out).toEqual([]);
+  });
+
   it("sem Web Audio: play devolve null e não ocupa vaga; ouvinte e oclusão viram no-op", () => {
     const engine = createEngine({ createContext: () => null, storage: null, cfg });
     const voices = createVoiceManager({ priorities: cfg.voice_priority });
@@ -233,7 +254,7 @@ describe("audio/spatial: ouvinte na câmera (A-4)", () => {
     expect(l.ori.slice(3)).toEqual([0, 1, 0]);
   });
 
-  it("a oclusão usa o ouvinte da câmera: mover só a câmera para trás da parede liga o filtro", () => {
+  it("sem personagem informado, a oclusão cai no ouvinte: mover só a câmera para trás da parede liga o filtro", () => {
     const { sp } = setup();
     const clear = { x: 10, z: 10 };   // de (10, 10) a (10, 0) não há caixa no caminho
     expect(isOccluded(patio, clear, BEHIND.source)).toBe(false);
@@ -244,5 +265,35 @@ describe("audio/spatial: ouvinte na câmera (A-4)", () => {
     sp.updateSpatial();
     expect(v.occluded).toBe(true);
     expect((v.filter as unknown as FakeFilter).frequency.target).toBe(cfg.occlusion_lowpass_hz);
+  });
+
+  it("oclusão pelo personagem: linha livre até a fonte com a câmera atrás de muro fino → não ocluída", () => {
+    const { sp } = setup();
+    // muro fino [−14, −12, 10, 3] (z de −13,5 a −10,5): personagem ao norte, câmera recuada ao sul, do outro lado
+    const hero = { x: -14, z: -9 }, camBehind = { x: -14, z: -14.5 }, source = { x: -14, z: 0 };
+    expect(isOccluded(patio, camBehind, source)).toBe(true);
+    expect(isOccluded(patio, hero, source)).toBe(false);
+    sp.updateListener(cam(camBehind.x, camBehind.z));
+    sp.updateSpatial(hero);
+    expect(sp.occlusionPoint).toEqual(hero);
+    // play usa o último personagem para a oclusão inicial
+    const v = sp.play("hunter", src(), { bus: "sfx", pos: source })!;
+    expect(v.occluded).toBe(false);
+    const f = (v.filter as unknown as FakeFilter).frequency;
+    expect(f.calls).toEqual([]);
+    // laço: câmera continua atrás do muro, personagem parado → segue livre; updateSpatial() sem argumento mantém o personagem
+    sp.updateListener(cam(camBehind.x, camBehind.z));
+    sp.updateSpatial(hero);
+    sp.updateSpatial();
+    expect(v.occluded).toBe(false);
+    expect(f.calls).toEqual([]);
+    // personagem passa para trás do muro → ocluída
+    sp.updateSpatial(camBehind);
+    expect(v.occluded).toBe(true);
+    expect(f.target).toBe(cfg.occlusion_lowpass_hz);
+    // personagem dentro da caixa central não importa para a câmera: a câmera dentro de [0,0,8,8] não oclui nada
+    sp.updateListener(cam(0, 0));
+    sp.updateSpatial(hero);
+    expect(v.occluded).toBe(false);
   });
 });
