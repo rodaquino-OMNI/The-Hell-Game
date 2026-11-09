@@ -18,8 +18,9 @@
 //     do IC passar de render.layer_cost_factor × (1 + ci_runner_margin), aviso se a mediana passar de layer_cost_factor;
 //     D-48: com render.cost_check.ci_mode "warn" a falha de custo vira aviso (anotação ::warning e resumo do job);
 //     issue #59 (D-49): com --baseline (build de main), PR e main medidos em rodadas intercaladas no mesmo navegador;
-//     falha só se o limite inferior do IC de (razão do PR − razão de main) passar de render.cost_check.main_delta, e o
-//     teto absoluto de D-44 vira só aviso; sem build de main utilizável (ou com exceção do lado de main no meio da
+//     D-51 (critério duplo): falha só se os limites inferiores dos IC de rel_AB (PR_AB / main_AB − 1, ms/quadro com
+//     A+B) e de Δrazão (razão do PR − razão de main), pareados por rodada, passarem de render.cost_check.main_rel_delta
+//     E main_ratio_delta; o teto de D-44 fica só no log e no resumo do job; sem build de main utilizável (ou com exceção do lado de main no meio da
 //     medida) a comparação não é feita: só aviso "sem build de main, comparação não feita" (complemento de D-49);
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
@@ -41,7 +42,7 @@ import { fileURLToPath } from "node:url";
 import { decodePng, encodePng } from "./png.mjs";
 import { startServer } from "../lib/server.mjs";
 import { LEG, LEG_IN, RULES, SEED, gotoPaused } from "../lib/capture-page.mjs";
-import { COST_TITLE, costGateOutcome, costVerdict, costVsMain, crossOrder, ghaWarning, median } from "./cost-stats.mjs";
+import { COST_TITLE, costGateOutcome, costInfo, costVerdict, costVsMain, checkSamples, d2, ghaWarning, median, p1, roundPlan, runRounds, x2 } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -329,9 +330,11 @@ try {
   // D-44 (b) (render.cost_check; tools/visual/cost-stats.mjs): sem GPU a razão depende do tipo de runner, então aqui
   // é proxy de regressão: cost_check.warmup quadros descartados a cada troca de camadas, mediana das razões pareadas
   // com IC por bootstrap determinístico.
-  // D-49 (issue #59): PR e build de main (--baseline) em rodadas intercaladas (crossOrder) no mesmo navegador; reprova
-  // só se o limite inferior do IC de (razão do PR − razão de main) passar de cost_check.main_delta (ci_mode fail); o
-  // teto absoluto de D-44 (layer_cost_factor × (1 + ci_runner_margin)) é só aviso. Complemento de D-49 (supervisão
+  // D-49 (issue #59): PR e build de main (--baseline) em rodadas intercaladas (crossOrder) no mesmo navegador, com
+  // cost_check.warmup_rounds rodadas descartadas antes. D-51 (critério duplo): reprova só se os dois limites inferiores
+  // passarem, o do IC de rel_AB (PR_AB / main_AB − 1, ms/quadro com A+B) acima de cost_check.main_rel_delta E o do IC
+  // de Δrazão (razão do PR − razão de main) acima de cost_check.main_ratio_delta (ci_mode fail); o log e o resumo
+  // trazem sempre as duas medidas por vista; o teto absoluto de D-44 fica só no log e no resumo. Complemento de D-49 (supervisão
   // por delegação do Rodrigo, 09/11/2026): sem build de main utilizável, ou com exceção no meio da medida do lado de
   // main, a comparação não é feita e fica só o aviso "sem build de main, comparação não feita" (costGateOutcome),
   // sem medir o PR sozinho; exceção do lado do PR segue reprovando. O log traz a máquina (CPU, núcleos, carga) e o
@@ -365,12 +368,11 @@ try {
     };
     const message = (e) => String(e?.message ?? e).split("\n")[0];
     const VIEWS = [{ name: "capturas", view: VIEW }, { name: "caçador no cone", view: LEG.view, cone: true }];
-    const x2 = (n) => `${n.toFixed(2)}×`, d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
     const tCost = performance.now();
     if (!games.main) gate({ reason: base.reason });
     else {
       console.log(`custo: máquina ${machine}; ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}; ${CC.pairs} rodadas PR × main (crossOrder) de ${CC.frames} quadros (${CC.warmup} de aquecimento descartados), IC ${Math.round(CC.ci * 100)}% por bootstrap (${CC.bootstrap_resamples} reamostragens, semente ${CC.seed})`);
-      console.log(`custo: build de main em ${baselineDir} (issue #59): reprova se o limite inferior do IC de (razão do PR − razão de main) > ${CC.main_delta} (render.cost_check.main_delta); o teto absoluto de D-44 fica só como aviso`);
+      console.log(`custo: build de main em ${baselineDir} (issue #59, D-51): ${CC.warmup_rounds} rodada(s) de aquecimento descartada(s); reprova só se o limite inferior do IC de rel_AB (A+B do PR ÷ A+B de main − 1) > ${p1(CC.main_rel_delta)} (render.cost_check.main_rel_delta) E o de Δrazão (razão do PR − razão de main) > ${d2(CC.main_ratio_delta)} (main_ratio_delta); o teto de D-44 é só informativo`);
       // exceção do lado de main (página, gancho ou medida inválida): interrompe a comparação e só avisa
       let mainError = null;
       const onMain = async (f, what) => {
@@ -387,33 +389,28 @@ try {
           await onMain(() => place(games.main), `build de main falhou ao posicionar o caçador (vista ${v.name})`);
           if (mainError) break;
         }
-        const ms = { pr: { A: [], B: [] }, main: { A: [], B: [] } };
-        for (let r = 0; r < CC.pairs && !mainError; r++) {
-          for (const [g, l] of crossOrder(r)) {
-            if (g === "pr") { ms.pr[l].push(await run(games.pr, LAYERS[l], v.view)); continue; }
-            const t = await onMain(() => run(games.main, LAYERS[l], v.view), `build de main falhou no meio da medida (vista ${v.name}, rodada ${r})`);
-            if (mainError) break;
-            ms.main[l].push(t);
-          }
-        }
+        // D-51 (investigação do viés): cost_check.warmup_rounds rodadas medidas e descartadas nos dois builds (a aba do
+        // PR abre antes e o PR já desenhou as capturas neste navegador), depois pairs rodadas guardadas, com a ordem
+        // PR/main alternando (roundPlan: rodada guardada 0 com o PR primeiro)
+        const { ms } = await runRounds(roundPlan(CC.warmup_rounds, CC.pairs), (g, l, r) => g === "pr"
+          ? run(games.pr, LAYERS[l], v.view)
+          : onMain(() => run(games.main, LAYERS[l], v.view), `build de main falhou no meio da medida (vista ${v.name}, ${r === null ? "aquecimento" : `rodada ${r}`})`),
+        () => mainError !== null);
         if (mainError) break;
-        // lado do PR: tempo inválido é erro e reprova (costVerdict lança)
+        // lado do PR: contagem errada ou tempo inválido lança e reprova (fora de onMain)
+        checkSamples(ms.pr, CC.pairs, "PR");
         const c = costVerdict(ms.pr.A, ms.pr.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
-        console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento) ou limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : "AVISO (teto absoluto)"}`);
-        // só as amostras de main são conferidas como "lado de main"; costVsMain roda fora de onMain, então um bug
-        // do próprio PR nessa conta (ou cost_check inválido) reprova em vez de virar aviso
-        await onMain(async () => {
-          for (const l of ["A", "B"]) {
-            const xs = ms.main[l];
-            if (xs.length !== ms.pr[l].length || !xs.every((t) => Number.isFinite(t) && t > 0)) throw new Error(`amostras ${l}: ${xs.length} de ${ms.pr[l].length}, alguma não finita ou ≤ 0`);
-          }
-        }, `medida de main inválida (vista ${v.name})`);
+        console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); orçamento ${x2(c.budget)}, teto da CI ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict} (informativo, D-51)`);
+        // só as amostras de main são conferidas como "lado de main" (aviso); costVsMain roda fora de onMain, então um
+        // bug do próprio PR nessa conta (ou cost_check inválido) reprova em vez de virar aviso
+        await onMain(async () => checkSamples(ms.main, CC.pairs, "main"), `medida de main inválida (vista ${v.name})`);
         if (mainError) break;
         const rel = costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC);
-        console.log(`custo × main (vista ${v.name}): main sem camadas ${median(ms.main.A).toFixed(1)} ms/quadro, A+B ${median(ms.main.B).toFixed(1)} ms/quadro, razão mediana ${x2(rel.mainMedian)}; diferença PR − main mediana ${d2(rel.median)}, IC ${Math.round(CC.ci * 100)}% [${d2(rel.lo)}, ${d2(rel.hi)}]; falha se limite inferior > ${d2(rel.delta)} → ${rel.verdict === "pass" ? "ok" : rel.verdict === "warn" ? "AVISO" : "FALHA"}`);
-        summary(`**Custo das camadas, vista ${v.name}** (issue #59): PR ${x2(rel.prMedian)} × main ${x2(rel.mainMedian)} no mesmo job, diferença ${d2(rel.median)} [${d2(rel.lo)}, ${d2(rel.hi)}], limite ${d2(rel.delta)} → ${rel.verdict}. Máquina: ${machine}`);
-        const out = gate({ rel, abs: c }, { view: v.name, baseMs: median(ms.pr.A), mainBaseMs: median(ms.main.A), ciLevel: CC.ci });
-        if (out.failing) fail(`camadas A+B no PR custam ${x2(rel.prMedian)} o preset sem camadas na vista ${v.name}, contra ${x2(rel.mainMedian)} em main no mesmo job; o limite inferior do IC da diferença (${d2(rel.lo)}) passa de render.cost_check.main_delta (${d2(rel.delta)}): regressão (issue #59, D-49)`);
+        const ctx = { view: v.name, ciLevel: CC.ci };
+        console.log(`custo × main (${costInfo(rel, c, ctx)}) → ${rel.verdict === "pass" ? "ok" : rel.verdict === "warn" ? "AVISO" : "FALHA"}`);
+        summary(`**Custo das camadas** (D-51): ${costInfo(rel, c, ctx)}. Máquina: ${machine}`);
+        const out = gate({ rel, abs: c }, ctx);
+        if (out.failing) fail(`camadas A+B no PR custam ${rel.prAbMs.toFixed(1)} ms/quadro na vista ${v.name}, contra ${rel.mainAbMs.toFixed(1)} em main no mesmo job; os dois limites inferiores dos IC passam dos limites, rel_AB ${p1(rel.lo)} > render.cost_check.main_rel_delta (${p1(rel.delta)}) e Δrazão ${d2(rel.ratio.lo)} > main_ratio_delta (${d2(rel.ratio.delta)}): regressão das camadas (D-51)`);
       }
       if (mainError) gate({ reason: mainError });
     }
