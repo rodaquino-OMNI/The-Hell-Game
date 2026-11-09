@@ -144,13 +144,13 @@ describe("memória da última posição (ai.by_difficulty.*.memory) e audição 
     expect(wall.z).toBeLessThan(29.4);
     expect(dist(wall, { x: -8, z: 29.4 })).toBeLessThanOrEqual(b.ai.search_radius + b.nav.fallback_grid);
     // na partida: o caçador que persegue pela memória um alvo parado atrás da parede segue andando até ela expirar
-    const g = aiGame(aiCfg("hard"), { x: -8, z: 16 }, Math.PI), P = g.survivors[0];
+    const hard = aiCfg("hard"), g = aiGame(hard, { x: -8, z: 16 }, Math.PI), P = g.survivors[0];
     P.x = -8; P.z = 23; g.hunter.ai!.patrol = { x: -8, z: 29, gen: -1 };
-    play(aiCfg("hard"), g, 0.5);
+    play(hard, g, 0.5);
     P.x = 25; P.z = -25;
     const path: number[] = [];
     for (let i = 0; i < 60 * (b.ai.by_difficulty.hard.memory - 1) && g.hunter.ai!.mode === "chase"; i++) {
-      const x = g.hunter.x, z = g.hunter.z; play(aiCfg("hard"), g, 1 / 60); path.push(Math.hypot(g.hunter.x - x, g.hunter.z - z));
+      const x = g.hunter.x, z = g.hunter.z; play(hard, g, 1 / 60); path.push(Math.hypot(g.hunter.x - x, g.hunter.z - z));
     }
     const lastSecond = path.slice(-60).reduce((a, c) => a + c, 0);
     expect(lastSecond).toBeGreaterThan(1); // andou no último segundo da perseguição pela memória
