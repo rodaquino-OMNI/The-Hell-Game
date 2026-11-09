@@ -9,8 +9,16 @@ import {
 } from "../src/index.ts";
 import { balance as b, map, run, SPOT, tap } from "./helpers.ts";
 
-const v1 = makeConfig(b, map, { ruleset: "v1" });
-const hard = makeConfig(b, map, { ruleset: "v1", difficulty: "hard" });
+// Marco MJ-B: o padrão dos dados passou a ser v1 + caçador `utility` + bots `competent`. Esta suíte testa REGRAS
+// (cone, ruído, fim, vida, tabela, telegraph, geradores) num cenário montado à mão: fixa explicitamente o caçador
+// `basic` (age a 60 Hz, sem tempo de reação) e os bots do protótipo, para que a regra não dependa da IA. As asserções
+// do caçador que fazem sentido com a IA do R3 têm a versão `utility` aqui (seção 5) ou nas suítes ai-*.test.ts e
+// telegraph.test.ts; `proto` é o ruleset do protótipo fixado explicitamente.
+const RULES = { hunterBrain: "basic", botBrain: "prototype" } as const;
+const v1 = makeConfig(b, map, { ruleset: "v1", ...RULES });
+const hard = makeConfig(b, map, { ruleset: "v1", difficulty: "hard", ...RULES });
+const proto = makeConfig(b, map, { ruleset: "prototype" });
+const AI = { ruleset: "v1", hunterBrain: "utility", botBrain: "competent" } as const;
 const P = (g: GameState) => g.survivors[0];
 const ends = (g: GameState) => drainEvents(g).filter((e): e is Extract<GameEvent, { type: "end" }> => e.type === "end");
 
@@ -22,6 +30,7 @@ function chase(d: number, c: SimConfig = v1, facing = true) {
   const H = g.hunter;
   H.x = SPOT.x; H.z = SPOT.z - d; H.a = facing ? Math.PI : 0;
   H.dash = 1e9; H.projectile = 1e9; H.trap = 1e9;
+  if (H.ai) H.ai.patrol = { x: SPOT.x, z: SPOT.z + 3, gen: -1 }; // IA (utility): patrulha na direção do jogador, olhando para ele
   P(g).x = SPOT.x; P(g).z = SPOT.z; P(g).a = 0;
   return g;
 }
@@ -62,10 +71,14 @@ describe("dados: valores base batem com difficulty_table.normal (evita divergên
 });
 
 describe("configuração do ruleset", () => {
-  it("o padrão em data/balance.yaml continua prototype", () => {
-    expect(b.ruleset).toBe("prototype");
-    expect(makeConfig(b, map).v1).toBe(false);
-    expect(v1.v1).toBe(true);
+  it("o padrão em data/balance.yaml é v1 com caçador utility e bots competentes (marco MJ-B)", () => {
+    expect(b.ruleset).toBe("v1");
+    expect(b.ai.hunter_brain).toBe("utility");
+    expect(b.ai.bot_brain).toBe("competent");
+    const dflt = makeConfig(b, map);
+    expect([dflt.v1, dflt.brain, dflt.botBrain]).toEqual([true, "utility", "competent"]);
+    expect([v1.v1, v1.brain, v1.botBrain]).toEqual([true, "basic", "prototype"]);
+    expect([proto.v1, proto.brain, proto.botBrain]).toEqual([false, "basic", "prototype"]);
   });
 });
 
@@ -96,7 +109,6 @@ describe("1. cone de visão de 90° com linha de visão (GDD-v0.3 §8.1, C-06)",
     expect(front.hunter.target).toBe(0);
     const back = chase(8, v1, false); tap(back, {}, v1);
     expect(back.hunter.target).toBe(-1);
-    const proto = makeConfig(b, map);
     const p = chase(8, proto, false); tap(p, {}, proto);
     expect(p.hunter.target).toBe(0);
   });
@@ -184,7 +196,7 @@ describe("2. ruído da tabela §3.4 e investigação de 8 s", () => {
   });
   it("bot resgatando com o caçador a < 6 m: o caçador investiga a posição do bot", () => {
     const px = b.prototype_extras;
-    const c = makeConfig({ ...b, prototype_extras: { ...px, bot: { ...px.bot, rescue_min_hunter_dist: 3 } } }, map, { ruleset: "v1" });
+    const c = makeConfig({ ...b, prototype_extras: { ...px, bot: { ...px.bot, rescue_min_hunter_dist: 3 } } }, map, { ruleset: "v1", ...RULES });
     const g = quiet(c); const bot = g.survivors[1], other = g.survivors[2]; // caçador atordoado: o bot não foge
     bot.st = "ok"; other.st = "ok"; hit(c, g, other, 200);
     bot.x = other.x + 1; bot.z = other.z; P(g).x = -20; P(g).z = 26;
@@ -290,7 +302,7 @@ describe("4. vida do caçador = difficulty_table[dif].hunter_hp × hunter_hp_sca
     expect(hunterMaxHp(makeConfig(b, map, { ruleset: "v1", difficulty: "nightmare" }), 4)).toBe(135);
     expect(hunterMaxHp(makeConfig(b, map, { ruleset: "v1", difficulty: "easy" }), 3)).toBe(60);
     expect(() => hunterMaxHp(v1, 6)).toThrow();
-    expect(hunterMaxHp(makeConfig(b, map), 5)).toBe(b.hunter.hp_base); // protótipo: sem escala
+    expect(hunterMaxHp(proto, 5)).toBe(b.hunter.hp_base); // protótipo: sem escala
   });
 });
 
@@ -302,12 +314,29 @@ describe("5. perseguição de 4,3 m/s e tabela de dificuldade (D-03 b, GDD-v0.2 
     const h = chase(10, hard); const z1 = h.hunter.z; run(h, 0.5, {}, hard);
     expect(h.hunter.z - z1).toBeCloseTo(b.difficulty_table.hard.chase * 0.5, 1);
   });
+  it("utility (padrão do MJ-B): depois do tempo de reação, persegue à mesma velocidade da tabela", () => {
+    for (const d of ["normal", "hard"] as const) {
+      const c = makeConfig(b, map, { ...AI, difficulty: d });
+      const g = chase(10, c);
+      run(g, b.ai.by_difficulty[d].reaction + 2 / b.ai.decision_hz, {}, c); // viu, reagiu e decidiu Perseguir
+      expect(g.hunter.ai!.mode).toBe("chase");
+      const z0 = g.hunter.z; run(g, 0.25, {}, c);
+      expect(g.hunter.z - z0).toBeCloseTo(b.difficulty_table[d].chase * 0.25, 1);
+    }
+  });
   it("Difícil: detecção 13 m, gaiola 60 s, portão 55 s, zona ×0,8, pontos ×1,3", () => {
     const t = b.difficulty_table.hard;
     const far = chase(12.5, hard); tap(far, {}, hard);
     expect(far.hunter.target).toBe(0);
     const n = chase(12.5); tap(n, {}, v1);
     expect(n.hunter.target).toBe(-1);
+    // utility (padrão do MJ-B): o mesmo raio da tabela vale para a percepção da IA
+    // (patrulha parada, para a distância não mudar enquanto a IA lê e reage)
+    const still = (c: SimConfig): SimConfig => ({ ...c, balance: { ...c.balance, hunter: { ...c.balance.hunter, patrol_speed: 0 } } });
+    const hu = still(makeConfig(b, map, { ...AI, difficulty: "hard" })), nu = still(makeConfig(b, map, AI));
+    const seenU = (c: SimConfig) => { const x = chase(12.5, c); run(x, 1, {}, c); return x.hunter.target; };
+    expect(seenU(hu)).toBe(0);
+    expect(seenU(nu)).toBe(-1);
     const g = quiet(hard);
     hit(hard, g, P(g), 200);
     expect(P(g).cage).toBe(t.cage);
@@ -445,7 +474,7 @@ describe("8. regras de gerador do §6.2", () => {
     expect(g.hunter.alertTime).toBe(b.ai.hearing_investigate_time);
     run(g, b.generator.completed_reveal + 0.05, {}, v1);
     expect(g.gens[0].revealed).toBeLessThanOrEqual(0);
-    const local = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: false } }, map, { ruleset: "v1" });
+    const local = makeConfig({ ...b, generator: { ...b.generator, completed_reveal_global: false } }, map, { ruleset: "v1", ...RULES });
     const far = quiet(local); complete(local, far);
     expect(far.gens[0].revealed).toBeGreaterThan(0);
     expect(far.hunter.alert).toBeNull();
@@ -484,7 +513,7 @@ describe("8. regras de gerador do §6.2", () => {
     const z = quiet(); openPuzzle(v1, z, 0);
     for (let k = 0; k < b.generator.fails_to_regress; k++) failPuzzle(v1, z);
     expect(z.gens[0].n).toBe(0);
-    const proto = makeConfig(b, map); const p = createGame(proto, "Curandeiro", 1); p.gens[0].n = 2; openPuzzle(proto, p, 0);
+    const p = createGame(proto, "Curandeiro", 1); p.gens[0].n = 2; openPuzzle(proto, p, 0);
     for (let k = 0; k < b.generator.fails_to_regress; k++) failPuzzle(proto, p);
     expect(p.gens[0].n).toBe(2);
   });

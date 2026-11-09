@@ -5,7 +5,9 @@ import { createGame, makeConfig, NO_INPUT, step, type ClassName, type GameState,
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 export const balance = loadBalanceFile(root + "data/balance.yaml");
 export const map = loadMapFile(root + "data/maps/patio.json");
-export const cfg: SimConfig = makeConfig(balance, map);
+// Paridade com o protótipo (parity.test.ts, determinism.test.ts): desde o MJ-B o padrão dos dados é `ruleset: v1`,
+// então a config do protótipo é fixada explicitamente aqui.
+export const cfg: SimConfig = makeConfig(balance, map, { ruleset: "prototype" });
 
 /** partida com o caçador neutralizado e afastado, para medir uma regra isolada */
 export function quietGame(cls: ClassName = "Curandeiro", seed = 1): GameState {

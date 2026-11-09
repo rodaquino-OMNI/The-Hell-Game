@@ -33,7 +33,7 @@ function scene(c: SimConfig, kind: Kind): { g: GameState; effect: (g: GameState)
 
 describe("D-36: telegraph ≥ hunter.telegraph_min em toda habilidade do caçador do v1", () => {
   for (const brain of brains) {
-    const c = makeConfig(b, map, { ruleset: "v1", hunterBrain: brain });
+    const c = makeConfig(b, map, { ruleset: "v1", hunterBrain: brain, botBrain: "prototype" }); // bots fora (aiGame)
     for (const kind of ["melee", "dash", "projectile", "trap"] as const) {
       it(`${brain} · ${kind}: preparo visível ≥ ${b.hunter.telegraph_min} s antes do efeito`, () => {
         const { g, effect } = scene(c, kind);
