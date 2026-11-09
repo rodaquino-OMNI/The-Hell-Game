@@ -9,7 +9,7 @@ import { balance } from "../data.ts";
 import { getBusInput, getEngine } from "./engine.ts";
 import { musicStateFor, type MusicState } from "./musicState.ts";
 
-export type MusicCfg = Pick<Balance["audio"], "music" | "ducking_db">;
+export type MusicCfg = Pick<Balance["audio"], "music" | "ducking_db" | "compose">;
 
 /** duração de um compasso em segundos: beats_per_bar × 60 / bpm (60 = segundos por minuto) */
 export const barLength = (m: Pick<MusicCfg["music"], "bpm" | "beats_per_bar">) => (m.beats_per_bar * 60) / m.bpm;
@@ -140,6 +140,31 @@ export function createMusicPlanner(o: PlannerOpts): MusicPlanner {
   }
 }
 
+/** trecho do buffer decodificado que é o loop (segundos) e como foi achado */
+export interface LoopRegion {
+  /** "exact": o decodificador respeitou o cabeçalho LAME (buffer = loop); "lead": buffer com o atraso do MP3 e a
+   *  pré-rolagem do A-3 no começo, loop recortado com loopStart/loopEnd; "unknown": comprimento inesperado */
+  kind: "exact" | "lead" | "unknown";
+  loopStart: number;
+  loopEnd: number;
+}
+
+/**
+ * Onde está o loop num buffer de `length` amostras a `sampleRate` Hz. O Chromium descarta o atraso e o padding gravados
+ * no cabeçalho LAME e devolve exatamente loop_bars compassos (tools/audio/check-loop.mjs). Um decodificador que ignore
+ * o cabeçalho devolve antes do loop o atraso do MP3 (audio.compose.mp3_lead) e a pré-rolagem do A-3
+ * (audio.compose.gapless_preroll), amostras à taxa audio.compose.sample_rate; o loop começa depois deles.
+ * LACUNA (F5-05): Safari (WebKit) e Firefox não verificados; este é o caminho de proteção.
+ */
+export function loopRegion(length: number, sampleRate: number, cfg: Pick<MusicCfg, "music" | "compose">): LoopRegion {
+  const loopSec = cfg.compose.loop_bars * barLength(cfg.music);
+  const expected = Math.round(loopSec * sampleRate);
+  if (length === expected) return { kind: "exact", loopStart: 0, loopEnd: loopSec };
+  const lead = (cfg.compose.mp3_lead + cfg.compose.gapless_preroll) / cfg.compose.sample_rate;
+  if (length >= Math.round((lead + loopSec) * sampleRate)) return { kind: "lead", loopStart: lead, loopEnd: lead + loopSec };
+  return { kind: "unknown", loopStart: 0, loopEnd: length / sampleRate };
+}
+
 /** subconjunto do fetch que o carregamento usa */
 export type FetchLike = (url: string) => Promise<{ ok: boolean; arrayBuffer(): Promise<ArrayBuffer> }>;
 
@@ -150,6 +175,8 @@ export interface MusicDeps {
   /** relógio em segundos; padrão: ctx.currentTime */
   clock?: () => number;
   fetch?: FetchLike;
+  /** aviso de comprimento inesperado (uma vez por instância); padrão: console.warn */
+  warn?: (msg: string) => void;
 }
 
 export interface Music {
@@ -187,6 +214,8 @@ export function createMusic(deps: MusicDeps): Music {
   let ducked = false;
   let duckUntil = -Infinity;
   const duckGain = dbToGain(cfg.ducking_db);
+  const warn = deps.warn ?? ((msg: string) => console.warn(msg));
+  let warned = false;
 
   const apply = (plan: MusicPlan) => {
     for (const st of Object.keys(plan.points)) {
@@ -226,10 +255,23 @@ export function createMusic(deps: MusicDeps): Music {
         g.gain.value = p.gainAt(st, startTime);
         g.connect(master);
         const src = ctx.createBufferSource();
-        src.buffer = buffers[i];
+        const buf = buffers[i];
+        src.buffer = buf;
         src.loop = true;
         src.connect(g);
-        src.start(startTime);
+        // proteção contra decodificador que ignora o cabeçalho LAME (ver loopRegion)
+        const region = typeof buf?.length === "number" && typeof buf?.sampleRate === "number" ? loopRegion(buf.length, buf.sampleRate, cfg) : null;
+        if (region?.kind === "lead") {
+          src.loopStart = region.loopStart;
+          src.loopEnd = region.loopEnd;
+          src.start(startTime, region.loopStart);
+        } else {
+          if (region?.kind === "unknown" && !warned) {
+            warned = true;
+            warn(`música: ${st}.mp3 decodificado com ${buf.length} amostras a ${buf.sampleRate} Hz, fora do esperado; o loop pode estalar ou sair do compasso`);
+          }
+          src.start(startTime);
+        }
         gains[st] = g;
       });
       planner = p;
