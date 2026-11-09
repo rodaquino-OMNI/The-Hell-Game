@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
 import {
   abbaOrder, bootstrapCi, costOutcome, costThresholds, costVerdict, costVsMain, crossOrder, ghaWarning, judgeCost, judgeVsMain, median,
-  vsMainOutcome,
+  vsMainOutcome, costGateOutcome, COST_TITLE,
 } from "../../../tools/visual/cost-stats.mjs";
 
 const balance = loadBalanceFile(new URL("../../../data/balance.yaml", import.meta.url).pathname);
@@ -268,5 +268,62 @@ describe("cost-stats: comparação com main no mesmo job (issue #59, D-49)", () 
       expect(() => costVsMain(pr, { a: main.a.map((x, i) => (i === 4 ? bad : x)), b: main.b }, CC)).toThrow(/tempo inválido/);
       expect(() => costVsMain({ a: pr.a, b: pr.b.map((x, i) => (i === 9 ? bad : x)) }, main, CC)).toThrow(/tempo inválido/);
     }
+  });
+});
+
+describe("cost-stats: desfecho sem build de main (complemento de D-49)", () => {
+  /** rodadas com as razões REAL deslocadas para `center` (como build() acima), base `baseMs`, giradas `rot` */
+  function build(center: number, baseMs: number, rot = 0) {
+    const shift = center - median(REAL);
+    const r = REAL.map((_, i) => REAL[(i + rot) % REAL.length] + shift);
+    const a = r.map((_, i) => baseMs + (i % 5) - 2);
+    return { a, b: a.map((x, i) => x * r[i]) };
+  }
+  const ctx = { view: "capturas", baseMs: 36.3, mainBaseMs: 36.1, ciLevel: CC.ci };
+
+  it("sem build de main: só aviso, nunca falha, mesmo com a razão do PR muito acima do teto absoluto de D-44", () => {
+    expect(CC.ci_mode).toBe("fail");
+    const pr = build(2.5, 36.3), abs = costVerdict(pr.a, pr.b, CC, K);
+    expect(abs.verdict).toBe("fail");
+    expect(abs.lo).toBeGreaterThan(abs.fail * 1.5);
+    for (const reason of [
+      'passo "Build de main para o custo das camadas" terminou em failure',
+      "main sem o gancho de custo (__thehellRender.bench/setLayers/setLayerA)",
+      "build de main falhou no meio da medida (vista capturas, rodada 3): Target page, context or browser has been closed",
+    ]) {
+      for (const cmp of [{ reason }, { reason, abs }]) {
+        for (const mode of ["fail", "warn"]) {
+          const out = costGateOutcome(cmp, mode, ctx);
+          expect(out.failing).toBe(false);
+          expect(out.warnings).toEqual([`sem build de main, comparação não feita (${reason})`]);
+        }
+      }
+    }
+    expect(COST_TITLE).toBe("Custo das camadas (D-49)");
+    expect(ghaWarning(COST_TITLE, costGateOutcome({ reason: "x" }, "fail", ctx).warnings[0]))
+      .toBe("::warning title=Custo das camadas (D-49)::sem build de main, comparação não feita (x)");
+  });
+
+  it("com build de main: regressão do PR reprova (ci_mode fail); mesmo código passa mesmo acima do teto absoluto", () => {
+    const main = build(1.52, 36.1, 7);
+    const bad = build(1.62, 36.3);
+    const f = costGateOutcome({ rel: costVsMain(bad, main, CC), abs: costVerdict(bad.a, bad.b, CC, K) }, "fail", ctx);
+    expect(f.failing).toBe(true);
+    const same = build(1.52, 36.3), abs = costVerdict(same.a, same.b, CC, K);
+    expect(abs.verdict).toBe("fail");
+    const ok = costGateOutcome({ rel: costVsMain(same, main, CC), abs }, "fail", ctx);
+    expect(ok.failing).toBe(false);
+    expect(ok.warnings).toHaveLength(1);
+    expect(ok.warnings[0]).toMatch(/só aviso, o portão é a comparação com main/);
+    // a camada B 2× mais cara no PR também reprova
+    const pr = build(1.3, 65), m = build(1.3, 65, 7), b2 = { a: pr.a, b: pr.b.map(x => x * 2) };
+    expect(costGateOutcome({ rel: costVsMain(b2, m, CC), abs: costVerdict(b2.a, b2.b, CC, K) }, "fail", ctx).failing).toBe(true);
+  });
+
+  it("sem comparação e sem motivo, ou ci_mode inválido, é erro (nunca pass silencioso)", () => {
+    for (const cmp of [undefined, null, {}, { reason: "" }, { reason: "  " }, { abs: undefined }]) {
+      expect(() => costGateOutcome(cmp as never, "fail", ctx)).toThrow(/sem comparação com main e sem motivo/);
+    }
+    expect(() => costGateOutcome({ reason: "x" }, "off", ctx)).toThrow(/ci_mode inválido/);
   });
 });

@@ -414,7 +414,9 @@ render:
   # independente nos dois builds o IC da diferença fica em [−0,04, +0,05] (packages/client/test/cost-stats.test.ts),
   # então lo > 0,05 só com regressão real, e uma alta de 0,10 na razão do PR já reprova (mesmo teste).
   # Com o build de main, o teto absoluto (layer_cost_factor × (1 + ci_runner_margin))
-  # vira só aviso; sem ele (main sem o gancho de custo ou build ausente) volta o portão absoluto de D-44, com aviso
+  # vira só aviso. Complemento de D-49 (supervisão por delegação do Rodrigo, 09/11/2026): sem build de main
+  # utilizável (build ausente, main sem o gancho de custo, exceção do lado de main) a comparação não é feita e fica só
+  # um aviso, sem portão absoluto (costGateOutcome em tools/visual/cost-stats.mjs)
   cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07, ci_mode: fail, main_delta: 0.05}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do

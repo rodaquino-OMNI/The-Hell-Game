@@ -19,13 +19,16 @@
 //     D-48: com render.cost_check.ci_mode "warn" a falha de custo vira aviso (anotação ::warning e resumo do job);
 //     issue #59 (D-49): com --baseline (build de main), PR e main medidos em rodadas intercaladas no mesmo navegador;
 //     falha só se o limite inferior do IC de (razão do PR − razão de main) passar de render.cost_check.main_delta, e o
-//     teto absoluto de D-44 vira só aviso; sem build de main utilizável, o portão absoluto de D-44, com aviso;
+//     teto absoluto de D-44 vira só aviso; sem build de main utilizável (ou com exceção do lado de main no meio da
+//     medida) a comparação não é feita: só aviso "sem build de main, comparação não feita" (complemento de D-49);
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
 //     contorno (D-38).
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [--baseline dir] [url]
-//   --baseline raiz de um checkout de main com `pnpm data` e o build do cliente (a CI usa um git worktree de HEAD^1)
+//   --baseline raiz de um checkout de main com `pnpm data` e o build do cliente (a CI usa um git worktree da base do
+//             PR, ou do main anterior ao push; ver .github/workflows/ci.yml). COST_MAIN_BUILD = desfecho do passo
+//             que fez esse build (steps.<id>.outcome); diferente de success = sem build de main utilizável
 //   --update  regrava as referências (revisar as imagens antes de commitar)
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
 //   --shots   grava também v1-ligado.png, v1-desligado.png e v4-patio-<preset>.png em 1280×720 com deviceScaleFactor 2
@@ -37,7 +40,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng, encodePng } from "./png.mjs";
 import { startServer } from "../lib/server.mjs";
-import { abbaOrder, costOutcome, costVerdict, costVsMain, crossOrder, ghaWarning, median, vsMainOutcome } from "./cost-stats.mjs";
+import { COST_TITLE, costGateOutcome, costVerdict, costVsMain, crossOrder, ghaWarning, median } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -193,10 +196,12 @@ async function openGame(browser, preset, viewport, at = url) {
  * cliente feitos) para medir o custo das camadas no mesmo job. O servidor deste PR serve o cliente de main
  * (PUBLIC_DIR); as intensidades da camada A vêm do balance.json de main (cada build com os próprios padrões).
  * Devolve { page, errors, layerA } ou { reason } quando não dá para comparar (sem --baseline, build ausente, main
- * sem o gancho de custo): aí compare.mjs volta ao portão absoluto de D-44, com aviso
+ * sem o gancho de custo, servidor de main não subiu): aí a comparação não é feita, só aviso (costGateOutcome)
  */
 async function openBaseline(browser) {
   if (!baselineDir) return { reason: "sem --baseline (build de main), rodada local" };
+  const step = process.env.COST_MAIN_BUILD;
+  if (step && step !== "success") return { reason: `passo "Build de main para o custo das camadas" terminou em ${step}` };
   const pub = join(baselineDir, "packages/client/dist"), bal = join(baselineDir, "packages/shared/generated/balance.json");
   if (!existsSync(join(pub, "index.html")) || !existsSync(bal)) return { reason: `build de main ausente em ${baselineDir} (falta ${existsSync(bal) ? pub + "/index.html" : bal})` };
   const la = JSON.parse(readFileSync(bal, "utf8")).render?.layer_a;
@@ -334,21 +339,24 @@ try {
   }
 
   // custo das camadas (render.layer_cost_factor): preset médio, 1280×720 (escala 3), custo síncrono por quadro
-  // (hook bench: readPixels de 1 pixel a cada quadro) sem camadas (A) e com A+B (B), em pares.
+  // (hook bench: readPixels de 1 pixel a cada quadro) sem camadas (A) e com A+B (B).
   // Mede o tempo de CPU do processo de GPU do Chromium (o SwiftShader rasteriza na CPU): bem menos sensível à carga
   // da máquina que o relógio de parede, que fica como reserva fora do Linux.
   // V7: duas vistas, a das capturas e o caçador dentro do cone da lanterna (pior caso: ele entra no passe de sombra),
   // na vista da prova de legibilidade com o caçador a LEG.distance m bem à frente.
   // D-44 (b) (render.cost_check; tools/visual/cost-stats.mjs): sem GPU a razão depende do tipo de runner, então aqui
-  // é proxy de regressão: pares intercalados ABBA, cost_check.warmup quadros descartados a cada troca de camadas,
-  // mediana das razões pareadas com IC por bootstrap determinístico. Falha só se o limite inferior do IC passar de
-  // layer_cost_factor × (1 + cost_check.ci_runner_margin) (viés do runner); AVISO se a mediana passar de
-  // layer_cost_factor (o orçamento de hardware, conferido no procedimento manual da UHD 620 em docs/runbook.md). O log traz a máquina (CPU, núcleos, carga) e o ms/quadro de A para comparar
-  // runs entre runners. Sem repetir na falha
+  // é proxy de regressão: cost_check.warmup quadros descartados a cada troca de camadas, mediana das razões pareadas
+  // com IC por bootstrap determinístico.
+  // D-49 (issue #59): PR e build de main (--baseline) em rodadas intercaladas (crossOrder) no mesmo navegador; reprova
+  // só se o limite inferior do IC de (razão do PR − razão de main) passar de cost_check.main_delta (ci_mode fail); o
+  // teto absoluto de D-44 (layer_cost_factor × (1 + ci_runner_margin)) é só aviso. Complemento de D-49 (supervisão
+  // por delegação do Rodrigo, 09/11/2026): sem build de main utilizável, ou com exceção no meio da medida do lado de
+  // main, a comparação não é feita e fica só o aviso "sem build de main, comparação não feita" (costGateOutcome),
+  // sem medir o PR sozinho; exceção do lado do PR segue reprovando. O log traz a máquina (CPU, núcleos, carga) e o
+  // ms/quadro sem camadas para comparar runs entre runners. Sem repetir na falha
   {
     const CC = balance.render.cost_check, k = balance.render.layer_cost_factor;
     const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
-    // issue #59 (D-49): o build de main (--baseline) na mesma máquina e no mesmo navegador; sem ele, D-44/D-48
     const base = await openBaseline(browser);
     const LAYERS = { A: { A: false, B: false, C: false }, B: { A: true, B: true, C: false } };
     const gpu = gpuProcesses();
@@ -363,60 +371,67 @@ try {
     const cpu = cpus();
     const machine = `${cpu[0]?.model ?? "?"}, ${cpu.length} núcleos, carga ${loadavg().map(x => x.toFixed(1)).join("/")}`;
     const summary = (m) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${m}\n`); };
-    console.log(`custo: máquina ${machine}; ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}; ${CC.pairs} ${games.main ? "rodadas PR × main (crossOrder)" : "pares ABBA"} de ${CC.frames} quadros (${CC.warmup} de aquecimento descartados), IC ${Math.round(CC.ci * 100)}% por bootstrap (${CC.bootstrap_resamples} reamostragens, semente ${CC.seed})`);
-    if (games.main) console.log(`custo: build de main em ${baselineDir} (issue #59): reprova se o limite inferior do IC de (razão do PR − razão de main) > ${CC.main_delta} (render.cost_check.main_delta); o teto absoluto de D-44 fica só como aviso`);
-    else if (baselineDir) {
-      const m = `${base.reason}; vale o portão absoluto de D-44 (ci_mode ${CC.ci_mode})`;
-      console.log(ghaWarning("Custo das camadas sem build de main (issue #59)", m));
-      summary(`**Custo das camadas sem build de main (issue #59)**: ${m}`);
-    } else console.log(`custo: ${base.reason}; portão absoluto de D-44 (ci_mode ${CC.ci_mode})`);
+    // desfecho do portão (costGateOutcome): anotação, resumo do job e log de cada aviso; reprova só com `failing`
+    const gate = (cmp, ctx) => {
+      const out = costGateOutcome(cmp, CC.ci_mode, ctx);
+      for (const w of out.warnings) {
+        console.log(ghaWarning(COST_TITLE, w));
+        summary(`**${COST_TITLE}**: ${w}`);
+        console.warn(`AVISO: custo das camadas: ${w}. Máquina: ${machine}`);
+      }
+      return out;
+    };
+    const message = (e) => String(e?.message ?? e).split("\n")[0];
     const VIEWS = [{ name: "capturas", view: VIEW }, { name: "caçador no cone", view: LEG.view, cone: true }];
     const x2 = (n) => `${n.toFixed(2)}×`, d2 = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
     const tCost = performance.now();
-    for (const v of VIEWS) {
-      if (v.cone) {
-        for (const g of Object.values(games)) {
-          await g.page.evaluate(([LEG]) => {
+    if (!games.main) gate({ reason: base.reason });
+    else {
+      console.log(`custo: máquina ${machine}; ${gpu.length ? "CPU do processo de GPU" : "relógio de parede"}; ${CC.pairs} rodadas PR × main (crossOrder) de ${CC.frames} quadros (${CC.warmup} de aquecimento descartados), IC ${Math.round(CC.ci * 100)}% por bootstrap (${CC.bootstrap_resamples} reamostragens, semente ${CC.seed})`);
+      console.log(`custo: build de main em ${baselineDir} (issue #59): reprova se o limite inferior do IC de (razão do PR − razão de main) > ${CC.main_delta} (render.cost_check.main_delta); o teto absoluto de D-44 fica só como aviso`);
+      // exceção do lado de main (página, gancho ou medida inválida): interrompe a comparação e só avisa
+      let mainError = null;
+      const onMain = async (f, what) => {
+        try { return await f(); } catch (e) { mainError = `${what}: ${message(e)}`; return undefined; }
+      };
+      for (const v of VIEWS) {
+        if (v.cone) {
+          const place = (g) => g.page.evaluate(([LEG]) => {
             const G = window.__thehell(), P = G.survivors[0], H = G.hunter, a = LEG.view.yaw;
             H.x = P.x - Math.sin(a) * LEG.distance; H.z = P.z - Math.cos(a) * LEG.distance;
             H.a = Math.atan2(P.x - H.x, P.z - H.z);
           }, [LEG]);
+          await place(games.pr);
+          await onMain(() => place(games.main), `build de main falhou ao posicionar o caçador (vista ${v.name})`);
+          if (mainError) break;
         }
-      }
-      const ms = { pr: { A: [], B: [] }, main: { A: [], B: [] } };
-      for (let r = 0; r < CC.pairs; r++) {
-        const order = games.main ? crossOrder(r) : abbaOrder(r).map(l => ["pr", l]);
-        for (const [g, l] of order) ms[g][l].push(await run(games[g], LAYERS[l], v.view));
-      }
-      const c = costVerdict(ms.pr.A, ms.pr.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
-      console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento), ${games.main ? "aviso" : "falha"} se limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : c.verdict === "warn" ? "AVISO" : games.main ? "AVISO (teto absoluto)" : "FALHA"}`);
-      if (games.main) {
-        const rel = costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC);
+        const ms = { pr: { A: [], B: [] }, main: { A: [], B: [] } };
+        for (let r = 0; r < CC.pairs && !mainError; r++) {
+          for (const [g, l] of crossOrder(r)) {
+            if (g === "pr") { ms.pr[l].push(await run(games.pr, LAYERS[l], v.view)); continue; }
+            const t = await onMain(() => run(games.main, LAYERS[l], v.view), `build de main falhou no meio da medida (vista ${v.name}, rodada ${r})`);
+            if (mainError) break;
+            ms.main[l].push(t);
+          }
+        }
+        if (mainError) break;
+        // lado do PR: tempo inválido é erro e reprova (costVerdict lança)
+        const c = costVerdict(ms.pr.A, ms.pr.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
+        console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.pr.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.pr.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento) ou limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : "AVISO (teto absoluto)"}`);
+        // com o PR já validado por costVerdict, erro aqui vem das medidas de main
+        const rel = await onMain(async () => costVsMain({ a: ms.pr.A, b: ms.pr.B }, { a: ms.main.A, b: ms.main.B }, CC), `medida de main inválida (vista ${v.name})`);
+        if (mainError) break;
         console.log(`custo × main (vista ${v.name}): main sem camadas ${median(ms.main.A).toFixed(1)} ms/quadro, A+B ${median(ms.main.B).toFixed(1)} ms/quadro, razão mediana ${x2(rel.mainMedian)}; diferença PR − main mediana ${d2(rel.median)}, IC ${Math.round(CC.ci * 100)}% [${d2(rel.lo)}, ${d2(rel.hi)}]; falha se limite inferior > ${d2(rel.delta)} → ${rel.verdict === "pass" ? "ok" : rel.verdict === "warn" ? "AVISO" : "FALHA"}`);
         summary(`**Custo das camadas, vista ${v.name}** (issue #59): PR ${x2(rel.prMedian)} × main ${x2(rel.mainMedian)} no mesmo job, diferença ${d2(rel.median)} [${d2(rel.lo)}, ${d2(rel.hi)}], limite ${d2(rel.delta)} → ${rel.verdict}. Máquina: ${machine}`);
-        const out = vsMainOutcome(rel, c, CC.ci_mode, { view: v.name, baseMs: median(ms.pr.A), mainBaseMs: median(ms.main.A), ciLevel: CC.ci });
-        for (const w of out.warnings) {
-          console.log(ghaWarning("Custo das camadas (issue #59)", w));
-          summary(`**Custo das camadas (aviso)**: ${w}`);
-          console.warn(`AVISO: custo das camadas: ${w}. Máquina: ${machine}`);
-        }
+        const out = gate({ rel, abs: c }, { view: v.name, baseMs: median(ms.pr.A), mainBaseMs: median(ms.main.A), ciLevel: CC.ci });
         if (out.failing) fail(`camadas A+B no PR custam ${x2(rel.prMedian)} o preset sem camadas na vista ${v.name}, contra ${x2(rel.mainMedian)} em main no mesmo job; o limite inferior do IC da diferença (${d2(rel.lo)}) passa de render.cost_check.main_delta (${d2(rel.delta)}): regressão (issue #59, D-49)`);
-        continue;
       }
-      // sem build de main: D-44 com D-48 (render.cost_check.ci_mode): em "warn" o resultado de falha vira aviso visível
-      // (anotação e resumo do job) e não reprova; as demais provas deste script e tools/perf/budget.mjs seguem reprovando
-      const out = costOutcome(c, CC.ci_mode, { view: v.name, baseMs: median(ms.pr.A), ciLevel: CC.ci });
-      if (out.warning) {
-        console.log(ghaWarning("Custo das camadas (D-48)", out.warning));
-        summary(`**Custo das camadas (D-48, ci_mode ${CC.ci_mode})**: ${out.warning}. Máquina: ${machine}`);
-      }
-      if (out.failing) fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto da CI ${x2(c.fail)} (render.layer_cost_factor × (1 + render.cost_check.ci_runner_margin)): regressão (D-44)`);
-      else if (out.warning) console.warn(`AVISO: custo das camadas: ${out.warning}; no SwiftShader a razão depende do runner (proxy de regressão, D-44/D-48). Máquina: ${machine}`);
+      if (mainError) gate({ reason: mainError });
     }
-    console.log(`custo: medidas em ${((performance.now() - tCost) / 1000).toFixed(0)} s${games.main ? " (PR e main)" : " (só o PR)"}; carga ${loadavg().map(x => x.toFixed(1)).join("/")}`);
+    console.log(`custo: ${games.main ? `medidas em ${((performance.now() - tCost) / 1000).toFixed(0)} s (PR e main)` : "medida não feita (sem build de main)"}; carga ${loadavg().map(x => x.toFixed(1)).join("/")}`);
     if (base.errors?.length) console.warn(`AVISO: erros no console do build de main (não reprovam este PR): ${base.errors.join(" | ")}`);
     await cost.page.close();
-    if (base.page) await base.page.close();
+    if (base.page) await base.page.close().catch(() => {});
   }
 
   // legibilidade depois da camada A (Art Bible §5.3; revisão do V4), preset médio com as camadas dele.
