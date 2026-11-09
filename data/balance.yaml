@@ -236,6 +236,11 @@ ai:
   # hoje; campo próprio porque não é audição). Ruído ouvido durante a perseguição pela memória é ignorado (LACUNA: o
   # caçador não sabe quem o fez; segui-lo trocaria de alvo sem vê-lo).
   memory_investigate_time: 8
+  # R8 passo 1 (D-46; GDD-v0.3 §8.4 e §9.1 "dash e projétil quebram loops"; valor LACUNA): ao reencontrar o alvo
+  # perseguido ferido (vida < survivor.wounded_hp) a menos disto, o dash vem antes do projétil. 6 m ≈ percurso do
+  # dash (hunter.dash.speed × duration = 3,85 m) + alcance do golpe (hunter.melee.range = 1,8 m) = 5,65 m: o dash
+  # termina no alcance do golpe. A faixa de uso do dash (hunter.dash.min..max, GDD-v0.2 §2.3) continua valendo.
+  dash_reacquire_dist: 6
   by_difficulty:
     easy:      {reaction: 0.6,  projectile_lead: none,          loop_knowledge: none,    memory: 4}
     normal:    {reaction: 0.4,  projectile_lead: none,          loop_knowledge: partial, memory: 8}

@@ -5,7 +5,7 @@ export { matchEnd, individualResult, isTerminal, type MatchEnd } from "./match.t
 export { canSee, inCone, lineOfSight, segmentHitsBox } from "./perception.ts";
 export { nextRandom } from "./rng.ts";
 export {
-  HUNTER_TRANSITIONS, aimPoint, canBreakLoop, loopAt, newHunterAi, project, projectileAllowed, setMode, think, trackLoop,
+  HUNTER_TRANSITIONS, aimPoint, canBreakLoop, choosePatrol, trackLoopMemory, loopAt, newHunterAi, project, projectileAllowed, setMode, think, trackLoop,
   updateHunterAi, type HunterEffects,
 } from "./ai/hunter.ts";
 export { perceive } from "./ai/percept.ts";

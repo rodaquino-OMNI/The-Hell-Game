@@ -195,8 +195,13 @@ export interface HunterAi {
   pathOk: boolean;
   /** força replanejamento pelo A* (anti-travamento) */
   forceAstar: boolean;
-  /** contagem de voltas no loop em que o alvo corre (GDD-v0.3 §8.4) */
-  loop: { id: string; target: number; acc: number; last: number } | null;
+  /**
+   * contagem de voltas no loop em que o alvo corre (GDD-v0.3 §8.4). `src` = de onde veio o último ângulo: "target"
+   * (alvo percebido) ou "self" (o próprio caçador, enquanto segue o alvo lembrado atrás do obstáculo, R8 passo 1)
+   */
+  loop: { id: string; target: number; acc: number; last: number; src: "target" | "self" } | null;
+  /** alvo visível (no cone, não só revelado) na decisão anterior (-1 = nenhum): reencontro do alvo (R8 passo 1) */
+  seenTarget: number;
   /** ponto de corte pelo navmesh quando o alvo corre num loop longo (Pesadelo, "evita loops longos") */
   intercept: Vec | null;
   /** o último golpe capturou o alvo (Recuo → Prender) */

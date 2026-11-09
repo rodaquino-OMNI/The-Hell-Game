@@ -45,7 +45,7 @@ export function newHunterAi(): HunterAi {
   return {
     mode: "patrol", perceiveIn: 0, decideIn: 0, percept: null, noticed: [], target: -1, score: 0, switchedAt: 0,
     memory: null, investigate: null, heard: null, patrol: null, goal: null, path: [], pathOk: true, forceAstar: false,
-    loop: null, intercept: null, captured: false, stuck: { t: 0, x: 0, z: 0, ex: 0, ez: 0 }, speed: 0, step: { x: 0, z: 0 }, replans: 0,
+    loop: null, seenTarget: -1, intercept: null, captured: false, stuck: { t: 0, x: 0, z: 0, ex: 0, ez: 0 }, speed: 0, step: { x: 0, z: 0 }, replans: 0,
   };
 }
 
@@ -100,19 +100,40 @@ const centroid = (l: MapLoop): Vec => ({
   z: l.polygon.reduce((s, p) => s + p[1], 0) / l.polygon.length,
 });
 
-/** atualiza a contagem de voltas do alvo em torno do loop (ângulo acumulado em volta do centro ÷ 2π) */
+/** soma ao contador de voltas o ângulo de `p` em volta do centro do loop; nova fonte só fixa o ângulo de partida */
+function accumulate(ai: HunterAi, l: MapLoop, target: number, p: Vec, src: "target" | "self"): number {
+  const c = centroid(l), ang = Math.atan2(p.z - c.z, p.x - c.x);
+  if (ai.loop && ai.loop.id === l.id && ai.loop.target === target) {
+    if (ai.loop.src === src) {
+      let d = ang - ai.loop.last;
+      if (d > Math.PI) d -= TAU;
+      if (d < -Math.PI) d += TAU;
+      ai.loop.acc += d;
+    }
+    ai.loop.last = ang; ai.loop.src = src;
+  } else ai.loop = { id: l.id, target, acc: 0, last: ang, src };
+  return Math.abs(ai.loop.acc) / TAU;
+}
+
+/** atualiza a contagem de voltas do alvo percebido em torno do loop (ângulo acumulado em volta do centro ÷ 2π) */
 export function trackLoop(cfg: SimConfig, ai: HunterAi, s: SeenSurvivor): { loop: MapLoop; laps: number } | null {
   const l = loopAt(cfg, s);
   if (!l) { ai.loop = null; return null; }
-  const c = centroid(l), ang = Math.atan2(s.z - c.z, s.x - c.x);
-  if (ai.loop && ai.loop.id === l.id && ai.loop.target === s.id) {
-    let d = ang - ai.loop.last;
-    if (d > Math.PI) d -= TAU;
-    if (d < -Math.PI) d += TAU;
-    ai.loop.acc += d;
-    ai.loop.last = ang;
-  } else ai.loop = { id: l.id, target: s.id, acc: 0, last: ang };
-  return { loop: l, laps: Math.abs(ai.loop.acc) / TAU };
+  return { loop: l, laps: accumulate(ai, l, s.id, s, "target") };
+}
+
+/**
+ * Alvo fora de vista, mas lembrado (R8 passo 1; GDD-v0.3 §8.4 "2 voltas no mesmo obstáculo"): no loop o alvo some
+ * atrás do obstáculo a cada meia volta, e zerar a contagem aí impediria o Normal de chegar às 2 voltas. Enquanto a
+ * memória do alvo vale, a contagem continua com o ângulo do próprio caçador em volta do mesmo obstáculo (ele segue o
+ * alvo pela rota; só usa a própria posição e os metadados do mapa). Memória expirada ou de outro alvo: zera.
+ */
+export function trackLoopMemory(cfg: SimConfig, ai: HunterAi, self: Vec, t: number): void {
+  const m = ai.memory, lp = ai.loop;
+  if (!lp || !m || m.id !== lp.target || m.until <= t) { ai.loop = null; return; }
+  const l = (cfg.map.loops ?? []).find(x => x.id === lp.id);
+  if (!l) { ai.loop = null; return; }
+  accumulate(ai, l, lp.target, self, "self");
 }
 
 /**
@@ -161,7 +182,11 @@ export function projectileAllowed(cfg: SimConfig, from: Vec, s: SeenSurvivor): b
 
 // ---------- decisão (10 Hz) ----------
 
-function choosePatrol(cfg: SimConfig, rng: { seed: number }, p: Percept, prev: number): { x: number; z: number; gen: number } {
+/**
+ * Destino da patrulha (GDD-v0.3 §8.2): gerador não concluído sorteado com peso proporcional ao progresso (todos
+ * zerados = peso igual), sem repetir `prev` quando há outro; na pressão final, ponto em volta do portão.
+ */
+export function choosePatrol(cfg: SimConfig, rng: { seed: number }, p: Percept, prev: number): { x: number; z: number; gen: number } {
   if (!p.finalPressure) {
     // §8.2: visita geradores com peso proporcional ao progresso (todos zerados = peso igual); concluídos ficam de fora
     let idx = p.gens.map((x, i) => (x.done ? -1 : i)).filter(i => i >= 0);
@@ -216,8 +241,12 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   if (choice) {
     if (choice.id !== ai.target) ai.switchedAt = t;
     ai.target = choice.id; ai.score = choice.score;
-  } else { ai.target = -1; ai.score = 0; ai.loop = null; ai.intercept = null; }
+  } else { ai.target = -1; ai.score = 0; ai.intercept = null; trackLoopMemory(cfg, ai, p.self, t); }
   const tgt = choice ? p.survivors.find(s => s.id === choice.id)! : null;
+  // reencontro (R8 passo 1): o alvo perseguido (visto ou lembrado) volta ao cone depois de não estar visível na
+  // decisão anterior
+  const reacquired = !!tgt && tgt.visible && tgt.id === pursuedBefore && ai.seenTarget !== tgt.id;
+  ai.seenTarget = tgt && tgt.visible ? tgt.id : -1;
   if (tgt) ai.memory = { id: tgt.id, x: tgt.x, z: tgt.z, until: t + lvl.memory, vx: tgt.vx, vz: tgt.vz, ax: tgt.x, az: tgt.z };
   if (tgt && pursuedBefore >= 0 && tgt.id !== pursuedBefore && (ai.mode === "chase" || ai.mode === "attack" || ai.mode === "recoil")) {
     cfg.traceTarget?.({ t, target: tgt.id });
@@ -241,7 +270,7 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
 
   if (tgt) {
     if (ai.mode !== "chase") { setMode(cfg, t, ai, "chase"); ai.investigate = null; }
-    chaseActions(cfg, H, ai, p, tgt);
+    chaseActions(cfg, H, ai, p, tgt, reacquired);
   } else if (ai.mode === "chase") {
     // D-35 (§8.1 memória, §8.2): sem o alvo à vista, segue em Perseguir enquanto a memória vale (indo à última
     // posição conhecida e projetando a fuga, ver `chaseMemoryGoal`); Investigar só quando a memória expira, em volta
@@ -260,7 +289,10 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
     setMode(cfg, t, ai, "patrol");
     ai.investigate = null;
   }
-  if (ai.mode === "patrol" && !ai.patrol) ai.patrol = choosePatrol(cfg, rng, p, -1);
+  // §8.2 (R8 passo 1): o destino da patrulha também muda quando o gerador de destino foi concluído no caminho
+  // (concluídos não entram no sorteio) e quando a pressão final começa (passa a patrulhar o portão)
+  const stale = ai.patrol && ai.patrol.gen >= 0 && (p.finalPressure || p.gens[ai.patrol.gen]?.done);
+  if (ai.mode === "patrol" && (!ai.patrol || stale)) ai.patrol = choosePatrol(cfg, rng, p, ai.patrol?.gen ?? -1);
 
   // armadilha (GDD-v0.2 §2.3) com telegraph (§4.1); fora do ataque (o golpe ocupa o preparo)
   if (H.trap <= 0 && !H.windup) {
@@ -269,8 +301,12 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   }
 }
 
-/** Perseguir: golpe no alcance (vira Atacar), projétil e dash conforme loops e previsão da dificuldade */
-function chaseActions(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, s: SeenSurvivor) {
+/**
+ * Perseguir: golpe no alcance (vira Atacar), projétil e dash conforme loops e previsão da dificuldade. Reencontro de
+ * alvo ferido a menos de `ai.dash_reacquire_dist` (R8 passo 1): o dash vem antes do projétil, porque termina no
+ * alcance do golpe. Faixa de uso, recargas, telegraph e conhecimento de loops valem como sempre.
+ */
+function chaseActions(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, s: SeenSurvivor, reacquired: boolean) {
   const h = cfg.balance.hunter, d = dist(p.self, s);
   const onLoop = trackLoop(cfg, ai, s);
   // Pesadelo, "evita loops longos": não segue o alvo pela rota do loop; corta pelo navmesh até o ponto da rota
@@ -288,13 +324,19 @@ function chaseActions(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, s: Se
     return;
   }
   if (!canBreakLoop(cfg, onLoop)) return;
+  const dashOk = H.dash <= 0 && s.visible && d > h.dash.min && d < h.dash.max && lineOfSight(cfg.map, p.self, s);
+  if (dashOk && reacquired && s.hp < cfg.balance.survivor.wounded_hp && d < cfg.balance.ai.dash_reacquire_dist) {
+    H.dash = h.dash.cooldown;
+    H.windup = { kind: "dash", t: h.telegraph_min, total: h.telegraph_min };
+    return;
+  }
   if (H.projectile <= 0 && d > h.projectile.min && d < h.projectile.max && projectileAllowed(cfg, p.self, s)) {
     H.projectile = h.projectile.cooldown;
     H.windup = { kind: "projectile", t: h.telegraph_min, total: h.telegraph_min };
     return;
   }
   // dash só com linha de visão (é em linha reta); o preparo dá o telegraph do §4.1
-  if (H.dash <= 0 && s.visible && d > h.dash.min && d < h.dash.max && lineOfSight(cfg.map, p.self, s)) {
+  if (dashOk) {
     H.dash = h.dash.cooldown;
     H.windup = { kind: "dash", t: h.telegraph_min, total: h.telegraph_min };
   }
