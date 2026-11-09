@@ -14,13 +14,13 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { decodePng, encodePng } from "../visual/png.mjs";
 import { startServer } from "../lib/server.mjs";
+import { RULES, SEED, gotoPaused } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 const out = process.argv[2];
 if (!out) { console.error("uso: node tools/art/a2b-capturas.mjs <pasta de saída> [url]"); process.exit(2); }
 mkdirSync(out, { recursive: true });
-const SEED = 1234;
 /** classe da ficha → botão do menu (ordem de CLASSES no sim) e classe da partida; Protetor e Batedor (fase 4) só mudam a vista */
 const CLASSES = [
   ["curandeiro", 0], ["mecanico", 1], ["atacador", 2], ["protetor", 2], ["batedor", 0],
@@ -43,9 +43,8 @@ async function open(query, button) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: "pt-BR" });
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?debug=1&seed=${SEED}&${query}`, { waitUntil: "load" });
-  await page.clock.pauseAt(1000);
+  // relógio instalado e pausado antes de navegar, como em tools/visual/compare.mjs (tools/lib/capture-page.mjs)
+  await gotoPaused(page, `${url}/?debug=1&seed=${SEED}&${RULES}&${query}`);
   await page.locator("#cls button").nth(button).click();
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
