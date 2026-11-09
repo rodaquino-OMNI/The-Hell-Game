@@ -23,6 +23,8 @@ export function createLantern(): THREE.SpotLight {
   s.castShadow = true;
   s.shadow.mapSize.set(rc.shadow_map, rc.shadow_map);
   s.shadow.bias = l.shadow_bias;
+  // sem deslocamento pela normal: o Ps1Material calcula a coordenada da sombra sem ele (ps1.ts, D-44 a)
+  s.shadow.normalBias = 0;
   s.shadow.camera.near = rc.camera.near;
   s.shadow.camera.far = l.distance;
   s.visible = false;

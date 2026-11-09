@@ -41,6 +41,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng, encodePng } from "./png.mjs";
 import { startServer } from "../lib/server.mjs";
+import { LEG, LEG_IN, RULES, SEED, gotoPaused } from "../lib/capture-page.mjs";
 import { COST_TITLE, costGateOutcome, costInfo, costVerdict, costVsMain, checkSamples, d2, ghaWarning, median, p1, roundPlan, runRounds, x2 } from "./cost-stats.mjs";
 
 const require = createRequire(import.meta.url);
@@ -59,22 +60,9 @@ const baselineDir = opt("--baseline");
 let url = args.find((a, i) => a.startsWith("http") && !["--out", "--shots", "--baseline"].includes(args[i - 1]));
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
 
-/** semente fixa das capturas (partida e texturas procedurais) */
-const SEED = 1234;
-// As referências foram capturadas no layout 0 com `ruleset: prototype` (padrão dos dados até o marco MJ-B). Desde o
-// MJ-B o padrão é v1 (layout pela semente, IA do caçador): a captura fixa o protótipo pela via que o cliente já
-// oferece (`?ruleset=`, só com `?debug=1`, packages/client/src/data.ts), para a comparação continuar medindo só o visual.
-const RULES = "ruleset=prototype";
+// SEED, RULES (protótipo, layout 0), LEG e LEG_IN: tools/lib/capture-page.mjs, comuns com tools/art/*-capturas.mjs
 /** vista das capturas: 3ª pessoa, olhando a jaula, um muro próximo, dois aliados e três feixes */
 const VIEW = { yaw: -0.9, pitch: -0.1, thirdPerson: true };
-/**
- * cena de prova de legibilidade (V4): vista para o noroeste a partir do spawn, com o caçador a `distance` m e `angle`°
- * à esquerda da vista (fora do cone da lanterna), contra o muro; `diff` = soma das diferenças RGB que marca um pixel
- * do objeto
- */
-const LEG = { view: { yaw: 0.52, pitch: -0.1, thirdPerson: true }, distance: 8, angle: 40, diff: 12 };
-/** a mesma cena com o caçador dentro do cone da lanterna (D-18): `angle`° à esquerda da vista */
-const LEG_IN = { ...LEG, angle: 8 };
 /** tolerância: diferença máxima por canal considerada igual e fração máxima de pixels fora dela */
 const TOL = { channel: 2, fraction: 0.001 };
 const ALL = (v) => ({ snap: v, affine: v, gouraud: v, dither: v });
@@ -177,15 +165,9 @@ async function openGame(browser, preset, viewport, at = url) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  // relógio: instala e pausa ANTES de navegar (o Playwright reaplica o relógio a cada documento novo, e o boot do
-  // cliente não arma timer antes do #go). Pausar depois do goto corria contra o relógio, que já anda em tempo real:
-  // com o carregamento lento, "clock.pauseAt: Cannot fast-forward to the past". Efeito colateral (medido): no documento
-  // novo Date.now() continua 1000, mas performance.now() fica no pequeno atraso real entre install e pauseAt (antes
-  // ≈ 1000); o cliente só usa tempos relativos (main.ts: last = performance.now() em start()), e as capturas seguem
-  // idênticas às referências
-  await page.clock.install({ time: 0 });
-  await page.clock.pauseAt(1000);
-  await page.goto(`${at}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
+  // relógio parado, instalado e pausado ANTES de navegar (tools/lib/capture-page.mjs); as capturas seguem idênticas às
+  // referências
+  await gotoPaused(page, `${at}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`);
   await page.click("#go");
   // personagens (V2) carregam de .glb de forma assíncrona: espera todos entrarem na cena antes de capturar
   await page.evaluate(() => window.__thehellCharactersReady?.());
@@ -536,9 +518,7 @@ try {
     // V4 (marco A3): o Pátio em cada preset, com as camadas do preset, na vista das capturas e com o relógio parado
     for (const preset of Object.keys(balance.render.presets)) {
       const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
-      await p.clock.install({ time: 0 });
-      await p.clock.pauseAt(1000);
-      await p.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`, { waitUntil: "load" });
+      await gotoPaused(p, `${url}/?debug=1&seed=${SEED}&preset=${preset}&${RULES}`);
       await p.click("#go");
       await p.evaluate(() => window.__thehellCharactersReady?.());
       for (const [suffix, damage] of [["", 0], ["-dano", 1]]) {

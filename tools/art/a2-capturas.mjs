@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodePng } from "../visual/png.mjs";
 import { startServer } from "../lib/server.mjs";
+import { RULES, SEED, gotoPaused } from "../lib/capture-page.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -36,7 +37,6 @@ const PRESET = "medium";
 const [IW, IH] = balance.render.presets[PRESET].internal;
 /** ampliação inteira das capturas na resolução interna */
 const ZOOM = 4;
-const SEED = 1234;
 const VIEWS = [["frente", 0], ["lado", Math.PI / 2], ["costas", Math.PI]];
 // enquadramentos (ferramenta, não regra de jogo): "perto" cabe 2,9 m de altura no quadro (todos na mesma escala);
 // "jogo" usa o campo de visão da câmera do jogo (prototype_extras.camera.fov) a 8 m
@@ -77,9 +77,8 @@ try {
   const page = await browser.newPage({ viewport: { width: IW, height: IH }, deviceScaleFactor: 1 });
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.clock.install({ time: 0 });
-  await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${PRESET}`, { waitUntil: "load" });
-  await page.clock.pauseAt(1000);
+  // relógio instalado e pausado antes de navegar, como em tools/visual/compare.mjs (tools/lib/capture-page.mjs)
+  await gotoPaused(page, `${url}/?debug=1&seed=${SEED}&preset=${PRESET}&${RULES}`);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
   const shoot = async o => {
@@ -129,9 +128,7 @@ try {
   // ---------- no jogo, material PS1, deviceScaleFactor 2 ----------
   const game = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
   game.on("pageerror", e => errors.push(e.message));
-  await game.clock.install({ time: 0 });
-  await game.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
-  await game.clock.pauseAt(1000);
+  await gotoPaused(game, `${url}/?debug=1&seed=${SEED}&${RULES}`);
   await game.click("#go");
   await game.evaluate(() => window.__thehellCharactersReady?.());
   /** prepara o estado (função serializada que recebe G) e desenha com a câmera atrás do jogador olhando o alvo */
