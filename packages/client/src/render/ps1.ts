@@ -57,6 +57,14 @@ export const rimUniforms = {
 export const getHunterOutline = () => rimUniforms.uRim.value;
 /** setter para o menu de opções (V8): 0 desliga o contorno; fora de 0..1 é limitado */
 export function setHunterOutline(v: number) { rimUniforms.uRim.value = clamp01(v); }
+/**
+ * forma do contorno (amount e power; null volta a render.hunter_outline). Só para capturas de comparação de arte
+ * (tools/art/a3-capturas.mjs --forma); o jogo usa os dados
+ */
+export function setHunterOutlineShape(s: { amount: number; power: number } | null) {
+  rimUniforms.uRimColor.value.copy(rimColor(tok(ho.color), s?.amount ?? ho.amount));
+  rimUniforms.uRimPower.value = s?.power ?? ho.power;
+}
 
 /** intensidades atuais de cada efeito (0 a 1) */
 export function getPs1(): Ps1Intensity {

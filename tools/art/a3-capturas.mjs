@@ -8,7 +8,10 @@
 // A cena é a de prova de legibilidade de tools/visual/compare.mjs (LEG e LEG_IN): vista para o noroeste a partir do
 // spawn, caçador a 8 m e 40° (fora) ou 8° (dentro) à esquerda da vista, de frente para o jogador.
 // Chromium do Playwright com SwiftShader, 1280×720 com deviceScaleFactor 2, semente fixa e relógio parado.
-// Uso: node tools/art/a3-capturas.mjs <pasta de saída> [url]   (sem url, sobe packages/server/dist/server.mjs)
+// Uso: node tools/art/a3-capturas.mjs <pasta de saída> [url] [--forma potência,amount --sufixo nome] [--presets a,b]
+//   (sem url, sobe packages/server/dist/server.mjs). --forma troca só nesta captura a forma do contorno (o padrão é
+//   render.hunter_outline) para comparar opções de arte; --sufixo entra no nome dos arquivos do "depois"
+//   (ex.: --forma 1,1.05 --sufixo fraco → a3-contorno-medium-fraco.png, patio-medium-fora-do-cone-fraco.png)
 // Pré-requisito: pnpm build.
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,7 +24,12 @@ import { decodePng, encodePng } from "../visual/png.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const out = process.argv[2];
+const argv = process.argv.slice(2);
+const flagArg = (n) => { const i = argv.indexOf(n); if (i < 0) return undefined; const v = argv[i + 1]; argv.splice(i, 2); return v; };
+const formaArg = flagArg("--forma"), suffix = flagArg("--sufixo"), presetsArg = flagArg("--presets");
+const forma = formaArg ? (([power, amount]) => ({ power, amount }))(formaArg.split(",").map(Number)) : null;
+if (forma && (!(forma.power > 0) || !(forma.amount > 0) || !suffix)) { console.error("--forma potência,amount exige números > 0 e --sufixo"); process.exit(2); }
+const out = argv[0];
 if (!out) { console.error("uso: node tools/art/a3-capturas.mjs <pasta de saída> [url]"); process.exit(2); }
 mkdirSync(out, { recursive: true });
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));
@@ -33,7 +41,7 @@ const DISTANCE = 8, OUT = 40, IN = 8;
 const CROP = [420, 640];
 const outline = balance.render.hunter_outline.intensity;
 
-let url = process.argv[3], server;
+let url = argv[1], server;
 if (!url) {
   const port = process.env.A3_PORT ?? "18734";
   url = `http://127.0.0.1:${port}`;
@@ -53,6 +61,7 @@ async function open(query) {
   await page.clock.pauseAt(1000);
   await page.click("#go");
   await page.evaluate(() => window.__thehellCharactersReady?.());
+  await page.evaluate((f) => window.__thehellRender.setHunterOutlineShape(f), forma);
   return page;
 }
 
@@ -68,7 +77,8 @@ async function shot(page, name, { angle, rim, thirdPerson, hidden = false }) {
     h.capture({ ...view, thirdPerson: third }, { hidden: hidden ? ["hunter"] : [] });
   }, [VIEW, DISTANCE, angle, rim, thirdPerson, hidden]);
   const p = join(out, name);
-  await page.screenshot({ path: p });
+  // SwiftShader numa máquina carregada passa do padrão de 30 s
+  await page.screenshot({ path: p, timeout: 180000 });
   if (!hidden) files.push(p);
   return decodePng(readFileSync(p));
 }
@@ -99,27 +109,27 @@ function montage(name, imgs, centers) {
 }
 
 try {
-  for (const preset of Object.keys(balance.render.presets)) {
+  for (const preset of presetsArg ? presetsArg.split(",") : Object.keys(balance.render.presets)) {
     const page = await open(`preset=${preset}`);
     const imgs = [], centers = [];
     for (const [pos, angle] of [["fora", OUT], ["dentro", IN]]) {
       const bg = await shot(page, `.fundo-${preset}-${pos}.png`, { angle, rim: 0, thirdPerson: true, hidden: true });
-      for (const [when, rim] of [["antes", 0], ["depois", outline]]) {
+      for (const [when, rim] of [["antes", 0], [suffix ?? "depois", outline]]) {
         const img = await shot(page, `patio-${preset}-${pos}-do-cone-${when}.png`, { angle, rim, thirdPerson: true });
         imgs.push(img); centers.push(center(img, bg));
       }
     }
     // o mesmo recorte para antes e depois (centro do caçador sem o contorno)
-    montage(`a3-contorno-${preset}.png`, imgs, [centers[0], centers[0], centers[2], centers[2]]);
+    montage(`a3-contorno-${preset}${suffix ? "-" + suffix : ""}.png`, imgs, [centers[0], centers[0], centers[2], centers[2]]);
     await page.close();
   }
   // mockup Retro FPS (D-13 a D-15): 1ª pessoa, caçador fora do cone
   const page = await open("retro=1");
   const bg = await shot(page, ".fundo-retro.png", { angle: OUT, rim: 0, thirdPerson: false, hidden: true });
   const before = await shot(page, "retro-fora-do-cone-antes.png", { angle: OUT, rim: 0, thirdPerson: false });
-  const after = await shot(page, "retro-fora-do-cone-depois.png", { angle: OUT, rim: outline, thirdPerson: false });
+  const after = await shot(page, `retro-fora-do-cone-${suffix ?? "depois"}.png`, { angle: OUT, rim: outline, thirdPerson: false });
   const c = center(before, bg);
-  montage("a3-contorno-retro.png", [before, after], [c, c]);
+  montage(`a3-contorno-retro${suffix ? "-" + suffix : ""}.png`, [before, after], [c, c]);
   await page.close();
 } finally {
   await browser.close();

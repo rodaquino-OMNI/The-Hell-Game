@@ -226,6 +226,7 @@ Tomadas em 08/11/2026 pelo Rodrigo e pelo filho, na [página de decisões](https
 | D-34 | modo tutorial na simulação exposto em dados (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | caçador passivo e etapas do GDD v0.3 §12.3 em `data/balance.yaml` seção `tutorial`; item da Frente R depois do MJ-B; UI e roteiro com a sessão Visual (V6) |
 | D-30 | a) ligar os 7 eventos de pontos do sobrevivente do GDD v0.2 §7.1 (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `points.events.{rescue, heal, block_bolt, stun, chase_escape, trap_disarm, escape}.enabled: true` com os valores do §7.1 (R6); acompanhamento: depois do R4, medir moedas por partida em Normal no R8; se a skin mais barata sair em menos de 2 partidas, propor ajuste de preço à supervisão |
 | D-31 | a) pontos do caçador desligados até o caçador humano da fase 3 (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | `points.events.hunter_*` com os valores do §7.1 e `enabled: false` (D-09) |
+| D-38 | limiar interno `render.legibility.body_keep` 0,89 para o caçador com contorno; a Art Bible §5.3 (3:1) tem precedência sobre a métrica interna (decidido pela supervisão por delegação do Rodrigo, 09/11/2026) | complementa a D-18: em `tools/visual/compare.mjs` o corpo do caçador conserva ≥ 0,89 do contraste sem a camada A, com e sem o contorno; nenhum ponto potência × amount do contorno dá 3:1 e 0,9 juntos (PR #34); padrão `hunter_outline` power 1, amount 1,15 (3,21:1, 0,897) |
 
 ## 8. Riscos principais
 

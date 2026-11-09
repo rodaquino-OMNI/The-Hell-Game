@@ -16,7 +16,8 @@
 //   - custo: medium com A+B ≤ render.layer_cost_factor × medium sem camadas (tempo síncrono por quadro, 1280×720);
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
-//     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A.
+//     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
+//     contorno (D-38).
 // Uso: node tools/visual/compare.mjs [--update] [--out dir] [--shots dir] [url]
 //   --update  regrava as referências (revisar as imagens antes de commitar)
 //   --out     onde gravar as capturas atuais e os mapas de diferença (padrão: <tmp>/thehell-visual)
@@ -323,14 +324,13 @@ try {
   // Cena de prova: o caçador a LEG.distance m da vista LEG.view, fora do cone da lanterna (LEG.angle), contra o muro.
   //  - olhos no preparo (telegraph do V3) e feixe de gerador: contraste WCAG ≥ render.legibility.min_contrast
   //    contra o mesmo pixel sem o objeto;
-  //  - corpo do caçador (sem o contorno, a mesma medida de antes de D-18): a camada A não pode tirar mais que
-  //    render.legibility.body_keep do contraste que ele tem sem ela;
+  //  - corpo do caçador fora do cone, sem o contorno (intensidade 0, V8) e com ele: a camada A não pode tirar mais que
+  //    render.legibility.body_keep do contraste que ele tem sem ela. D-38: body_keep 0,89; a Art Bible §5.3 (3:1) tem
+  //    precedência sobre esta métrica interna (as scanlines, ≈ 0,8 em luminância linear, e o tom de sombra da LUT tiram
+  //    ≈ 10% de todo corpo claro; nenhum ponto potência × amount dá 3:1 e 0,9 juntos, ver render.hunter_outline);
   //  - corpo do caçador com o contorno (D-18, render.hunter_outline): ≥ render.legibility.min_contrast fora do cone
   //    (LEG) e dentro dele (LEG_IN), com a camada A ligada; o contraste sem o contorno vai no relatório (antes/depois).
-  //    Com o contorno, a fração conservada vai no relatório, mas não reprova: as scanlines escurecem a linha em valor
-  //    de tela (≈ 0,8 em luminância linear) e o tom das sombras da LUT ergue o fundo, e nenhum ponto da tabela
-  //    potência × amount dá 3:1 e body_keep ≥ 0,9 juntos (revisão do PR #34; ver render.hunter_outline). Decisão de
-  //    arte pendente: até lá vale o body_keep do corpo sem o contorno.
+  //    Dentro do cone a fração conservada não é cobrada (≈ 0,86 já sem o contorno: a lanterna clareia o corpo)
   //  - máscara do corpo: pixels em que o caçador desenhado chapado (opção `flat` do gancho: ui.text, sem luz, névoa
   //    nem bloom) difere do fundo sem ele. Conta a silhueta inteira (cabeça oval, farrapos de hunter.farrapos) mesmo
   //    onde a cor some no muro; antes contava só os pixels já visíveis sem o contorno
@@ -377,6 +377,7 @@ try {
     const fmt = (c) => `${c.cr.toFixed(2)}:1 (Y ${c.lf.toFixed(4)} × fundo ${c.lb.toFixed(4)}, ${c.n} px)`;
     console.log(`legibilidade D-18 (contorno ${outlineDefault}): fora do cone ${fmt(cbRim)} (sem camada A ${cbRim0.cr.toFixed(2)}:1, conserva ${(cbRim.cr / cbRim0.cr).toFixed(3)}), sem contorno ${fmt(cb)}; dentro do cone ${fmt(ci)}, sem contorno ${fmt(ciBare)}`);
     if (!ci.n) fail("legibilidade: caçador fora da cena de prova dentro do cone");
+    if (cbRim.cr < lg.body_keep * cbRim0.cr) fail(`legibilidade: a camada A tira contraste do caçador com o contorno (${cbRim.cr.toFixed(2)} < ${lg.body_keep} × ${cbRim0.cr.toFixed(2)}; D-38)`);
     if (cbRim.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador fora do cone com contraste ${cbRim.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
     if (ci.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador dentro do cone com contraste ${ci.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
     // olhos e feixe: os pixels do objeto vêm de capturas sem bloom (o halo não entra na média); a luminância, das
@@ -394,7 +395,7 @@ try {
     if (!cb.n || !ce.n || !beam.n) fail("legibilidade: caçador, olhos ou feixe fora da cena de prova");
     if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
     if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
-    if (cb.cr < lg.body_keep * cb0.cr) fail(`legibilidade: a camada A tira contraste do caçador (${cb.cr.toFixed(2)} < ${lg.body_keep} × ${cb0.cr.toFixed(2)})`);
+    if (cb.cr < lg.body_keep * cb0.cr) fail(`legibilidade: a camada A tira contraste do caçador sem o contorno (${cb.cr.toFixed(2)} < ${lg.body_keep} × ${cb0.cr.toFixed(2)})`);
   }
 
   for (const { errors } of Object.values(pages)) if (errors.length) fail("erros no console: " + errors.join(" | "));

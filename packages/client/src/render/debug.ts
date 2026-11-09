@@ -5,7 +5,7 @@ import type * as THREE from "three";
 import { balance } from "../data.ts";
 import type { PresetName } from "./present.ts";
 import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
-import { getHunterOutline, getPs1, Ps1Material, setHunterOutline, setPs1, type Ps1Intensity } from "./ps1.ts";
+import { getHunterOutline, getPs1, Ps1Material, setHunterOutline, setHunterOutlineShape, setPs1, type Ps1Intensity } from "./ps1.ts";
 import { tok } from "../look.ts";
 import { genVisuals, meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
 import { telegraphOn } from "./characters/runtime.ts";
@@ -25,6 +25,8 @@ export interface RenderHook {
   /** contorno do caçador (D-18), intensidade de 0 a 1 */
   getHunterOutline(): number;
   setHunterOutline(v: number): void;
+  /** forma do contorno para comparação de arte (amount ≤ 1/token por canal; null = render.hunter_outline) */
+  setHunterOutlineShape(s: { amount: number; power: number } | null): void;
   /** opção "reduzir flicker" (GDD-v0.3 §12.4) */
   getReduceFlicker(): boolean;
   setReduceFlicker(on: boolean): void;
@@ -72,7 +74,7 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     getPs1,
     setPs1,
     setPreset: name => setPreset(need().ctx, name),
-    getHunterOutline, setHunterOutline,
+    getHunterOutline, setHunterOutline, setHunterOutlineShape,
     getLayers, setLayers, getLayerA, setLayerA, getReduceFlicker, setReduceFlicker, setOverrides,
     info: () => {
       const { ctx } = need();

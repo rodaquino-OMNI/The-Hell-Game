@@ -334,8 +334,12 @@ render:
   layer_cost_factor: 1.4
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
-  # caçador fora do cone conserva body_keep do contraste que tem sem a camada A
-  legibility: {min_contrast: 3, body_keep: 0.9}
+  # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,
+  # V8) e com ele. D-38 (supervisão por delegação do Rodrigo, 09/11/2026; docs/plano-construcao.md §7): body_keep
+  # 0,89 (era 0,9). A Art Bible §5.3 (3:1) tem precedência sobre esta métrica interna: com a camada A as scanlines
+  # (≈ 0,8 em luminância linear) e o tom de sombra da LUT tiram ≈ 10% do contraste de todo corpo claro, e nenhum
+  # ponto potência × amount do contorno dá 3:1 e 0,9 juntos (tabela em hunter_outline abaixo; PR #34)
+  legibility: {min_contrast: 3, body_keep: 0.89}
   # D-18 (b, 09/11/2026; docs/plano-construcao.md §7): contorno sutil no caçador para a legibilidade fora do cone da
   # lanterna (Art Bible §5.3: 3:1, WCAG 2.2 1.4.11) sem clarear a cena (luz ambiente e névoa intactas). Borda de luz
   # por vértice (fresnel) no Ps1Material do caçador: cor = token × amount, somada antes da névoa; power = expoente do
@@ -344,7 +348,10 @@ render:
   # amount × token ≤ 1 por canal (sem branco saturado; hunter.espectro tem máx. 206/255, então amount ≤ 1,23).
   # Escolha (revisão do PR #34, 09/11/2026; máscara do corpo inteiro): power 1 e amount 1,15 dão 3,21:1 fora do cone
   # e conservam 0,897 com a camada A. Nenhum ponto da tabela potência × amount (0,6 a 4 × 0,6 a 1,23) dá 3:1 e
-  # body_keep ≥ 0,9 ao mesmo tempo (o mais perto: power 1 e amount 1,05, 2,96:1 e 0,900): decisão de arte pendente
+  # body_keep ≥ 0,9 ao mesmo tempo. Resumo (fora do cone, contraste / fração conservada): power 1 × amount 0,6 / 1,0 /
+  # 1,2 = 1,99 / 0,926, 2,84 / 0,904, 3,34 / 0,895; power 1,5 × 1,2 = 2,54 / 0,908; power 2 × 1,2 = 2,12 / 0,911;
+  # power 3 × 1,2 = 1,75 / 0,930; power 4 × 1,2 = 1,59 / 0,939; power 1 × 1,05 = 2,96 / 0,900 (opção fraca, capturas
+  # *-fraco em docs/art/marcos/a3). D-38 fixa body_keep em 0,89 e mantém este ponto
   hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1}
   models: {survivor_tris: [300, 600], hunter_tris: [800, 1200], atlas: 64}
   # V3 (F2-03): leitura de estado no jogo (Art Bible §4). Frequências da tabela da §4; o resto é medida de arte.
