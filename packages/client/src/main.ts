@@ -23,7 +23,10 @@ import { syncActors, syncDynamic } from "./render/sync.ts";
 import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
 import { initLocale } from "./ui/locale.ts";
-import { hideMenu, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
+import { hideMenu, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
+import { afterLoadIdle, startGate } from "./ui/start-gate.ts";
+import { charactersReady } from "./render/characters/runtime.ts";
+import { prefetchMatchCharacters } from "./render/characters/actors.ts";
 import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
@@ -36,6 +39,10 @@ let last = 0;
 applyPalette(document.documentElement);
 initLocale();
 setupMenu(start);
+// D-45: .glb dos personagens pedidos em baixa prioridade com o menu aberto (depois do load, navegador ocioso)
+afterLoadIdle(() => void prefetchMatchCharacters());
+/** D-45: a partida só começa com os personagens na cena (teto ui.start_wait_s, depois o modelo de reserva) */
+const gate = startGate({ ready: charactersReady, timeoutS: balance.ui.start_wait_s, setBusy: setStartBusy });
 
 function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
@@ -57,11 +64,15 @@ setPs1(urlPs1);
 /** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
 if (urlRetro) exposeDebugHook("__thehellView", view);
 
-function start() {
-  hideMenu();
+async function start() {
+  if (gate.busy()) return;
+  // áudio e pointer lock no gesto do clique (a espera abaixo pode passar da ativação transitória)
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
   init();
+  // nenhum passo da simulação antes dos personagens (D-45): o botão fica em "carregando…" na espera
+  await gate.wait();
+  hideMenu();
   clock.acc = 0;
   last = performance.now();
   // uma só cadeia de quadros: a partir da 2ª partida o laço já está rodando

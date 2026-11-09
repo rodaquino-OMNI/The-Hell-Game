@@ -52,6 +52,8 @@ small,.dim{color:var(--ui-text-dim)}
 #langs{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center}
 .sk{border:2px solid var(--ui-text-dim);padding:8px;width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--ui-panel)}.sk.on{border-color:var(--ui-accent)}#sg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:720px;margin:20px 0}.sw{position:relative;width:46px;height:64px;margin-top:22px}.sw i{position:absolute;left:11px;top:-14px;width:24px;height:24px}.sw u{position:absolute;left:8px;top:-22px;width:30px;height:9px}
 button:disabled{cursor:default;border-style:dashed}
+button[aria-disabled="true"]{cursor:progress;border-style:dashed}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 /* MOCKUP A2b do modo Retro FPS (D-13; só com ?retro=1): barra de estado inferior, estilo de gênero anos 90 */
 #sb{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;align-items:stretch;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));
   background:radial-gradient(circle at 5px 5px,var(--world-industrial-chapa) 1.5px,transparent 2px) 0 0/22px 22px,var(--world-industrial-parede);
@@ -88,7 +90,8 @@ body.retro #spec{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 <p id="sub"></p>
 <div id="langs" role="group" data-i18n-aria-label="lang.label"></div>
 <p id="choose" data-i18n="menu.choose_class"></p><div id="cls" role="group" aria-labelledby="choose"></div><p id="desc" aria-live="polite"></p>
-<div><button type="button" id="go"><span aria-hidden="true">▶ </span><span data-i18n="menu.start"></span></button><button type="button" id="sh" data-i18n="menu.shop"></button></div>
+<div><button type="button" id="go"><span aria-hidden="true">▶ </span><span id="gol" data-i18n="menu.start"></span></button><button type="button" id="sh" data-i18n="menu.shop"></button></div>
+<p id="gost" class="sr" role="status" aria-live="polite"></p>
 <p id="co"></p>
 <small data-i18n="menu.controls"></small>
 <small id="goal"></small>

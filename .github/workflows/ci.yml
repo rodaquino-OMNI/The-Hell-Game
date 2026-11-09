@@ -49,6 +49,8 @@ jobs:
         run: pnpm maps:browser-check
       - name: Fumaça ponta a ponta (servidor + jogo no navegador)
         run: pnpm smoke
+      - name: "D-45: partida só começa com os personagens (.glb do caçador atrasado 6 s e com falha)"
+        run: pnpm e2e:espera-personagens
       - name: "Áudio: contexto inicia após o clique (A-1)"
         run: node tools/audio/e2e.mjs
       - name: "Áudio: stems decodificados no Chromium com comprimento exato e loop sem estalo (A-3)"

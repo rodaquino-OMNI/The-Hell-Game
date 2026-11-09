@@ -45,6 +45,20 @@ export function setupMenu(onStart: () => void) {
 
 export function hideMenu() { $("menu").style.display = "none"; }
 
+/**
+ * estado de carregando do botão "Começar" enquanto os personagens chegam (D-45): texto curto no botão, aviso no
+ * #gost (role="status", aria-live polite), aria-busy e aria-disabled (desativado sem `disabled`, que tiraria o foco;
+ * o clique é ignorado em main.ts enquanto a espera dura)
+ */
+export function setStartBusy(on: boolean) {
+  const go = $("go");
+  $("gol").setAttribute("data-i18n", on ? "menu.loading" : "menu.start");
+  $("gol").textContent = t(on ? "menu.loading" : "menu.start");
+  $("gost").textContent = on ? t("menu.loading_status") : "";
+  go.setAttribute("aria-busy", String(on));
+  if (on) go.setAttribute("aria-disabled", "true"); else go.removeAttribute("aria-disabled");
+}
+
 export function showEnd(e: Extract<GameEvent, { type: "end" }>) {
   const [title, sub] = endText(e, balance);
   $("et").textContent = title;
