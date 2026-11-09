@@ -12,8 +12,11 @@
 //     aviso vai numa anotação ::warning do GitHub Actions e no resumo do job;
 //   - crossOrder / judgeVsMain / costVsMain / vsMainOutcome (issue #59, D-49): o PR e o build de main medidos no mesmo
 //     job, em rodadas intercaladas; reprova só se o limite inferior do IC de (razão do PR − razão de main) passar de
-//     cost_check.main_delta. Com o build de main o teto absoluto de D-44 vira só aviso; sem ele (main antigo ou
-//     build ausente) vale o portão absoluto de D-44/D-48, com aviso.
+//     cost_check.main_delta. Com o build de main o teto absoluto de D-44 vira só aviso;
+//   - costGateOutcome (complemento de D-49, supervisão por delegação do Rodrigo, 09/11/2026): o desfecho do portão.
+//     Sem build de main utilizável (passo falhou, build ou render.layer_a ausentes, main sem o gancho de custo,
+//     servidor de main não subiu, exceção no meio da medida do lado de main) a comparação não é feita: só aviso
+//     ("sem build de main, comparação não feita"), nunca falha, nem com o teto absoluto de D-44 estourado.
 
 /** PRNG mulberry32, o mesmo algoritmo de packages/sim/src/rng.ts (GDD v0.3 §13.3): mesma semente, mesma sequência */
 export function mulberry32(seed) {
@@ -187,4 +190,23 @@ export function vsMainOutcome(rel, abs, mode, { view, baseMs, mainBaseMs, ciLeve
     warnings.push(`vista ${view}: razão absoluta do PR ${x2(abs.median)}, IC ${pct}% [${x2(abs.lo)}, ${x2(abs.hi)}], base ${baseMs.toFixed(1)} ms/quadro sem camadas (main ${mainBaseMs.toFixed(1)}); ${what}: só aviso, o portão é a comparação com main (issue #59)`);
   }
   return { failing, warnings };
+}
+
+/** título da anotação ::warning do portão de custo das camadas (D-49) */
+export const COST_TITLE = "Custo das camadas (D-49)";
+
+/**
+ * desfecho do portão de custo das camadas na CI (D-49 e complemento, docs/plano-construcao.md §7). `cmp`:
+ *   - { rel, abs } com a comparação com main feita (rel = costVsMain, abs = costVerdict do PR): vsMainOutcome;
+ *   - { reason, abs? } sem build de main utilizável (`reason` = o motivo, uma linha; `abs` = costVerdict do PR, se
+ *     houver): não reprova, nem com o teto absoluto de D-44 passado; um aviso "sem build de main, comparação não
+ *     feita (motivo)" para a anotação e o resumo do job.
+ * `mode` e `ctx` como em vsMainOutcome. Devolve { failing, warnings }. Sem rel e sem motivo é erro (nunca "pass"
+ * silencioso). Exceção do lado do PR não passa por aqui: compare.mjs a deixa reprovar
+ */
+export function costGateOutcome(cmp, mode, ctx) {
+  if (mode !== "warn" && mode !== "fail") throw new Error(`costGateOutcome: ci_mode inválido (${mode})`);
+  if (cmp?.rel) return vsMainOutcome(cmp.rel, cmp.abs, mode, ctx);
+  if (typeof cmp?.reason !== "string" || !cmp.reason.trim()) throw new Error("costGateOutcome: sem comparação com main e sem motivo");
+  return { failing: false, warnings: [`sem build de main, comparação não feita (${cmp.reason.trim()})`] };
 }

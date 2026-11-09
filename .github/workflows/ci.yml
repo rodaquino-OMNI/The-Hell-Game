@@ -16,7 +16,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-17)
-        # 2: HEAD^1 (base do PR ou main anterior) para o build de main do custo das camadas (issue #59)
+        # 2: HEAD^1 (no pull_request, 1º pai do merge commit do GitHub = a base do PR) para o build de main do custo
+        # das camadas (issue #59); no push para main o passo do build de main busca github.event.before
         with: { fetch-depth: 2 }
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (03/11/2026): exceção à quarentena de 2 semanas, decidida pela supervisão (PR #23 já em main)
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0 (2026-10-08)
@@ -67,18 +68,39 @@ jobs:
         run: pnpm a11y
       - name: Fumaça do protótipo original
         run: pnpm smoke:prototype
-      # issue #59 (D-49): build de main para medir o custo das camadas no mesmo job. HEAD^1 = a base do merge do PR
-      # (em push para main, o main anterior); precisa do checkout com fetch-depth 2. Se este passo falhar,
-      # compare.mjs anota o aviso e volta ao portão absoluto de D-44
+      # issue #59 (D-49): build de main para medir o custo das camadas no mesmo job. Commit de main (complemento de
+      # D-49, supervisão por delegação do Rodrigo, 09/11/2026): no pull_request, HEAD^1 = 1º pai do merge commit do
+      # GitHub = a base do PR (checkout com fetch-depth 2). No push para main, github.event.before = o main antes do
+      # push (num fast-forward de vários commits, HEAD^1 seria só o penúltimo commit do push, não o main anterior);
+      # volta para HEAD^1 se before vier vazio ou só com zeros, ou se o fetch dele falhar. Se este passo falhar,
+      # compare.mjs não compara: só aviso "sem build de main, comparação não feita" (COST_MAIN_BUILD = desfecho deste
+      # passo), sem reprovar
       - name: "Build de main para o custo das camadas (issue #59)"
+        id: main-build
         continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          git worktree add --detach "$RUNNER_TEMP/main" HEAD^1
+          base=HEAD^1
+          if [ "$EVENT" = push ]; then
+            if [ -z "$BEFORE" ] || [ -z "${BEFORE//0/}" ]; then
+              echo "custo: github.event.before vazio ou só zeros; build de main em HEAD^1"
+            elif git fetch --no-tags --depth=1 origin "$BEFORE" && git cat-file -e "$BEFORE^{commit}"; then
+              base="$BEFORE"
+            else
+              echo "::warning title=Custo das camadas (D-49)::fetch de github.event.before ($BEFORE) falhou; build de main em HEAD^1"
+            fi
+          fi
+          echo "custo: build de main em $base = $(git rev-parse "$base")"
+          git worktree add --detach "$RUNNER_TEMP/main" "$base"
           cd "$RUNNER_TEMP/main"
           pnpm install --frozen-lockfile
           pnpm data
           pnpm --filter @thehell/client build
       - name: Capturas de referência do material PS1 (V1) e das camadas A, B e C por preset (V4)
+        env:
+          COST_MAIN_BUILD: ${{ steps.main-build.outcome }}
         run: node tools/visual/compare.mjs --out "$RUNNER_TEMP/visual" --baseline "$RUNNER_TEMP/main"
       # na falha, publica as capturas atuais e os mapas de diferença (*.diff.png) para revisão
       - name: Publicar capturas e diferenças

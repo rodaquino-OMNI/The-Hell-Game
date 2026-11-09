@@ -22,3 +22,8 @@ export interface VsMainResult { diffs: number[]; median: number; lo: number; hi:
 export function costVsMain(pr: { a: number[]; b: number[] }, main: { a: number[]; b: number[] }, cfg: CostCheck): VsMainResult;
 export function vsMainOutcome(rel: VsMainResult, abs: CostResult, mode: CiMode | string,
   ctx: { view: string; baseMs: number; mainBaseMs: number; ciLevel: number }): { failing: boolean; warnings: string[] };
+/** complemento de D-49: desfecho do portão; sem build de main utilizável (`reason`) só avisa, nunca reprova */
+export const COST_TITLE: string;
+export type CostGateInput = { rel: VsMainResult; abs: CostResult } | { reason: string; abs?: CostResult; rel?: undefined };
+export function costGateOutcome(cmp: CostGateInput, mode: CiMode | string,
+  ctx: { view: string; baseMs: number; mainBaseMs: number; ciLevel: number }): { failing: boolean; warnings: string[] };
