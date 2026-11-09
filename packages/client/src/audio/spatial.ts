@@ -15,7 +15,7 @@
 // `audio.occlusion_ramp_tc`, `audio.panner`, `audio.source_height`.
 import type { Balance, GameMap } from "@thehell/shared";
 import { lineOfSight, type Vec } from "@thehell/sim";
-import { balance, map as patio } from "../data.ts";
+import { balance, cfg as simCfg } from "../data.ts";
 import { getBusInput, getEngine, type BusName } from "./engine.ts";
 import { createVoiceManager, type Voice, type VoiceManager } from "./voices.ts";
 
@@ -112,6 +112,7 @@ export interface SpatialEngine {
 
 export interface SpatialDeps {
   engine?: SpatialEngine;
+  /** padrão: `cfg.map` de data.ts (mapa efetivo de makeConfig, não o mapa de topo) */
   map?: GameMap;
   cfg?: SpatialCfg;
   voices?: VoiceManager;
@@ -155,7 +156,9 @@ const singletonEngine: SpatialEngine = {
 
 export function createSpatial(deps: SpatialDeps = {}): Spatial {
   const engine = deps.engine ?? singletonEngine;
-  const map = deps.map ?? patio;
+  // paredes do mapa EFETIVO da partida (makeConfig: com as flags do v1, p.ex. os pilares de loop curto da D-23,
+  // `maps.v1.short_loop_pillars`), a mesma fonte única da simulação e da render, e não o mapa de topo de data/maps
+  const map = deps.map ?? simCfg.map;
   const cfg = deps.cfg ?? balance.audio;
   const voices = deps.voices ?? createVoiceManager();
   const listener: Vec3 = { x: 0, y: 0, z: 0 };
