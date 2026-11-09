@@ -70,7 +70,10 @@ export const getHunterOutline = () => rim.chosen;
 export function setHunterOutline(v: number) { rim.chosen = clamp01(v); applyRim(); }
 type PresetName = keyof typeof ho.preset_scale;
 let presetName: PresetName = balance.render.default_preset;
-/** D-54: preset de render atual; o contorno leva render.hunter_outline.preset_scale dele */
+/**
+ * D-54: preset de render atual; o contorno leva render.hunter_outline.preset_scale dele. Trocar de preset descarta
+ * o fator fixado à mão por setHunterOutlinePresetScale (volta ao dos dados)
+ */
 export function setHunterOutlinePreset(name: PresetName) { presetName = name; rim.preset = ho.preset_scale[name]; applyRim(); }
 /**
  * fator do preset fixado à mão (null volta ao do preset atual). Só para capturas de comparação de arte e para
