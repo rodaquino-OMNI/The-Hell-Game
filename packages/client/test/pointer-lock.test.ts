@@ -14,7 +14,7 @@ let rate = 0;
 type Listener = () => void;
 const doc = { pointerLockElement: null as object | null, listeners: [] as Listener[], addEventListener(_t: string, f: Listener) { doc.listeners.push(f); } };
 const g = globalThis as Record<string, unknown>;
-for (const k of ["onkeydown", "onkeyup", "onmousemove", "onmousedown", "onmouseup"]) g[k] = null;
+for (const k of ["onkeydown", "onkeyup", "onmousemove", "onmousedown", "onmouseup", "onblur"]) g[k] = null;
 g.document = doc;
 
 const input = await import("../src/input.ts");
