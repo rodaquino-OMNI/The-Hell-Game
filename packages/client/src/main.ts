@@ -11,9 +11,10 @@ import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
 import { lockPointer, readInput, requestPuzzleExit, setupInput, view } from "./input.ts";
 import { installRenderHook } from "./render/debug.ts";
-import { urlPs1, urlRetro, urlRetroClass, urlSeed } from "./render/options.ts";
+import { urlPs1, urlRetro, urlRetroClass, urlSeed, urlStress } from "./render/options.ts";
 import { setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
+import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
 import { messageText } from "./text.ts";
 import { initLocale } from "./ui/locale.ts";
@@ -22,6 +23,8 @@ import { persist, save } from "./ui/shop.ts";
 
 let G: GameState;
 let ctx: RenderCtx;
+/** cena de pior caso (`?stress=1`, V7): estado sintético desenhado no lugar da partida, que fica parada */
+let stress: StressScene | null = null;
 const clock = { acc: 0 };
 let last = 0;
 
@@ -33,6 +36,7 @@ function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
   G = createGame(cfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0));
   buildActors(ctx, G, save.eq);
+  if (urlStress) stress = buildStress(ctx, G);
   view.yaw = 0;
   resetHud();
   // mockup do modo Retro FPS (?retro=1, D-13): começa em 1ª pessoa (V alterna) com a barra de estado inferior
@@ -67,6 +71,12 @@ function loop(now: number) {
   // passo fixo em tempo real (GDD-v0.3 §13.3), com os tetos de `client` (loop.ts)
   const { steps, dt } = advanceClock(clock, (now - last) / 1000, STEP, balance.client);
   last = now;
+  if (stress) {
+    // cena de pior caso: a simulação não avança; só o relógio dos efeitos e das animações
+    stress.G.t += dt;
+    renderStress(ctx, stress, 0, false);
+    return;
+  }
   for (let i = 0; i < steps && !G.over; i++) step(cfg, G, readInput(G, STEP));
   for (const e of drainEvents(G)) {
     if (e.type === "msg") showMessage(messageText(e));

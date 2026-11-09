@@ -141,6 +141,7 @@ const render = z.object({
   layer_cost_factor: num.min(1),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
+  stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({ survivor_tris: minMax, hunter_tris: minMax, atlas: z.number().int().positive() }).strict(),
   /** V3 (Art Bible §4): padrões de feixe, telegraph dos olhos e cadeado do aliado preso */
   states: z.object({

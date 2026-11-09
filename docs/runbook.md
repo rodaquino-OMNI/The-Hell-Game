@@ -61,6 +61,21 @@ Para produção, o mesmo com `--app the-hell` e `fly.production.toml`, com aprov
 
 Cada troca levou menos de 1 minuto, sem rebuild.
 
+## Desempenho
+
+Metas do GDD v0.3 §10.6, limiares em `data/balance.yaml` `render.budgets`.
+
+**Na CI (automático):** `pnpm perf:budget` (`tools/perf/budget.mjs`) abre a cena de pior caso (`?stress=1`: caçador e 5 sobreviventes das 5 classes, inclusive Protetor e Batedor só como atores de render, mapa inteiro, camadas do preset, armadilhas e projéteis no máximo) em cada preset, sem e com `?retro=1`, e falha se `renderer.info` passar de `render.budgets.draw_calls` ou `triangles` em alguma vista. Também mede o download inicial (bytes transferidos até o jogo ficar jogável, rede limitada a `render.stress.network_mbps`) e o tempo até jogar. O tempo de relógio só é reportado na CI: no SwiftShader o primeiro quadro mede a CPU do runner, não a GPU do jogador; a CI falha se a transferência do download inicial na rede limitada passar de `time_to_play_s` (com `--strict-time`, o tempo de relógio também conta). Relatório `budget.json` e `budget.md` no artefato `orcamentos-desempenho` quando falha.
+
+**FPS em Intel UHD 620 (manual; LACUNA até haver máquina):** a CI não tem GPU real. Medir no fim das fases 2 e 5 numa máquina do Rodrigo ou de um testador:
+
+1. Máquina com Intel UHD Graphics 620 (conferir em `chrome://gpu`: "GL_RENDERER" com "UHD Graphics 620"; aceleração por hardware ligada), carregador ligado, plano de energia equilibrado, outras abas e programas fechados.
+2. Chrome atual, janela de 1280×720 de área útil (ou tela cheia em monitor 720p). Zoom do navegador em 100%.
+3. Abrir `https://the-hell-staging.fly.dev/?stress=1&preset=high` e clicar em "Jogar". A partida fica parada; a tela mostra a vista de cima com o mapa inteiro, os 6 personagens e todas as camadas do preset.
+4. Esperar 10 s (shaders e modelos carregados). No console do DevTools (F12), rodar `await __thehellRender.fps(60)` sem mexer em nada: devolve quadros, segundos e FPS médio dos 60 s.
+5. Repetir com `preset=medium` (padrão) e `preset=low`, e com `&retro=1` no preset padrão.
+6. Registrar na issue do V7: modelo da máquina, versão do Chrome, driver, resolução e o FPS de cada execução. Meta: `render.budgets.fps` (60) no preset padrão.
+
 ## Custos
 
 Preços de [docs.fly.io/about/pricing](https://docs.fly.io/about/pricing) (consulta em 08/11/2026): shared-cpu-1x 256 MB a US$ 2,19/mês se ficar ligada o mês todo; as duas máquinas dormem sem uso (`auto_stop_machines = "stop"`, `min_machines_running = 0`), então o custo real tende a centavos até haver jogadores. Teto do projeto: US$ 10/mês; alerta em US$ 8 (o agente DEV abre issue).

@@ -26,7 +26,8 @@
     "maps:validate": "tsx tools/maps/validate.ts",
     "sim": "tsx tools/sim/run.ts",
     "maps:browser-check": "pnpm data && node tools/maps/recast-browser-check.mjs",
-    "visual": "node tools/visual/compare.mjs"
+    "visual": "node tools/visual/compare.mjs",
+    "perf:budget": "node tools/perf/budget.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

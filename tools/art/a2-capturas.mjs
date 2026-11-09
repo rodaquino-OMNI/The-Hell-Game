@@ -14,13 +14,12 @@
 //    vista, de perto e na distância de jogo. É só um proxy: o portão é o teste humano da Art Bible §5.1.
 // Uso: node tools/art/a2-capturas.mjs <pasta de saída> [url]   (sem url, sobe packages/server/dist/server.mjs)
 // Pré-requisito: pnpm build. Determinístico: semente fixa, relógio parado, sem Math.random na render.
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { encodePng } from "../visual/png.mjs";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -55,13 +54,8 @@ writeFileSync(join(out, "variantes.json"), JSON.stringify(VARIANT, null, 1) + "\
 const BG = { preto: "ui.text", cor: "world.fog", luz: "world.fog" };
 
 let url = process.argv[3], server;
-if (!url) {
-  // porta própria (A2_PORT), longe das usadas por smoke (18080) e compare (18082)
-  const port = process.env.A2_PORT ?? "18731";
-  url = `http://127.0.0.1:${port}`;
-  server = spawn(process.execPath, [join(root, "packages/server/dist/server.mjs")], { env: { ...process.env, PORT: port }, stdio: ["ignore", "ignore", "inherit"] });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 
 /** amplia RGBA por `k` (vizinho mais próximo) */
 function zoom(img, k) {

@@ -195,6 +195,12 @@ export function buildActors(ctx: RenderCtx, G: GameState, skin: string) {
 
 /** posiciona câmera e luz do jogador e desenha o quadro (alvo em baixa resolução → passe final) */
 export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; pitch: number; thirdPerson: boolean }) {
+  placeCamera(ctx, G, view);
+  drawFrame(ctx, G, !view.thirdPerson);
+}
+
+/** câmera (1ª ou 3ª pessoa), luz do jogador e lanterna apontada para onde a câmera olha */
+export function placeCamera(ctx: RenderCtx, G: GameState, view: { yaw: number; pitch: number; thirdPerson: boolean }) {
   const { cam, PL } = ctx;
   const P = G.survivors[0], { yaw, pitch, thirdPerson } = view;
   const c = px.camera;
@@ -207,6 +213,15 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   cam.rotation.set(pitch - (thirdPerson ? 0.2 : 0), yaw, 0);
   PL.position.set(P.x, rc.lights.player_height, P.z);
   aimLantern(ctx.lantern, cam, P.x, P.z);
+}
+
+/**
+ * desenha o quadro com a câmera já posta (`placeCamera`, ou a vista de cima da cena de pior caso, stress.ts);
+ * `tool` = ferramenta na mão à vista (mockup Retro FPS: só em 1ª pessoa)
+ */
+export function drawFrame(ctx: RenderCtx, G: GameState, tool: boolean) {
+  const { cam } = ctx;
+  const P = G.survivors[0];
   // camada B: shadow map a render.anim_fps no relógio da simulação, só com os projetores dentro do cone
   const shadowStep = Math.floor(fxTime(G.t) * rc.anim_fps);
   if (ctx.lantern.visible && shadowStep !== ctx.shadowStep) {
@@ -222,7 +237,7 @@ export function renderFrame(ctx: RenderCtx, G: GameState, view: { yaw: number; p
   tickLayers(G.t, ctx.fx.hitT);
   ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
   // ferramenta na mão (mockup Retro FPS): só em 1ª pessoa, com o jogador de pé
-  ctx.retro?.vm?.update(P.x, P.z, G.t, !thirdPerson && P.st === "ok");
+  ctx.retro?.vm?.update(P.x, P.z, G.t, tool && P.st === "ok");
   present(ctx);
 }
 
