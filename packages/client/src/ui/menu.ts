@@ -7,6 +7,7 @@ import { classDescription, className, endStats, endText, goalText } from "../tex
 import { difficultyText, matchConfig, setupDifficulty } from "./difficulty.ts";
 import { applyStaticText, setupLanguagePicker } from "./locale.ts";
 import { closeOptions } from "./options.ts";
+import { showReport, type ReportData } from "./report.ts";
 import { showResults } from "./results.ts";
 import { shop, updateCoins } from "./shop.ts";
 
@@ -86,12 +87,14 @@ export function setStartBusy(on: boolean) {
   }
 }
 
-export function showEnd(e: Extract<GameEvent, { type: "end" }>) {
+/** tela de fim; `report` = relatório de playtest (só com ?debug=1, ui/report.ts), botões depois de "Jogar de novo" */
+export function showEnd(e: Extract<GameEvent, { type: "end" }>, report: ReportData | null = null) {
   const [title, sub] = endText(e, balance);
   $("et").textContent = title;
   $("es").textContent = sub;
   $("est").textContent = endStats(e);
   showResults(e);
+  showReport(report, $("again"));
   $("hud").hidden = true;
   $("end").style.display = "flex";
   $("again").focus();

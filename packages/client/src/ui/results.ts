@@ -13,6 +13,7 @@ import { $, balance } from "../data.ts";
 import { SCORE_ICON } from "../hud/icons.ts";
 import { num, t, type Key } from "../i18n/index.ts";
 import { getReduceCameraBob } from "../render/motion.ts";
+import { REPORT_BOX } from "./report.ts";
 
 type EndEvent = Extract<GameEvent, { type: "end" }>;
 
@@ -152,6 +153,8 @@ function installSkip(end: HTMLElement) {
   skipInstalled = true;
   end.addEventListener("click", e => {
     if (!current?.counting) return;
+    // botões do relatório de playtest (só com ?debug=1, report.ts) não pulam a contagem
+    if ((e.target as Element | null)?.closest?.(`#${REPORT_BOX}`)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     current.finish();
