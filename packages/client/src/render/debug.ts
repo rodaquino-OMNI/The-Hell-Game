@@ -6,7 +6,8 @@ import { balance } from "../data.ts";
 import { exposeDebugHook } from "../debug-hooks.ts";
 import type { PresetName } from "./present.ts";
 import { getLayerA, getLayers, getReduceFlicker, setLayerA, setLayers, setOverrides, setReduceFlicker, type LayerAIntensity, type LayerSet } from "./layers.ts";
-import { getPs1, setPs1, type Ps1Intensity } from "./ps1.ts";
+import { getHunterOutline, getPs1, Ps1Material, setHunterOutline, setHunterOutlineShape, setPs1, type Ps1Intensity } from "./ps1.ts";
+import { tok } from "../look.ts";
 import { genVisuals, meshes, renderFrame, setPreset, type RenderCtx } from "./scene.ts";
 import { telegraphOn } from "./characters/runtime.ts";
 import { portrait, type PortraitOptions } from "./characters/portrait.ts";
@@ -23,6 +24,11 @@ export interface RenderHook {
   /** intensidades da camada A (0 a 1) */
   getLayerA(): LayerAIntensity;
   setLayerA(p: Partial<LayerAIntensity>): void;
+  /** contorno do caçador (D-18), intensidade de 0 a 1 */
+  getHunterOutline(): number;
+  setHunterOutline(v: number): void;
+  /** forma do contorno para comparação de arte (amount ≤ 1/token por canal; null = render.hunter_outline) */
+  setHunterOutlineShape(s: { amount: number; power: number } | null): void;
   /** opção "reduzir flicker" (GDD-v0.3 §12.4) */
   getReduceFlicker(): boolean;
   setReduceFlicker(on: boolean): void;
@@ -57,8 +63,15 @@ export interface RenderHook {
 }
 
 type View = { yaw: number; pitch: number; thirdPerson: boolean };
-/** malhas escondidas na captura, por chave de `meshes` (hunter, beam<i>, s<id>…): legibilidade por diferença */
-export interface CaptureOpts { hidden?: string[] }
+/**
+ * malhas escondidas na captura, por chave de `meshes` (hunter, beam<i>, s<id>…): legibilidade por diferença.
+ * `flat`: malhas desenhadas chapadas em ui.text, sem luz, névoa nem bloom (máscara da silhueta inteira, mesmo onde a
+ * cor some no fundo; tools/visual/compare.mjs)
+ */
+export interface CaptureOpts { hidden?: string[]; flat?: string[] }
+
+/** material chapado da máscara de silhueta (criado na primeira captura com `flat`) */
+let flatMat: Ps1Material | null = null;
 
 export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: () => GameState | undefined) {
   const need = () => {
@@ -70,6 +83,7 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
     getPs1,
     setPs1,
     setPreset: name => setPreset(need().ctx, name),
+    getHunterOutline, setHunterOutline, setHunterOutlineShape,
     getLayers, setLayers, getLayerA, setLayerA, getReduceFlicker, setReduceFlicker, setOverrides,
     info: () => {
       const { ctx } = need();
@@ -83,10 +97,16 @@ export function installRenderHook(getCtx: () => RenderCtx | undefined, getGame: 
       const find = (k: string) => meshes.get(k) ?? (k.startsWith("beam") ? genVisuals[Number(k.slice(4))]?.beam : undefined);
       const hidden = (opts.hidden ?? []).map(find).filter((m): m is THREE.Object3D => !!m && m.visible);
       for (const m of hidden) m.visible = false;
+      const swapped: [THREE.Mesh, THREE.Material | THREE.Material[]][] = [];
+      for (const root of (opts.flat ?? []).map(find)) {
+        flatMat ??= new Ps1Material({ lit: false, fog: false, emissive: false, color: tok("ui.text") });
+        root?.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.visible) { swapped.push([m, m.material]); m.material = flatMat!; } });
+      }
       // a captura independe do histórico: o shadow map é redesenhado para esta vista
       ctx.shadowStep = NaN;
       renderFrame(ctx, G, view);
       for (const m of hidden) m.visible = true;
+      for (const [m, mat] of swapped) m.material = mat;
       syncDynamic(ctx, G);
       return readScreen(ctx);
     },

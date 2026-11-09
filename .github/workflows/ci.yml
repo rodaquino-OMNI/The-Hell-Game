@@ -22,6 +22,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      # créditos antes do ffmpeg: não dependem dele, e em passo próprio a falha do loudness não esconde a de créditos
+      - name: "Áudio: créditos de public/audio em creditos.csv (A-7)"
+        run: node tools/audio/loudness.mjs --credits
+      - name: "Áudio: ffmpeg (stems A-3 e loudness A-7)"
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends ffmpeg; fi
+          ffmpeg -version | head -1
+      - name: "Áudio: loudness da música (−16 LUFS ±1, ≤ −1 dBTP) (A-7)"
+        run: node tools/audio/loudness.mjs
       - name: Testes com cobertura (sim ≥ 90%)
         run: pnpm coverage
       - name: Paleta (contraste e daltonismo)
@@ -42,6 +51,10 @@ jobs:
         run: pnpm smoke
       - name: "Áudio: contexto inicia após o clique (A-1)"
         run: node tools/audio/e2e.mjs
+      - name: "Áudio: stems decodificados no Chromium com comprimento exato e loop sem estalo (A-3)"
+        run: node tools/audio/check-loop.mjs
+      - name: "Áudio: diretor no laço real (stems sob demanda, música, telegraph no quadro do visual, legenda)"
+        run: node tools/audio/e2e-director.mjs
       - name: Acessibilidade dos menus e fluxo de telas (axe-core, GDD v0.3 §12.4)
         run: pnpm a11y
       - name: Fumaça do protótipo original

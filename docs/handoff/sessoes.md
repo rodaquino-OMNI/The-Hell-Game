@@ -23,6 +23,7 @@ Cada sessão só altera o que é seu. Fora disso, pede à dona por mensagem entr
 | `data/balance.yaml` | por seção: `ai`, `nav`, `maps`, `match`, `points`, `economy`, `difficulty_table` e valores de regra → Frente R; `audio` → Áudio; `render`, `ui`, `client` → Visual |
 | `packages/shared/src/schema.ts` | quem acrescenta a seção; nunca reescrever seção alheia |
 | `.github/workflows/**` | cada sessão acrescenta só o próprio passo ou job; o Dependabot (PRs de ações e npm) fica com a sessão Visual |
+| `packages/server/**`, `Dockerfile`, `fly*.toml`, `tools/smoke.mjs` | supervisão (D-42); qualquer sessão pode abrir PR pequeno e marca a supervisão para revisar; mudanças só aditivas (cabeçalhos, compressão, rotas novas), sem mexer em `/healthz` nem no deploy |
 | `packages/client/public/media/creditos.csv` | todas acrescentam linhas; nunca removem linha alheia |
 
 ## 2. Pontos de contato conhecidos

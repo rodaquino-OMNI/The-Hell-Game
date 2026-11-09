@@ -3,6 +3,9 @@
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
 import { createGame, drainEvents, step, STEP, type GameState } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
+import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
+import { installMuteKey } from "./audio/mute.ts";
+import { updateListener, updateSpatial } from "./audio/spatial.ts";
 import { $, balance, cfg } from "./data.ts";
 import { cameraTarget, hud, resetHud, setupHud, showMessage, tickTimers, triggerFlash } from "./hud/hud.ts";
 import { applyPalette } from "./hud/palette.ts";
@@ -17,6 +20,7 @@ import { setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
+import { t } from "./i18n/index.ts";
 import { messageText } from "./text.ts";
 import { initLocale } from "./ui/locale.ts";
 import { hideMenu, selectedClass, setupMenu, showEnd } from "./ui/menu.ts";
@@ -67,6 +71,8 @@ function start() {
 setupInput(() => G);
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
+// mudo do master na tecla M até os sliders do V8 (D-41), com aviso na linha de mensagens do HUD
+installMuteKey(window, muted => showMessage(t(muted ? "caption.sound_muted" : "caption.sound_unmuted")));
 
 // ---------- quadro ----------
 function loop(now: number) {
@@ -80,9 +86,13 @@ function loop(now: number) {
     return;
   }
   for (let i = 0; i < steps && !G.over; i++) step(cfg, G, readInput(G, STEP));
-  for (const e of drainEvents(G)) {
+  // uma só drenagem por quadro: HUD e áudio leem a mesma lista (audioEvents é no-op com audio.director_enabled false)
+  const events = drainEvents(G);
+  audioEvents(events, G.survivors[0].id);
+  for (const e of events) {
     if (e.type === "msg") showMessage(messageText(e));
-    else if (e.type === "sound") beep(...SOUNDS[e.name]);
+    // com o diretor ligado o efeito completo sai em audioEvents; o bipe da fase 0 tocaria em dobro
+    else if (e.type === "sound") { if (!directorEnabled()) beep(...SOUNDS[e.name]); }
     else if (e.type === "flash") triggerFlash();
     else if (e.type === "end") {
       save.co += e.coins; persist();
@@ -101,6 +111,15 @@ function draw(dt: number) {
   const target = cameraTarget(G);
   if (target) renderFrame(ctx, { ...G, survivors: [target] }, { ...view, thirdPerson: true });
   else renderFrame(ctx, G, view);
+  // áudio (V5, atrás de audio.director_enabled): ouvinte na câmera ativa (inclusive a 1ª pessoa de ?retro=1), logo
+  // depois de posicioná-la; oclusão e diretor pelo personagem visto. O diretor roda no mesmo quadro em que o windup
+  // do caçador é desenhado, então o telegraph sai junto com o visual (D-36)
+  if (directorEnabled()) {
+    const at = target ?? G.survivors[0];
+    updateListener(ctx.cam);
+    updateSpatial(at);
+    updateAudio(G, G.survivors[0].id, dt, at, view.yaw);
+  }
   hud(G, dt, view.yaw);
   if (urlRetro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);
