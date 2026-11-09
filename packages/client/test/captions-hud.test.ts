@@ -7,7 +7,10 @@ import { balance } from "../src/data.ts";
 import { relativeSector } from "../src/geom/sector.ts";
 import { relativeSector as fromThreat } from "../src/hud/threat.ts";
 import { setLocale } from "../src/i18n/index.ts";
-import { captionHtml, captionOpacity } from "../src/hud/captions.ts";
+import { captionHtml, captionOpacity, fadeWrites, liveFor } from "../src/hud/captions.ts";
+import { captionDuration, captionsEnabled, setCaptionDuration, setCaptionsEnabled } from "../src/audio/captions.ts";
+import { getBusVolume, setBusVolume } from "../src/audio/engine.ts";
+import { resetOwnedDefaults } from "../src/ui/options.ts";
 
 const cu = balance.ui.captions;
 const cap = (o: Partial<Caption>): Caption => ({ id: 1, key: "caption.hunter_steps", category: "hunter_steps", text: "Passos pesados: o caçador", dir: 2, intensity: 1, t: 0, ttl: 3, count: 1, priority: 1, ...o });
@@ -52,5 +55,43 @@ describe("faixa de legendas", () => {
     const [c] = bus.list();
     expect(c.count).toBe(2);
     expect(captionHtml(c)).toContain("×2");
+  });
+});
+
+describe("faixa de legendas: aria-live, escritas de esmaecer e restaurar padrões", () => {
+  it("aria-live off na partida e polite fora dela", () => {
+    expect(liveFor(true)).toBe("off");
+    expect(liveFor(false)).toBe("polite");
+  });
+
+  it("só escreve quando o degrau muda; com reduzir flicker nunca esmaece", () => {
+    const shown = new Map<number, number>();
+    const a = { id: 1, ttl: cu.fade * 4 }, b = { id: 2, ttl: cu.fade / 2 };
+    expect(fadeWrites([a, b], shown, false)).toEqual([{ id: 1, opacity: 1 }, { id: 2, opacity: captionOpacity(b.ttl, cu.fade, cu.opacity_steps, false) }]);
+    expect(fadeWrites([a, b], shown, false)).toEqual([]); // nada mudou: nenhuma escrita
+    const step = cu.fade / cu.opacity_steps;
+    expect(fadeWrites([a, { id: 2, ttl: b.ttl - step }], shown, false).map(w => w.id)).toEqual([2]);
+    // ao longo de todo o esmaecer, no máximo opacity_steps escritas
+    const seen = new Map<number, number>();
+    let n = 0;
+    for (let ttl = cu.fade; ttl > 0; ttl -= 0.001) n += fadeWrites([{ id: 9, ttl }], seen, false).length;
+    expect(n).toBeLessThanOrEqual(cu.opacity_steps);
+    expect(fadeWrites([{ id: 3, ttl: 0.01 }], new Map(), true)).toEqual([{ id: 3, opacity: 1 }]);
+  });
+
+  it("o HTML já sai com o degrau atual (sem depender do próximo quadro)", () => {
+    expect(captionHtml(cap({}), 0.4)).toContain('style="opacity:0.4"');
+    expect(captionHtml(cap({}), 1)).not.toContain("opacity");
+  });
+
+  it("restaurar padrões volta legendas (ligadas, tempo padrão) e volumes", () => {
+    const ac = balance.audio.captions;
+    setCaptionsEnabled(!ac.enabled_default);
+    setCaptionDuration(ac.durations.at(-1)!);
+    setBusVolume("music", 0);
+    resetOwnedDefaults();
+    expect(captionsEnabled()).toBe(ac.enabled_default);
+    expect(captionDuration()).toBe(ac.durations[ac.default_duration_index]);
+    expect(getBusVolume("music")).toBe(balance.audio.buses.music);
   });
 });

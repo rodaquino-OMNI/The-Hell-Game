@@ -201,10 +201,7 @@ function build(): HTMLElement[] {
   const reset = el("button", { type: "button", id: "orst" }, t("opt.reset"));
   reset.onclick = () => {
     const d = defaultOptions();
-    for (const b of ["master", ...BUSES] as VolumeName[]) setBusVolume(b, balance.audio.buses[b]);
-    const ac = balance.audio.captions;
-    setCaptionsEnabled(ac.enabled_default);
-    setCaptionDuration(ac.durations[ac.default_duration_index]);
+    resetOwnedDefaults();
     commit(d);
     render("orst");
     announce(t("opt.reset_done"));
@@ -235,6 +232,17 @@ export function refreshVolumeSliders() {
     input.setAttribute("aria-valuetext", pct(v));
     $("o-vol-" + b + "-v").textContent = pct(v);
   }
+}
+
+/**
+ * "Restaurar padrões" do que tem persistência própria fora de ui/settings.ts: volumes (audio.buses, engine.ts) e
+ * legendas (audio.captions: ligadas por padrão e tempo padrão, captions.ts). Exportada para o teste.
+ */
+export function resetOwnedDefaults() {
+  for (const b of ["master", ...BUSES] as VolumeName[]) setBusVolume(b, balance.audio.buses[b]);
+  const ac = balance.audio.captions;
+  setCaptionsEnabled(ac.enabled_default);
+  setCaptionDuration(ac.durations[ac.default_duration_index]);
 }
 
 export function openOptions(focusId?: string) {

@@ -267,12 +267,46 @@ async function captionsCheck(page, locale, T) {
   if (!steps || !steps.rot.includes(`rotate(${right}deg)`) || !steps.text.includes("×2") || !steps.danger) fail(`${n}: passos do caçador sem seta à direita, ×2 ou borda de perigo: ${JSON.stringify(r.items)}`);
   if (!r.items.some(i => i.text.includes(T["caption.rescue"]) && !i.rot)) fail(`${n}: resgate sem a legenda sem direção: ${JSON.stringify(r.items)}`);
   for (const [size, w] of Object.entries(r.wrap)) if (w.over) fail(`${n}: legenda de ${longest.length} caracteres estoura com a fonte ${size}: ${JSON.stringify(w)}`);
+  // sem sobreposição: faixa × painel de espectador × dica (longa, quebrando linha) × barra de estado, nos 3 tamanhos
+  // de fonte, a 1280×720 e a 800×600 (o painel e a dica são mostrados à força só durante a medida)
+  const hintText = Object.entries(T).filter(([k]) => k.startsWith("hud.hint.")).map(([, v]) => v).sort((x, y) => y.length - x.length)[0].repeat(3);
+  const vp0 = page.viewportSize();
+  let pairs = 0;
+  for (const vp of [vp0, { width: 800, height: 600 }]) {
+    await page.setViewportSize(vp);
+    const o = await page.evaluate(([scales, hint]) => {
+      const p = window.__thehell().survivors[0], c = window.__thehellCaptions;
+      const spec = document.getElementById("spec"), hintEl = document.getElementById("hint");
+      const saved = { spec: spec.hidden, hint: hintEl.hidden, text: hintEl.textContent };
+      spec.hidden = false; hintEl.hidden = false; hintEl.textContent = hint;
+      const out = [];
+      for (const [size, sc] of Object.entries(scales)) {
+        document.documentElement.style.setProperty("--ui-scale", String(sc));
+        c.emit("step_hunter", { x: p.x + 6, z: p.z }); c.emit("telegraph_trap", { x: p.x - 4, z: p.z }); c.emit("rescue");
+        const box = id => { const e = document.getElementById(id); if (!e || e.hidden || !e.checkVisibility()) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+        const cap = box("cap");
+        for (const id of ["spec", "hint", "sb"]) {
+          const b = box(id);
+          if (!cap || !b) continue;
+          const hit = cap.left < b.right && b.left < cap.right && cap.top < b.bottom && b.top < cap.bottom;
+          out.push({ size, id, hit, cap, other: b });
+        }
+        if (cap && (cap.top < 0 || cap.left < 0 || cap.right > innerWidth)) out.push({ size, id: "tela", hit: true, cap });
+      }
+      spec.hidden = saved.spec; hintEl.hidden = saved.hint; hintEl.textContent = saved.text;
+      return out;
+    }, [balance.ui.options.font_scales, hintText]);
+    pairs += o.length;
+    for (const x of o) if (x.hit) fail(`${n}: legendas sobrepõem #${x.id} a ${vp.width}×${vp.height}, fonte ${x.size}: ${JSON.stringify(x)}`);
+  }
+  await page.setViewportSize(vp0);
+  if (!pairs) fail(`${n}: conferência de sobreposição não mediu nada (faixa ausente?)`);
   // axe com a fonte maior e as legendas na tela (renovadas na hora)
   await game(page, () => { const p = window.__thehell().survivors[0]; window.__thehellCaptions.emit("step_hunter", { x: p.x + 6, z: p.z }); window.__thehellCaptions.emit("rescue"); });
   await axe(page, `${n}-fonte-${balance.ui.options.font_scales.xlarge}`);
   await page.evaluate((sc) => document.documentElement.style.setProperty("--ui-scale", String(sc)), balance.ui.options.font_scales[balance.ui.options.font_default]);
   await game(page, (s) => window.__thehellCaptions.duration(s), ac.durations[ac.default_duration_index]);
-  report.push(`${n}: seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
+  report.push(`${n}: sem sobreposição com espectador/dica/barra (${pairs} pares medidos em 2 telas e 3 fontes); seta no setor, ×N, aria-live off na partida, "${longest}" (${longest.length} caracteres) sem estourar nos ${Object.keys(r.wrap).length} tamanhos`);
 }
 
 try {
