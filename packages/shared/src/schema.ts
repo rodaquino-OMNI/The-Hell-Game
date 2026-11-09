@@ -271,8 +271,8 @@ const render = z.object({
   layer_cost_factor: num.min(1),
   /** D-44 (b): pares ABBA, quadros, aquecimento descartado e IC por bootstrap determinístico do custo das camadas na CI */
   cost_check: z.object({
-    pairs: z.number().int().positive(), frames: z.number().int().positive(), warmup: z.number().int().nonnegative(),
-    bootstrap_resamples: z.number().int().positive(), ci: num.positive().lt(1), seed: z.number().int(),
+    pairs: z.number().int().min(5), frames: z.number().int().positive(), warmup: z.number().int().nonnegative(),
+    bootstrap_resamples: z.number().int().positive(), ci: num.positive().lt(1), seed: z.number().int(), ci_runner_margin: pos,
   }).strict(),
   legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
   /** D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token */

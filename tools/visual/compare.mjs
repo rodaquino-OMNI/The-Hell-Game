@@ -15,7 +15,7 @@
 //   - com "reduzir flicker": dano não muda a imagem (sem aberração) e o grão não oscila no tempo;
 //   - custo: medium com A+B / medium sem camadas (tempo síncrono por quadro, 1280×720), na vista das capturas e com o
 //     caçador no cone da lanterna; D-44: pares ABBA, IC por bootstrap (render.cost_check), falha só se o limite inferior
-//     do IC passar de render.layer_cost_factor, aviso se só a mediana passar;
+//     do IC passar de render.layer_cost_factor × (1 + ci_runner_margin), aviso se a mediana passar de layer_cost_factor;
 //   - legibilidade depois da camada A: olhos no preparo e feixe ≥ render.legibility.min_contrast; o corpo do caçador
 //     (com o contorno de D-18, render.hunter_outline) ≥ render.legibility.min_contrast fora e dentro do cone da
 //     lanterna, e fora do cone mantém render.legibility.body_keep do contraste que tem sem a camada A, com e sem o
@@ -165,7 +165,10 @@ async function openGame(browser, preset, viewport) {
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   // relógio: instala e pausa ANTES de navegar (o Playwright reaplica o relógio a cada documento novo, e o boot do
   // cliente não arma timer antes do #go). Pausar depois do goto corria contra o relógio, que já anda em tempo real:
-  // com o carregamento lento, "clock.pauseAt: Cannot fast-forward to the past"
+  // com o carregamento lento, "clock.pauseAt: Cannot fast-forward to the past". Efeito colateral (medido): no documento
+  // novo Date.now() continua 1000, mas performance.now() fica no pequeno atraso real entre install e pauseAt (antes
+  // ≈ 1000); o cliente só usa tempos relativos (main.ts: last = performance.now() em start()), e as capturas seguem
+  // idênticas às referências
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
   await page.goto(`${url}/?debug=1&seed=${SEED}&preset=${preset}`, { waitUntil: "load" });
@@ -304,8 +307,9 @@ try {
   // na vista da prova de legibilidade com o caçador a LEG.distance m bem à frente.
   // D-44 (b) (render.cost_check; tools/visual/cost-stats.mjs): sem GPU a razão depende do tipo de runner, então aqui
   // é proxy de regressão: pares intercalados ABBA, cost_check.warmup quadros descartados a cada troca de camadas,
-  // mediana das razões pareadas com IC por bootstrap determinístico. Falha só se o limite inferior do IC passar do
-  // teto; se só a mediana passar, AVISO. O log traz a máquina (CPU, núcleos, carga) e o ms/quadro de A para comparar
+  // mediana das razões pareadas com IC por bootstrap determinístico. Falha só se o limite inferior do IC passar de
+  // layer_cost_factor × (1 + cost_check.ci_runner_margin) (viés do runner); AVISO se a mediana passar de
+  // layer_cost_factor (o orçamento de hardware, conferido no procedimento manual da UHD 620 em docs/runbook.md). O log traz a máquina (CPU, núcleos, carga) e o ms/quadro de A para comparar
   // runs entre runners. Sem repetir na falha
   {
     const cost = await openGame(browser, "medium", { width: 1280, height: 720 });
@@ -335,9 +339,9 @@ try {
       for (let r = 0; r < CC.pairs; r++) for (const which of abbaOrder(r)) ms[which].push(await run(LAYERS[which], v.view));
       const c = costVerdict(ms.A, ms.B, CC, k), rs = [...c.ratios].sort((x, y) => x - y);
       const x2 = (n) => `${n.toFixed(2)}×`;
-      console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); teto ${k}× → ${c.verdict === "pass" ? "ok" : c.verdict === "warn" ? "AVISO" : "FALHA"}`);
-      if (c.verdict === "fail") fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto ${k}× (render.layer_cost_factor): regressão (D-44)`);
-      else if (c.verdict === "warn") console.warn(`AVISO: custo das camadas na vista ${v.name}: mediana ${x2(c.median)} acima do teto ${k}×, mas o IC [${x2(c.lo)}, ${x2(c.hi)}] inclui o teto; na CI (SwiftShader) é proxy de regressão, não falha (D-44). Máquina: ${machine}`);
+      console.log(`custo (medium, 1280×720, vista ${v.name}): sem camadas ${median(ms.A).toFixed(1)} ms/quadro (base do runner), A+B ${median(ms.B).toFixed(1)} ms/quadro (medianas); razão pareada mediana ${x2(c.median)}, IC ${Math.round(CC.ci * 100)}% [${x2(c.lo)}, ${x2(c.hi)}] (mín ${x2(rs[0])}, máx ${x2(rs[rs.length - 1])}); aviso se mediana > ${x2(c.budget)} (orçamento), falha se limite inferior > ${x2(c.fail)} (${k}× × (1 + ${CC.ci_runner_margin})) → ${c.verdict === "pass" ? "ok" : c.verdict === "warn" ? "AVISO" : "FALHA"}`);
+      if (c.verdict === "fail") fail(`camadas A+B custam ${x2(c.median)} o preset sem camadas na vista ${v.name}, e o limite inferior do IC (${x2(c.lo)}) passa do teto da CI ${x2(c.fail)} (render.layer_cost_factor × (1 + render.cost_check.ci_runner_margin)): regressão (D-44)`);
+      else if (c.verdict === "warn") console.warn(`AVISO: custo das camadas na vista ${v.name}: mediana ${x2(c.median)} acima do orçamento ${x2(c.budget)} (render.layer_cost_factor), limite inferior do IC ${x2(c.lo)} ≤ teto da CI ${x2(c.fail)}; no SwiftShader a razão depende do runner (proxy de regressão, D-44), não falha. Máquina: ${machine}`);
     }
     await cost.page.close();
   }

@@ -5,8 +5,9 @@
 //   - abbaOrder: ordem intercalada ABBA dos pares (A = sem camadas, B = A+B), que cancela a deriva linear de carga;
 //   - median / bootstrapCi: mediana das razões pareadas e IC por bootstrap percentil, determinístico (PRNG com semente
 //     e número fixo de reamostragens, ambos em render.cost_check);
-//   - costVerdict: "fail" só se o limite inferior do IC passar do teto (regressão certa); "warn" se só a mediana
-//     passar; "pass" caso contrário.
+//   - costVerdict: "fail" só se o limite inferior do IC passar do teto da CI, layer_cost_factor × (1 +
+//     cost_check.ci_runner_margin) (regressão certa, descontado o viés do tipo de runner); "warn" se a mediana passar
+//     de layer_cost_factor (o orçamento de hardware); "pass" caso contrário.
 
 /** PRNG mulberry32, o mesmo algoritmo de packages/sim/src/rng.ts (GDD v0.3 §13.3): mesma semente, mesma sequência */
 export function mulberry32(seed) {
@@ -48,10 +49,22 @@ export function bootstrapCi(values, { resamples, ci, seed }) {
   return { median: median(values), lo, hi };
 }
 
-/** decisão de D-44 sobre o IC da razão: "fail" se lo > teto, "warn" se só a mediana > teto, senão "pass" */
-export function judgeCost({ median: med, lo }, factor) {
-  if (lo > factor) return "fail";
-  if (med > factor) return "warn";
+/** tetos de D-44: `budget` = layer_cost_factor (aviso, na mediana); `fail` = budget × (1 + margem do runner) (no lo) */
+export function costThresholds(factor, margin) {
+  return { budget: factor, fail: factor * (1 + margin) };
+}
+
+/**
+ * decisão de D-44 sobre o IC da razão: "fail" se lo > factor × (1 + margin); "warn" se a mediana > factor; senão
+ * "pass". Valor não finito é erro (nunca "pass" silencioso)
+ */
+export function judgeCost({ median: med, lo }, factor, margin) {
+  if (![med, lo, factor, margin].every(Number.isFinite) || margin < 0) {
+    throw new Error(`judgeCost: valor inválido (mediana ${med}, lo ${lo}, teto ${factor}, margem ${margin})`);
+  }
+  const t = costThresholds(factor, margin);
+  if (lo > t.fail) return "fail";
+  if (med > t.budget) return "warn";
   return "pass";
 }
 
@@ -61,7 +74,12 @@ export function judgeCost({ median: med, lo }, factor) {
  */
 export function costVerdict(a, b, cfg, factor) {
   if (a.length !== b.length || !a.length) throw new Error("costVerdict: pares incompletos");
+  // tempo nulo, negativo ou não finito = medida quebrada (ex.: /proc do processo de GPU sumiu no meio, cpuMs em
+  // compare.mjs): erro, nunca "pass" silencioso
+  const bad = [...a, ...b].findIndex(x => !(Number.isFinite(x) && x > 0));
+  if (bad >= 0) throw new Error(`costVerdict: tempo inválido (${[...a, ...b][bad]} ms) no par ${bad % a.length}`);
   const ratios = a.map((x, i) => b[i] / x);
   const ci = bootstrapCi(ratios, { resamples: cfg.bootstrap_resamples, ci: cfg.ci, seed: cfg.seed });
-  return { ratios, ...ci, verdict: judgeCost(ci, factor) };
+  if (![ci.median, ci.lo, ci.hi].every(Number.isFinite)) throw new Error("costVerdict: IC não finito");
+  return { ratios, ...ci, ...costThresholds(factor, cfg.ci_runner_margin), verdict: judgeCost(ci, factor, cfg.ci_runner_margin) };
 }

@@ -383,9 +383,15 @@ render:
   # pairs pares intercalados ABBA (A = sem camadas, B = A+B), cada medida com warmup quadros descartados e frames
   # quadros medidos; razão pareada B/A; IC da mediana por bootstrap percentil com nível ci, bootstrap_resamples
   # reamostragens e PRNG mulberry32 com semente seed (determinístico: mesmas razões, mesmo IC). A CI falha só se o
-  # limite inferior do IC passar de layer_cost_factor (regressão certa); se só a mediana passar, aviso sem falha.
-  # pairs e frames: os do V7 (21 × 32); warmup: os 2 quadros que já eram descartados ao trocar de camadas
-  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44}
+  # limite inferior do IC passar de layer_cost_factor × (1 + ci_runner_margin) (regressão certa); aviso, sem falha,
+  # se a mediana passar de layer_cost_factor. ci_runner_margin 0,07 (D-44, opção a da supervisão): o tipo de runner
+  # enviesa a razão no SwiftShader (1,26–1,43× medidos na CI para o mesmo código, acima), então o teto da CI é
+  # 1,4 × 1,07 ≈ 1,50×. Não sobe o orçamento de hardware (layer_cost_factor segue 1,4, conferido no procedimento manual
+  # da UHD 620 em docs/runbook.md)
+  # pairs e frames: os do V7 (21 × 32); warmup: os 2 quadros que já eram descartados ao trocar de camadas. pairs ≥ 5
+  # (schema): com menos pares a mediana reamostrada só assume poucos valores distintos e o IC percentil degenera
+  # (com 1 par o IC é um ponto, e a regra "falha só se o limite inferior passar" vira a regra da mediana crua)
+  cost_check: {pairs: 21, frames: 32, warmup: 2, bootstrap_resamples: 2000, ci: 0.95, seed: 44, ci_runner_margin: 0.07}
   # legibilidade depois da camada A (Art Bible §5.3; revisão do V4), medida em tools/visual/compare.mjs: olhos do
   # caçador no preparo e feixes ≥ min_contrast contra o fundo (WCAG 2.2 1.4.11, 3:1, o mesmo da paleta); o corpo do
   # caçador fora do cone conserva body_keep do contraste que tem sem a camada A, sem o contorno de D-18 (intensidade 0,
