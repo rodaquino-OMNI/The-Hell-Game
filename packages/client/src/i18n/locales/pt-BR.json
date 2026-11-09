@@ -7,6 +7,8 @@
   "menu.subtitle": "Offline com bots · {survivors} sobreviventes contra 1 caçador",
   "menu.choose_class": "Escolha sua classe:",
   "menu.start": "COMEÇAR",
+  "menu.loading": "CARREGANDO…",
+  "menu.loading_status": "Carregando os personagens…",
   "menu.shop": "LOJA DE SKINS",
   "menu.coins": "Moedas: {coins}",
   "menu.controls": "WASD mover · Shift correr · mouse/setas ← → olhar · E interagir (segure para resgatar) · Q habilidade · Clique golpe (Atacador) · V alterna câmera 3ª/1ª pessoa · 1–4 pings",

@@ -6,10 +6,15 @@ import { locale, t } from "../i18n/index.ts";
 import { classDescription, className, endStats, endText, goalText } from "../text.ts";
 import { difficultyText, matchConfig, setupDifficulty } from "./difficulty.ts";
 import { applyStaticText, setupLanguagePicker } from "./locale.ts";
+import { closeOptions } from "./options.ts";
 import { showResults } from "./results.ts";
 import { shop, updateCoins } from "./shop.ts";
 
 let selected: ClassName = "Curandeiro";
+/** D-45: menu travado na espera pelos personagens (só o #go fica ativo; a partida já foi montada com estas escolhas) */
+let locked = false;
+/** controles do menu além do #go: classe, dificuldade, idioma, loja e opções */
+const lockable = () => [...$("menu").querySelectorAll<HTMLElement>("button, select, input")].filter(el => el.id !== "go");
 /** classe escolhida no menu */
 export const selectedClass = () => selected;
 
@@ -47,9 +52,39 @@ export function setupMenu(onStart: () => void) {
   $("sh").onclick = () => shop();
   $("again").onclick = () => location.reload();
   $("pzx").onmousedown = e => e.stopPropagation();
+  // D-45: na espera, clique (mouse, Enter/Espaço ou o .click() da navegação por gamepad) fora do #go não faz nada
+  $("menu").addEventListener("click", e => {
+    if (locked && !$("go").contains(e.target as Node)) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+}
+
+/** fecha loja e opções se estiverem abertas (D-45: a partida não começa por baixo de um diálogo modal) */
+export function closeMenuDialogs() {
+  if ($("shop").style.display === "flex") { $("shop").style.display = "none"; $("menu").inert = false; }
+  if (!$("opts").hidden) closeOptions();
 }
 
 export function hideMenu() { $("menu").style.display = "none"; }
+
+/**
+ * estado de carregando do botão "Começar" enquanto os personagens chegam (D-45): texto curto no botão, aviso no
+ * #gost (role="status", aria-live polite), aria-busy e aria-disabled (desativado sem `disabled`, que tiraria o foco;
+ * o clique é ignorado em main.ts enquanto a espera dura). Classe, dificuldade, idioma, loja e opções ficam travados:
+ * a partida já foi montada (init) com as escolhas do clique
+ */
+export function setStartBusy(on: boolean) {
+  const go = $("go");
+  $("gol").setAttribute("data-i18n", on ? "menu.loading" : "menu.start");
+  $("gol").textContent = t(on ? "menu.loading" : "menu.start");
+  $("gost").textContent = on ? t("menu.loading_status") : "";
+  go.setAttribute("aria-busy", String(on));
+  // o resto do menu fica inerte (fora do Tab e do clique) e marcado como desativado; o foco fica no #go
+  locked = on;
+  for (const el of [go, ...lockable()]) {
+    if (on) el.setAttribute("aria-disabled", "true"); else el.removeAttribute("aria-disabled");
+    if (el !== go) el.inert = on;
+  }
+}
 
 export function showEnd(e: Extract<GameEvent, { type: "end" }>) {
   const [title, sub] = endText(e, balance);

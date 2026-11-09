@@ -7,6 +7,8 @@
   "menu.subtitle": "Sin conexión con bots · {survivors} supervivientes contra 1 cazador",
   "menu.choose_class": "Elige tu clase:",
   "menu.start": "EMPEZAR",
+  "menu.loading": "CARGANDO…",
+  "menu.loading_status": "Cargando los personajes…",
   "menu.shop": "TIENDA DE SKINS",
   "menu.coins": "Monedas: {coins}",
   "menu.controls": "WASD moverse · Shift correr · ratón/flechas ← → mirar · E interactuar (mantén para rescatar) · Q habilidad · Clic golpe (Atacante) · V cambia la cámara 3.ª/1.ª persona · 1–4 avisos",
