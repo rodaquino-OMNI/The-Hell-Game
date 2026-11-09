@@ -14,12 +14,12 @@
 //   - confere a tela de fim do v1 (`end.team`, `end.reason`, `end.individual`) e o modo espectador.
 // Uso: node tools/a11y/axe.mjs [--shots dir] [url]
 //   --shots  grava capturas do HUD e das telas em pt-BR (1280×720, deviceScaleFactor 2) com o prefixo r7-
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -40,11 +40,8 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const SEED = 1234;
 
 let server;
-if (!url) {
-  url = "http://127.0.0.1:18083";
-  server = spawn(process.execPath, ["packages/server/dist/server.mjs"], { cwd: root, env: { ...process.env, PORT: "18083" }, stdio: "inherit" });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 
 const failures = [];
 const fail = (m) => { failures.push(m); console.error("FALHA:", m); };

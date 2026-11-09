@@ -70,6 +70,18 @@ jobs:
           path: ${{ runner.temp }}/visual
           if-no-files-found: ignore
           retention-days: 14
+      # cena de pior caso (?stress=1) em cada preset: draw calls e triângulos; download inicial; tempo até jogar
+      # (relógio só reportado no SwiftShader; ver tools/perf/budget.mjs)
+      - name: Orçamentos de desempenho (V7, GDD v0.3 §10.6)
+        run: pnpm perf:budget --out "$RUNNER_TEMP/perf"
+      - name: Publicar relatório dos orçamentos
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2 # tag de 07/10/2026 (≥ 2 semanas)
+        with:
+          name: orcamentos-desempenho
+          path: ${{ runner.temp }}/perf
+          if-no-files-found: ignore
+          retention-days: 14
   secrets:
     name: Varredura de segredos
     runs-on: ubuntu-latest

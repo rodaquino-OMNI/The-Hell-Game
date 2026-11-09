@@ -29,7 +29,8 @@
     "sim:baseline": "tsx tools/sim/run.ts --check --write-baseline",
     "sim:nightly": "tsx tools/sim/run.ts --nightly",
     "maps:browser-check": "pnpm data && node tools/maps/recast-browser-check.mjs",
-    "visual": "node tools/visual/compare.mjs"
+    "visual": "node tools/visual/compare.mjs",
+    "perf:budget": "node tools/perf/budget.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
