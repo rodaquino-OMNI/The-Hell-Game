@@ -174,6 +174,11 @@ export interface HunterAi {
   score: number;
   /** instante da última troca de alvo */
   switchedAt: number;
+  /**
+   * histerese do termo "protegido" (D-52): estado filtrado por sobrevivente (`on`) e desde quando a leitura
+   * instantânea discorda dele (`since`, -1 = concorda)
+   */
+  protection: { id: number; on: boolean; since: number }[];
   /** última posição conhecida do alvo (memória da dificuldade) */
   memory: {
     id: number; x: number; z: number; until: number;

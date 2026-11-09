@@ -14,7 +14,7 @@ import { lineOfSight } from "../perception.ts";
 import { nextRandom } from "../rng.ts";
 import type { GameState, Hunter, HunterAi, HunterMode, Percept, SeenSurvivor, Survivor, Vec } from "../types.ts";
 import { perceive } from "./percept.ts";
-import { chooseTarget } from "./utility.ts";
+import { chooseTarget, nearAttacker } from "./utility.ts";
 
 /** grafo de transições válidas (GDD-v0.3 §8.2). Aceite: nenhuma transição fora dele em 1.000 partidas. */
 export const HUNTER_TRANSITIONS: Readonly<Record<HunterMode, readonly HunterMode[]>> = {
@@ -36,6 +36,8 @@ export interface HunterEffects {
 
 // Tolerância de ponto flutuante na comparação de tempos acumulados em passos de 1/60 s (técnica, não é número de jogo).
 const EPS = 1e-9;
+/** modos de perseguição (§8.2): neles o alvo lembrado segura a histerese do §8.3 */
+const CHASE_MODES: readonly HunterMode[] = ["chase", "attack", "recoil"];
 const TAU = Math.PI * 2;
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.z - b.z);
 const v2 = (p: P2): Vec => ({ x: p[0], z: p[1] });
@@ -43,7 +45,7 @@ const p2 = (v: Vec): P2 => [v.x, v.z];
 
 export function newHunterAi(): HunterAi {
   return {
-    mode: "patrol", perceiveIn: 0, decideIn: 0, percept: null, noticed: [], target: -1, score: 0, switchedAt: 0,
+    mode: "patrol", perceiveIn: 0, decideIn: 0, percept: null, noticed: [], target: -1, score: 0, switchedAt: 0, protection: [],
     memory: null, investigate: null, heard: null, patrol: null, goal: null, path: [], pathOk: true, forceAstar: false,
     loop: null, seenTarget: -1, intercept: null, captured: false, stuck: { t: 0, x: 0, z: 0, ex: 0, ez: 0 }, speed: 0, step: { x: 0, z: 0 }, replans: 0,
   };
@@ -237,14 +239,29 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   ai.noticed = p.survivors.map(s => ai.noticed.find(n => n.id === s.id) ?? { id: s.id, at: t });
   const ready = (id: number) => t - ai.noticed.find(n => n.id === id)!.at + EPS >= lvl.reaction;
   const candidates = p.survivors.filter(s => !s.antiTunnel && ready(s.id));
-  const choice = chooseTarget(cfg, p, candidates, ai.target);
+  // D-52: "protegido" (§8.3) com histerese de tempo mínimo no estado: a leitura instantânea (Atacador a menos de
+  // `ai.protected_radius`) só muda o termo depois de ficar `ai.protected_hold` seguido no valor oposto. Primeira vez
+  // que o caçador vê o sobrevivente: vale a leitura instantânea. Fora de vista, o estado fica como estava.
+  for (const s of p.survivors) {
+    const raw = nearAttacker(cfg, p, s), e = ai.protection.find(x => x.id === s.id);
+    if (!e) ai.protection.push({ id: s.id, on: raw, since: -1 });
+    else if (raw === e.on) e.since = -1;
+    else if (e.since < 0) e.since = t;
+    else if (t - e.since + EPS >= b.ai.protected_hold) { e.on = raw; e.since = -1; }
+  }
+  const held = ai.protection.filter(x => x.on).map(x => x.id);
   // alvo perseguido (visto ou lembrado) antes desta decisão: a troca dentro da perseguição encerra o episódio na
   // métrica do §8.5 (gancho `traceTarget`, só observação)
   const pursuedBefore = ai.target >= 0 ? ai.target : ai.memory && ai.memory.until > t ? ai.memory.id : -1;
+  // §8.3 (histerese) com a D-35: o alvo perseguido pela memória (fora de vista) continua sendo o atual; outro só
+  // toma o lugar com placar acima do último placar dele mais a margem (correção do aceite "não alterna de alvo mais
+  // de 1 vez por segundo")
+  const remembered = pursuedBefore >= 0 && CHASE_MODES.includes(ai.mode) && !ai.captured ? { id: pursuedBefore, score: ai.score } : undefined;
+  const choice = chooseTarget(cfg, p, candidates, pursuedBefore, remembered, held);
   if (choice) {
     if (choice.id !== ai.target) ai.switchedAt = t;
     ai.target = choice.id; ai.score = choice.score;
-  } else { ai.target = -1; ai.score = 0; ai.intercept = null; trackLoopMemory(cfg, ai, p.self, t); }
+  } else { ai.target = -1; if (!remembered) ai.score = 0; ai.intercept = null; trackLoopMemory(cfg, ai, p.self, t); }
   const tgt = choice ? p.survivors.find(s => s.id === choice.id)! : null;
   // reencontro (R8 passo 1): o alvo perseguido (visto ou lembrado) volta ao cone depois de não estar visível na
   // decisão anterior
@@ -252,7 +269,7 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   ai.seenTarget = tgt && tgt.visible ? tgt.id : -1;
   if (tgt) ai.memory = { id: tgt.id, x: tgt.x, z: tgt.z, until: t + lvl.memory, vx: tgt.vx, vz: tgt.vz, ax: tgt.x, az: tgt.z };
   if (tgt && pursuedBefore >= 0 && tgt.id !== pursuedBefore && (ai.mode === "chase" || ai.mode === "attack" || ai.mode === "recoil")) {
-    cfg.traceTarget?.({ t, target: tgt.id });
+    cfg.traceTarget?.({ t, target: tgt.id, from: pursuedBefore });
   }
 
   // audição (§8.1): investiga a posição do som depois do tempo de reação
