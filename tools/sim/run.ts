@@ -4,7 +4,9 @@
 // do caçador por partida, fuga por sobrevivente, duração média e mediana, capturas por partida, % abaixo de 3 min,
 // uso de classe (com bots: a distribuição sorteada), mediana de perseguição até a captura e o aceite T-03 (GDD-v0.3
 // §8.6): nenhuma trava, exceção, partida sem fim ou transição fora do grafo do §8.2. Sai com código 1 se algum
-// falhar ou se a comparação com a linha de base reprovar.
+// falhar ou se a comparação com a linha de base reprovar (piora além da tolerância ou valor abaixo do piso absoluto
+// `floor` de sim.regression, ex.: chase_median ≥ 15 s do §8.5). Desde o marco MJ-B os bots são os do padrão dos dados
+// (`ai.bot_brain: competent`).
 //
 // Uso: pnpm sim [--n=1000] [--seed=1] [--difficulty=normal|easy|hard|nightmare|all] [--map=all|patio]
 //               [--workers=4] [--nav=grid|recast] [--bot-brain=prototype|competent] [--json=saida.json] [--md=saida.md]

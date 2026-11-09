@@ -6,13 +6,17 @@ import { loadBalanceFile } from "../../shared/src/node.ts";
 import { chaseEpisodes, makeConfig, playHeadless } from "../src/index.ts";
 import { aiCfg, b, map } from "./ai-helpers.ts";
 
-type Rule = { worse: "higher" | "lower" | "band"; band?: [number, number]; max_worsening: number | null; pooled_max_worsening?: number | null; min_samples?: number };
+type Rule = { worse: "higher" | "lower" | "band"; band?: [number, number]; max_worsening: number | null; pooled_max_worsening?: number | null; min_samples?: number; floor?: number };
 type Metrics = Record<string, unknown>;
-interface Comparison { group: string; metric: string; before: number | null; after: number | null; worsening: number | null; tolerance: number | null; status: string; saturated: boolean }
+interface Comparison {
+  group: string; metric: string; before: number | null; after: number | null; worsening: number | null; tolerance: number | null; status: string;
+  saturated: boolean; floor: number | null; floorActive: boolean;
+}
 interface RegressionModule {
   bandDistance(x: number, band: [number, number]): number;
   worsening(rule: Rule, before: number, after: number): number;
   toleranceFor(group: string, rule: Rule): number | null;
+  floorOf(rule: Rule): number | null;
   saturated(metric: string, rule: Rule, before: number, tol: number): boolean;
   inactiveMetrics(rows: Comparison[]): string[];
   metaMismatch(base: Record<string, unknown>, cur: Record<string, unknown>, keys: string[]): string[];
@@ -107,6 +111,50 @@ describe("comparação de uma métrica", () => {
     expect(R.compareMetric("p/normal", "chase_median", lower, g({ chase_median: null, chase_count: 0 }), g({ chase_median: 20 })).status).toBe("sem base");
     // exatamente min_samples já compara
     expect(R.compareMetric("p/normal", "chase_median", lower, g({ chase_median: 30, chase_count: 3 }), g({ chase_median: 1, chase_count: 3 })).status).toBe("PIORA");
+  });
+});
+
+describe("piso absoluto (floor; chase_median ≥ 15 s, GDD-v0.3 §8.5, marco MJ-B)", () => {
+  const floored: Rule = { worse: "lower", max_worsening: 5, min_samples: 3, floor: 15 };
+  it("abaixo do piso reprova mesmo dentro da tolerância; no piso ou acima segue a comparação normal", () => {
+    const r = R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 17 }), g({ chase_median: 14 }));
+    expect(r.status).toBe("ABAIXO DO PISO"); // piora de 3 s < tolerância de 5 s, mas abaixo de 15 s
+    expect(r.worsening).toBe(3);
+    expect(r).toMatchObject({ floor: 15, floorActive: true });
+    expect(R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 17 }), g({ chase_median: 15 })).status).toBe("piora tolerada");
+    expect(R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 30 }), g({ chase_median: 20 })).status).toBe("PIORA");
+    expect(R.compare({ meta: {}, groups: { "p/normal": g({ chase_median: 17 }) } }, { "p/normal": g({ chase_median: 14 }) }, { chase_median: floored }).failed).toBe(true);
+  });
+  it("vale sem linha de base, com a base de amostra pequena e com tolerância a medir", () => {
+    expect(R.compareMetric("p/novo", "chase_median", floored, undefined, g({ chase_median: 10 })).status).toBe("ABAIXO DO PISO");
+    expect(R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 30, chase_count: 1 }), g({ chase_median: 10 })).status).toBe("ABAIXO DO PISO");
+    const measuring: Rule = { ...floored, max_worsening: null };
+    expect(R.compareMetric("p/hard", "chase_median", measuring, g({ chase_median: 30 }), g({ chase_median: 10 })).status).toBe("ABAIXO DO PISO");
+    const ok = R.compareMetric("p/hard", "chase_median", measuring, g({ chase_median: 30 }), g({ chase_median: 20 }));
+    expect(ok.status).toBe("a medir");
+    expect(R.inactiveMetrics([ok])).toEqual([]); // o piso vigia mesmo com a tolerância a medir
+    expect(R.comparisonMarkdown([ok])).toContain("| a medir (piso 15.0 s) | a medir |");
+  });
+  it("amostra atual < min_samples ou mediana nula: o piso não vigia", () => {
+    const small = R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 30 }), g({ chase_median: 1, chase_count: 2 }));
+    expect(small).toMatchObject({ status: "amostra pequena", floorActive: false });
+    expect(R.compareMetric("p/normal", "chase_median", floored, g({ chase_median: 30 }), g({ chase_median: null, chase_count: 0 })).status).toBe("amostra pequena");
+    expect(R.compareMetric("p/novo", "chase_median", floored, undefined, g({ chase_median: 1, chase_count: 2 })).status).toBe("sem base");
+  });
+  it("só regras `lower` têm piso; sem floor, null", () => {
+    expect(R.floorOf(floored)).toBe(15);
+    expect(R.floorOf(lower)).toBeNull();
+    expect(R.floorOf(higher)).toBeNull();
+    expect(R.compareMetric("p/normal", "chase_median", lower, g({ chase_median: 30 }), g({ chase_median: 30 }))).toMatchObject({ floor: null, floorActive: false });
+  });
+  it("schema: floor só em `worse: lower` e não negativo", async () => {
+    const { BalanceSchema } = await import("@thehell/shared");
+    const b = loadBalanceFile(new URL("data/balance.yaml", root).pathname);
+    const withRule = (rule: object) => BalanceSchema.safeParse({ ...b, sim: { ...b.sim, regression: { ...b.sim.regression, chase_median: rule } } }).success;
+    expect(withRule({ worse: "lower", max_worsening: 5, floor: 15 })).toBe(true);
+    expect(withRule({ worse: "lower", max_worsening: 5, floor: -1 })).toBe(false);
+    expect(withRule({ worse: "higher", max_worsening: 5, floor: 15 })).toBe(false);
+    expect(withRule({ worse: "band", band: [1, 2], max_worsening: 5, floor: 15 })).toBe(false);
   });
 });
 
@@ -250,7 +298,7 @@ describe("perseguição e sobreviventes no resultado headless", () => {
     expect(found).toBeGreaterThan(0);
   });
   it("cérebro basic: sem transições, sem episódios de perseguição", () => {
-    const r = playHeadless(makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", difficulty: "normal" }), 1);
+    const r = playHeadless(makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype", difficulty: "normal" }), 1);
     expect(r.chases).toEqual([]);
     expect(r.transitions).toEqual({});
   });

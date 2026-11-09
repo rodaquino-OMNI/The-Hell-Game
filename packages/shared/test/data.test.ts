@@ -17,7 +17,7 @@ describe("dados", () => {
   });
   it("schema recusa valor inválido", () => {
     expect(() => parseBalance(yaml.replace(/^ {2}hp: 100$/m, "  hp: -5"))).toThrow();
-    expect(() => parseBalance(yaml.replace("ruleset: prototype", "ruleset: qualquer"))).toThrow();
+    expect(() => parseBalance(yaml.replace(/^ruleset: \w+$/m, "ruleset: qualquer"))).toThrow();
   });
   it("mapa do Pátio passa no schema", () => {
     expect(loadMapFile(root + "data/maps/patio.json").walls.length).toBe(15);

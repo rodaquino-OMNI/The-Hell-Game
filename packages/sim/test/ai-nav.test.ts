@@ -120,7 +120,9 @@ describe("partidas headless (amostra do aceite T-03; o lote de 1.000 roda em too
           const [from, to] = k.split(">") as [HunterMode, HunterMode];
           expect(HUNTER_TRANSITIONS[from]).toContain(to);
         }
-        expect(Object.keys(r.transitions)).toContain("patrol>chase");
+        // o caçador chega a perseguir; com os bots competentes (padrão do MJ-B) às vezes ouve antes de ver
+        // (patrol>investigate>chase), então vale qualquer entrada em chase
+        expect(Object.keys(r.transitions).some(k => k.endsWith(">chase"))).toBe(true);
       }
     });
   }

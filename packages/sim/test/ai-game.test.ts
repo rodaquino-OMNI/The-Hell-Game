@@ -7,8 +7,11 @@ import { createGame, hit, makeConfig, spawnPoints, step, NO_INPUT, type GameStat
 import { chooseLayout, resolveLayout } from "../src/nav/index.ts";
 import { aiCfg, b, map, normal } from "./ai-helpers.ts";
 
-const v1 = makeConfig(b, map, { ruleset: "v1" });
-const proto = makeConfig(b, map);
+// Integração do layout, da saída e dos spawns (regras do game.ts, não da IA): caçador `basic` e bots do protótipo
+// fixados explicitamente desde o marco MJ-B (o padrão dos dados virou utility + competent); `proto` = ruleset do
+// protótipo explícito.
+const v1 = makeConfig(b, map, { ruleset: "v1", hunterBrain: "basic", botBrain: "prototype" });
+const proto = makeConfig(b, map, { ruleset: "prototype" });
 const seedFor = (pred: (c: ReturnType<typeof chooseLayout>) => boolean) => {
   for (let s = 1; s < 500; s++) if (pred(chooseLayout(map, s))) return s;
   throw new Error("sem semente");
@@ -96,19 +99,22 @@ describe("spawns (GDD-v0.3 §9.4)", () => {
 });
 
 describe("escolha do caçador (ai.hunter_brain)", () => {
-  it("padrão do YAML = basic (caçador do R1, suíte rules-v1); utility liga a IA do R3; protótipo nunca usa a IA", () => {
-    expect(b.ai.hunter_brain).toBe("basic");
+  it("padrão do YAML = utility (marco MJ-B); basic explícito = caçador do R1 (suíte rules-v1); protótipo nunca usa a IA", () => {
+    expect(b.ai.hunter_brain).toBe("utility");
+    const dflt = makeConfig(b, map);
+    expect(dflt.brain).toBe("utility");
+    expect(createGame(dflt, "Curandeiro", 1).hunter.ai).toMatchObject({ mode: "patrol", target: -1 });
     expect(v1.brain).toBe("basic");
     expect(v1.grid).toBeNull();
     expect(createGame(v1, "Curandeiro", 1).hunter.ai).toBeUndefined();
     expect(normal.brain).toBe("utility");
     expect(normal.nav).toBe(normal.grid);
     expect(createGame(normal, "Curandeiro", 1).hunter.ai).toMatchObject({ mode: "patrol", target: -1 });
-    const p = makeConfig(b, map, { hunterBrain: "utility" });
+    const p = makeConfig(b, map, { ruleset: "prototype", hunterBrain: "utility" });
     expect(p.brain).toBe("basic");
     expect(createGame(p, "Curandeiro", 1).hunter.ai).toBeUndefined();
-    const yaml = makeConfig({ ...b, ruleset: "v1", ai: { ...b.ai, hunter_brain: "utility" } }, map);
-    expect(yaml.brain).toBe("utility");
+    const yaml = makeConfig({ ...b, ruleset: "v1", ai: { ...b.ai, hunter_brain: "basic" } }, map);
+    expect(yaml.brain).toBe("basic");
   });
   it("aiLevel = ai.by_difficulty da dificuldade", () => {
     expect(aiCfg("nightmare").aiLevel).toEqual(b.ai.by_difficulty.nightmare);

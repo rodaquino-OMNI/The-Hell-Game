@@ -26,9 +26,13 @@ function balanceWith(edit: (x: Balance) => void = () => {}): Balance {
   edit(x);
   return x;
 }
-const v1All = (difficulty: Difficulty = "normal", edit?: (x: Balance) => void) => makeConfig(balanceWith(edit), map, { ruleset: "v1", difficulty });
+// Marco MJ-B: o padrão dos dados virou caçador `utility` + bots `competent`. Os eventos de pontos são regras do sim,
+// testadas em cenários montados à mão: fixam o caçador `basic` e os bots do protótipo explicitamente. Os casos que
+// dependem do cérebro dizem qual usam (T1 com basic e utility; partida inteira com utility e os bots padrão).
+const RULES = { hunterBrain: "basic", botBrain: "prototype" } as const;
+const v1All = (difficulty: Difficulty = "normal", edit?: (x: Balance) => void) => makeConfig(balanceWith(edit), map, { ruleset: "v1", difficulty, ...RULES });
 const all = v1All();
-const v1 = makeConfig(b, map, { ruleset: "v1" });
+const v1 = makeConfig(b, map, { ruleset: "v1", ...RULES });
 
 /** v1 sem caçador ativo (atordoado e longe), bots fora, revelação desligada */
 function quiet(c: SimConfig = all, cls: ClassName = "Curandeiro") {
@@ -225,7 +229,7 @@ describe("evento desligado não pontua", () => {
     const off = makeConfig(balanceWith(x => {
       for (const e of Object.values(x.points.events)) e.enabled = false;
       for (const e of Object.values(x.points.hunter_events)) e.enabled = false;
-    }), map, { ruleset: "v1" });
+    }), map, { ruleset: "v1", ...RULES });
     const g = quiet(off, "Atacador"); const c = g.survivors[1];
     c.st = "cage"; c.cage = 1e9; c.x = P(g).x; c.z = P(g).z;
     run(g, b.cage.rescue_time + 0.1, { interactHeld: true }, off);
@@ -280,7 +284,7 @@ describe("multiplicador de pontos e arredondamento (GDD-v0.2 §7.3)", () => {
     expect(scaledPoints(f, ev("bonus_puzzle").value)).toBe(32);
   });
   it("partida inteira com bots e IA utility em Difícil: placar e eventos só com inteiros; total do jogador = g.points", () => {
-    const c = makeConfig(balanceWith(), map, { ruleset: "v1", difficulty: "hard", hunterBrain: "utility" });
+    const c = makeConfig(balanceWith(), map, { ruleset: "v1", difficulty: "hard", hunterBrain: "utility", botBrain: "competent" });
     const g = createGame(c, "Curandeiro", 5);
     const ps: PointsEv[] = [];
     for (let i = 0; i < (b.match.hard_time_limit + 1) * 60 && !g.over; i++) {
@@ -306,7 +310,7 @@ describe("moedas por dificuldade (GDD-v0.2 §7.2, GDD-v0.3 D-04)", () => {
     return g;
   }
   it.each(DIFFS)("%s: vitória e derrota", d => {
-    const c = makeConfig(b, map, { ruleset: "v1", difficulty: d }), m = b.difficulty_table[d].points_mult;
+    const c = makeConfig(b, map, { ruleset: "v1", difficulty: d, ...RULES }), m = b.difficulty_table[d].points_mult;
     const pts = b.generator.puzzles_per_generator * Math.round(ev("puzzle").value * m) + Math.round(ev("generator").value * m);
     const win = withGenerator(c); win.hunter.hp = 0; tap(win, {}, c);
     expect(win.points).toBe(pts);
@@ -319,7 +323,7 @@ describe("moedas por dificuldade (GDD-v0.2 §7.2, GDD-v0.3 D-04)", () => {
     expect(endOf(g)!.coins).toBe(140);
   });
   it("economy.win_coins_to: `alive` (padrão, decisão do Rodrigo 09/11/2026) dá o bônus a todos os vivos do time vencedor; `escaped` só a quem escapou", () => {
-    const esc = makeConfig({ ...b, economy: { ...b.economy, win_coins_to: "escaped" } }, map, { ruleset: "v1" });
+    const esc = makeConfig({ ...b, economy: { ...b.economy, win_coins_to: "escaped" } }, map, { ruleset: "v1", ...RULES });
     const alive = quiet(v1); alive.hunter.hp = 0; tap(alive, {}, v1);
     expect(endOf(alive)).toMatchObject({ win: true, coins: e.base_coins + e.win_coins });
     const notOut = quiet(esc); notOut.hunter.hp = 0; tap(notOut, {}, esc);
@@ -398,7 +402,7 @@ describe("ajustes da revisão QA", () => {
     expect(P(g).score.boldness).toBe(ev("chase_escape").value);
   });
   it("A6: `winCoins` no evento end separa vitória do bônus", () => {
-    const esc = makeConfig({ ...b, economy: { ...b.economy, win_coins_to: "escaped" } }, map, { ruleset: "v1" });
+    const esc = makeConfig({ ...b, economy: { ...b.economy, win_coins_to: "escaped" } }, map, { ruleset: "v1", ...RULES });
     const g = quiet(esc); g.hunter.hp = 0; tap(g, {}, esc);
     expect(endOf(g)).toMatchObject({ win: true, winCoins: false, coins: b.economy.base_coins });
     const a = quiet(v1); a.hunter.hp = 0; tap(a, {}, v1);
@@ -406,7 +410,7 @@ describe("ajustes da revisão QA", () => {
   });
   it("T3: âncoras de moedas com um gerador — Difícil vitória 167, Pesadelo derrota 164", () => {
     for (const [d, won, coins] of [["hard", true, 167], ["nightmare", false, 164]] as const) {
-      const c = makeConfig(b, map, { ruleset: "v1", difficulty: d });
+      const c = makeConfig(b, map, { ruleset: "v1", difficulty: d, ...RULES });
       // premissas das âncoras: se o YAML mudar, o teste aponta a causa aqui
       expect([c.pointsMult, b.economy.base_coins, b.economy.win_coins, b.economy.points_to_coins]).toEqual([d === "hard" ? 1.3 : 1.6, 20, 30, 1]);
       const g = quiet(c); openPuzzle(c, g, 0);
@@ -426,7 +430,7 @@ describe("ajustes da revisão QA", () => {
     expect(P(g).score.boldness).toBe(ev("block_bolt").value);
   });
   it.each(["basic", "utility"] as const)("T1: perseguição real > 15 s com o cérebro %s credita chase_escape", brain => {
-    const c = makeConfig(balanceWith(), map, { ruleset: "v1", hunterBrain: brain });
+    const c = makeConfig(balanceWith(), map, { ruleset: "v1", hunterBrain: brain, botBrain: "prototype" });
     const g = createGame(c, "Curandeiro", 3);
     for (const s of g.survivors) if (s.bot) s.st = "dead";
     g.reveal = 1e9;

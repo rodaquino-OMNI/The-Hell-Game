@@ -9,7 +9,9 @@ version: 0.3.1   # revisão 2: decisões D-01 a D-12 (08/11/2026)
 difficulty: normal
 # Conjunto de regras: "prototype" reproduz prototype/the-hell.html (paridade da fase 0, docs/prototipo-paridade.md);
 # "v1" liga as regras do GDD v0.3 (cone de visão, ruído de 18 m, D-01, D-03) a partir da fase 1.
-ruleset: prototype
+# Padrão "v1" desde o marco MJ-B (docs/handoff/plano-frente-r.md, MJ-B). A paridade com o protótipo continua
+# coberta por packages/sim/test/parity.test.ts, que fixa `ruleset: prototype` explicitamente.
+ruleset: v1
 
 # ---------- 1. Sobrevivente (GDD-v0.2 §2.3) ----------
 survivor:
@@ -207,12 +209,13 @@ match:
 ai:
   # Caçador do ruleset v1 (item R3). "basic" = caçador mínimo do R1 (age a 60 Hz, sem tempo de reação; é o que a
   # suíte rules-v1 fixa); "utility" = IA do GDD-v0.3 §8 (percepção e decisão a 10 Hz, estados do §8.2, utilidade do
-  # §8.3, dificuldade do §8.4, navegação do §8.6). Como `ruleset`, o padrão muda no marco MJ-B.
-  hunter_brain: basic
+  # §8.3, dificuldade do §8.4, navegação do §8.6). Padrão "utility" desde o marco MJ-B (com a D-35 e a D-36 do R4);
+  # testes de regra que não dependem da IA fixam "basic" explicitamente.
+  hunter_brain: utility
   # Bots aliados do ruleset v1 (item R4, GDD-v0.3 §8.5). "prototype" = bots do protótipo (updateBot, paridade);
   # "competent" = ai/bots.ts (personalidades, fuga para loop, stamina e percepção do jogador). No ruleset prototype
-  # vale sempre "prototype". O padrão muda no marco MJ-B, só se o R4 tiver passado na prova.
-  bot_brain: prototype
+  # vale sempre "prototype". Padrão "competent" desde o marco MJ-B (R4 passou na prova: PR #50, D-35/D-36).
+  bot_brain: competent
   decision_hz: 10
   perception_hz: 10
   hearing_investigate_time: 8
@@ -873,29 +876,33 @@ net:
 # caçador numa banda de 45–55% = 45 p.p.). A banda só define a direção; ela vira porta só depois da calibração com
 # pessoas (D-05). Métricas fora daqui só são medidas: survivor_escape (D-16 a) e duration_median. Travas (T-03),
 # exceções, partidas sem fim e transições fora do grafo do §8.2 reprovam sempre. Tolerância null = "a medir".
+# Exceção à regra "só piora relativa": `floor` (só em `worse: lower`) é um PISO ABSOLUTO de aceite, que reprova pelo
+# valor atual mesmo sem linha de base ou com tolerância a medir, sempre que o grupo tiver ≥ min_samples (marco MJ-B).
 # Tolerâncias = 3 × √2 × maior desvio-padrão medido entre 10 lotes do check com sementes disjuntas (1..500), arredondado
 # para cima; desvio 0 → resolução de 1 partida (1/50 por dificuldade, 1/200 no agregado); chase_median só usa lotes
-# com ≥ min_samples episódios. Medição refeita no R4 (09/11/2026, `pnpm sim --check --noise=10`, bots do protótipo,
-# hunter_brain utility com a D-35 — Perseguir pela memória — e a D-36 — telegraph em toda habilidade —, grade A*,
-# D-21 ligada; episódio de perseguição cortado na troca de alvo). Desvio máx por dificuldade / no agregado:
-# hunter_win 0 / 0; duration_mean 9,02 s / 2,73 s; captures_per_match 0,0409 / 0,0131; short_match_rate
-# 0,0302 / 0,0094; chases_per_match 0,0329 / 0,0105; chase_median: por dificuldade < 2 lotes válidos (a medir) /
-# 21,6 s (a D-35 alonga os episódios e a amostra por lote é pequena).
-# PORTA SATURADA HOJE (bots do protótipo; a tabela do check marca "saturada"): vitória do caçador 0%, capturas e
-# perseguições perto de 0 e partidas curtas perto de 100% ficam a menos de 1 tolerância do limite físico, então a
-# piora do lado de perto não reprova (a vitória do caçador ainda reprova se passar do outro lado da banda). Hoje só
-# duration_mean e as falhas duras vigiam de fato; chase_median não é comparada (amostra < min_samples). Ao regravar a
-# linha de base com outro comportamento (ex.: bots do R4), medir de novo e revisar estes valores no mesmo PR.
+# com ≥ min_samples episódios. Medição refeita no marco MJ-B (09/11/2026, `pnpm sim --check --noise=10 --workers=2`,
+# padrões novos: ruleset v1, hunter_brain utility com a D-35 e a D-36, bot_brain competent do R4, grade A*, D-21
+# ligada). Desvio máx por dificuldade / no agregado: hunter_win 0,0527 (Pesadelo) / 0,0115; duration_mean 11,87 s /
+# 4,38 s; captures_per_match 0,107 / 0,0454; short_match_rate 0,0444 / 0,0148; chases_per_match 0,110 / 0,0459;
+# chase_median 9,01 s (Difícil; Fácil e Normal com < 10 episódios por lote, não entram) / 2,26 s.
+# PORTA HOJE (bots competentes; base de 09/11/2026; a tabela do check marca "saturada"): hunter_win (0–14% por
+# dificuldade, 4% no agregado) fica a menos de 1 tolerância do 0 em todos os grupos, então só reprova se passar do
+# outro lado da banda (porta inativa até o R8); capturas e perseguições perto de 0 saturam em Fácil e Normal e vigiam
+# em Difícil, Pesadelo e no agregado; duration_mean e short_match_rate vigiam em todos. chase_median: por dificuldade
+# a tolerância (39 s) passa da base, então só o piso de 15 s vigia (Difícil e Pesadelo, ≥ 10 episódios; Normal tem 3
+# e Fácil 0); no agregado vigiam a tolerância e o piso.
+# Ao regravar a linha de base com outro comportamento (R7-mapas, R8), medir de novo e revisar estes valores no mesmo PR.
 sim:
   short_match_seconds: 180          # §7.6: "partidas encerradas em menos de 3 min"
   check: {matches_per_group: 50, seed: 1, difficulties: [easy, normal, hard, nightmare]}  # 200 partidas no Pátio
   nightly: {matches_per_group: 2500} # 4 dificuldades × 2.500 = 10.000 partidas por mapa (GDD-v0.2 §15.2)
   regression:
-    hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.02, pooled_max_worsening: 0.005}  # §7.6 + D-16 a
-    duration_mean:      {worse: band, band: [360, 480], max_worsening: 39, pooled_max_worsening: 12}         # §7.6: 6 a 8 min (s)
-    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.18, pooled_max_worsening: 0.06}     # §7.6
-    short_match_rate:   {worse: higher, max_worsening: 0.13, pooled_max_worsening: 0.04}                     # §7.6: < 5%
-    # §8.5 (aceite: mediana ≥ 15 s). Com < 10 episódios a mediana oscila > 12 s entre lotes: não é comparada.
-    chase_median:       {worse: lower, max_worsening: null, pooled_max_worsening: null, min_samples: 10}  # null = a medir: com bots do protótipo σ = 21,6 s e 3√2σ (92 s) passa da base (81,7 s); medir com bot_brain competent no MJ-B e acrescentar piso absoluto de 15 s (§8.5)
+    hunter_win:         {worse: band, band: [0.45, 0.55], max_worsening: 0.23, pooled_max_worsening: 0.05}   # §7.6 + D-16 a
+    duration_mean:      {worse: band, band: [360, 480], max_worsening: 51, pooled_max_worsening: 19}         # §7.6: 6 a 8 min (s)
+    captures_per_match: {worse: band, band: [1.5, 2.5], max_worsening: 0.46, pooled_max_worsening: 0.20}     # §7.6
+    short_match_rate:   {worse: higher, max_worsening: 0.19, pooled_max_worsening: 0.07}                     # §7.6: < 5%
+    # GDD-v0.3 §8.5 (aceite: mediana ≥ 15 s): piso absoluto de 15 s; com < 10 episódios a mediana oscila > 12 s
+    # entre lotes, então nem a tolerância nem o piso comparam o grupo.
+    chase_median:       {worse: lower, floor: 15, max_worsening: 39, pooled_max_worsening: 10, min_samples: 10}
     # vigia um defeito que zere as perseguições (por partida, para o noturno de 10.000 comparar com a base de 200)
-    chases_per_match:   {worse: lower, max_worsening: 0.14, pooled_max_worsening: 0.05}
+    chases_per_match:   {worse: lower, max_worsening: 0.47, pooled_max_worsening: 0.20}

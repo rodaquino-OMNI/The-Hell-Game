@@ -117,7 +117,9 @@ try {
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
 
     // ---------- menu inicial ----------
-    await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
+    // menu, loja e a partida abaixo são as do protótipo: desde o marco MJ-B o padrão dos dados é v1, então o
+    // protótipo é fixado pela via do cliente (`?ruleset=`, packages/client/src/data.ts); o v1 tem seção própria
+    await page.goto(`${url}/?debug=1&seed=${SEED}&ruleset=prototype`, { waitUntil: "load" });
     const lang = await page.evaluate(() => document.documentElement.lang);
     if (lang !== locale) fail(`${locale}: idioma detectado ${lang}`);
     const start = await page.textContent("#go");
