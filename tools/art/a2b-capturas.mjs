@@ -9,17 +9,14 @@
 // Chromium do Playwright com SwiftShader, 1280×720 com deviceScaleFactor 2, semente fixa e relógio controlado.
 // Uso: node tools/art/a2b-capturas.mjs <pasta de saída> [url]   (sem url, sobe packages/server/dist/server.mjs)
 // Pré-requisito: pnpm build.
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { decodePng, encodePng } from "../visual/png.mjs";
+import { startServer } from "../lib/server.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const root = fileURLToPath(new URL("../../", import.meta.url));
 const out = process.argv[2];
 if (!out) { console.error("uso: node tools/art/a2b-capturas.mjs <pasta de saída> [url]"); process.exit(2); }
 mkdirSync(out, { recursive: true });
@@ -35,12 +32,8 @@ const CLASSES = [
 const SPOT = { at: [-10.5, 9.5], look: [-1, 1], pitch: 0.04 };
 
 let url = process.argv[3], server;
-if (!url) {
-  const port = process.env.A2B_PORT ?? "18733";
-  url = `http://127.0.0.1:${port}`;
-  server = spawn(process.execPath, [join(root, "packages/server/dist/server.mjs")], { env: { ...process.env, PORT: port }, stdio: ["ignore", "ignore", "inherit"] });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch(url + "/healthz")).ok) break; } catch { /* subindo */ } await sleep(100); }
-}
+// porta livre (PORT=0) e /healthz só do processo filho deste script (tools/lib/server.mjs)
+if (!url) ({ url, child: server } = await startServer());
 
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const errors = [], files = [], info = {};
