@@ -179,8 +179,10 @@ describe("aceite §8.3 com alvo lembrado (D-35) e protegido com histerese (D-52)
       g.survivors[0].bot = true;
       for (let i = 0; i < Math.ceil(b.match.hard_time_limit / STEP) && !g.over; i++) { step(c, g, NO_INPUT); g.events.length = 0; }
       switches += ev.length;
-      for (let i = 1; i < ev.length; i++) {
-        if (ev[i].target === ev[i - 1].from) expect(ev[i].t - ev[i - 1].t, `semente ${seed}`).toBeGreaterThanOrEqual(1 - 1e-9);
+      // volta = o alvo anterior ao último reaparece; reconstruído pela sequência de trocas (não depende de `from`, que
+      // não existia antes da correção: em main o teste reprova)
+      for (let i = 2; i < ev.length; i++) {
+        if (ev[i].target === ev[i - 2].target) expect(ev[i].t - ev[i - 1].t, `semente ${seed}`).toBeGreaterThanOrEqual(1 - 1e-9);
       }
     }
     expect(switches).toBeGreaterThan(0); // o gancho dispara (o teste não passa por vazio)

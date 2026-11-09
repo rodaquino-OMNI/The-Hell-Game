@@ -249,6 +249,8 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
     else if (e.since < 0) e.since = t;
     else if (t - e.since + EPS >= b.ai.protected_hold) { e.on = raw; e.since = -1; }
   }
+  // quem saiu do jogo (p.gone: preso, morto ou fora) perde o estado da histerese; se voltar (resgate), recomeça
+  ai.protection = ai.protection.filter(x => !p.gone.includes(x.id));
   const held = ai.protection.filter(x => x.on).map(x => x.id);
   // alvo perseguido (visto ou lembrado) antes desta decisão: a troca dentro da perseguição encerra o episódio na
   // métrica do §8.5 (gancho `traceTarget`, só observação)
@@ -256,7 +258,11 @@ export function think(cfg: SimConfig, H: Hunter, ai: HunterAi, p: Percept, rng: 
   // §8.3 (histerese) com a D-35: o alvo perseguido pela memória (fora de vista) continua sendo o atual; outro só
   // toma o lugar com placar acima do último placar dele mais a margem (correção do aceite "não alterna de alvo mais
   // de 1 vez por segundo")
-  const remembered = pursuedBefore >= 0 && CHASE_MODES.includes(ai.mode) && !ai.captured ? { id: pursuedBefore, score: ai.score } : undefined;
+  // alvo que saiu do jogo sem passar pelo golpe (projétil, armadilha, morte, fuga pelo portão; estado público em
+  // p.gone): a memória dele não vale mais e ele não segura a histerese; o caçador escolhe outro na hora
+  const goneBefore = pursuedBefore >= 0 && p.gone.includes(pursuedBefore);
+  if (ai.memory && p.gone.includes(ai.memory.id)) ai.memory = null;
+  const remembered = pursuedBefore >= 0 && CHASE_MODES.includes(ai.mode) && !ai.captured && !goneBefore ? { id: pursuedBefore, score: ai.score } : undefined;
   const choice = chooseTarget(cfg, p, candidates, pursuedBefore, remembered, held);
   if (choice) {
     if (choice.id !== ai.target) ai.switchedAt = t;
