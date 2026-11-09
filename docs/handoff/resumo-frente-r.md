@@ -29,7 +29,7 @@ Staging: https://the-hell-staging.fly.dev (v1 por padrão; smoke 3/3). Produçã
 
 ## 3. O problema que sobra: o caçador quase nunca vence
 
-Com bots competentes, o caçador captura 0,09 sobrevivente por partida no Normal. A causa é estrutural, não de IA:
+Com bots competentes, o caçador captura 0,09 sobrevivente por partida no Normal (rodada de 1.000 partidas do R8 passo 1; a linha de base de 50 partidas dá 0,08). A causa é estrutural, não de IA:
 - basta um sobrevivente escapar para o time vencer (D-01 b);
 - o caçador persegue a 4,3 m/s; o sobrevivente corre a 5,4 m/s gastando estamina (100 de reserva, 15/s: cerca de 6,7 s de corrida) e o bot foge a 4,2 m/s sem ela. A estamina recupera rápido (14/s), então o sobrevivente quase sempre tem corrida quando é visto;
 - o caçador quase nunca vê alguém: 0,06 perseguição por partida no Normal;
