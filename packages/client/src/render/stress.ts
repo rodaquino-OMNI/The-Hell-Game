@@ -8,7 +8,7 @@
 //  - armadilhas: o máximo que uma partida acumula (match.hard_time_limit / menor difficulty_table.*.trap_interval);
 //    projéteis: o máximo simultâneo (prototype_extras.projectile_life / hunter.projectile.cooldown);
 //  - vistas (render.stress): varredura de `sweep` rumos de cima (mapa inteiro no frustum, lanterna no rumo), em 3ª e
-//    em 1ª pessoa (a ferramenta do modo Retro FPS na mão, com `?retro=1`). As camadas são as do preset.
+//    em 1ª pessoa (a ferramenta do modo Retro FPS na mão, com o modo ligado: `?debug=1&retro=1` ou a opção do menu). As camadas são as do preset.
 // tools/perf/budget.mjs mede `renderer.info` em todas as vistas e vale o máximo.
 import type * as THREE from "three";
 import { insideWall, type GameState, type Survivor } from "@thehell/sim";

@@ -21,7 +21,8 @@ import { getColorMode } from "./look.ts";
 import { getLayerA, getReduceFlicker } from "./render/layers.ts";
 import { bobScale, cameraFov } from "./render/motion.ts";
 import { installRenderHook } from "./render/debug.ts";
-import { urlPs1, urlRetro, urlRetroClass, urlSeed, urlStress } from "./render/options.ts";
+import { urlPs1, urlRetroClass, urlSeed, urlStress } from "./render/options.ts";
+import { retroMode } from "./render/retro/mode.ts";
 import { getPs1, setPs1 } from "./render/ps1.ts";
 import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
@@ -53,6 +54,8 @@ let last = 0;
 /** partida em curso (D-45): antes disso, na espera pelos personagens, a entrada não mexe na câmera nem na partida */
 // não volta a false no fim: a partida acabada é tratada por G.over em input.ts, e "jogar de novo" recarrega a página
 let playing = false;
+/** modo Retro FPS da partida atual (V9; lido em init: mudar a opção vale na próxima partida) */
+let retro = false;
 
 applyPalette(document.documentElement);
 initLocale();
@@ -77,8 +80,11 @@ function init() {
   if (urlStress) stress = buildStress(ctx, G);
   view.yaw = 0;
   resetHud();
-  // mockup do modo Retro FPS (?retro=1, D-13): começa em 1ª pessoa (V alterna) com a barra de estado inferior
-  if (urlRetro) { view.thirdPerson = false; setupStatusBar(); }
+  // modo Retro FPS (V9, D-13; opção do menu ou ?debug=1&retro=1): começa em 1ª pessoa (tecla da câmera alterna) com a
+  // barra de estado fina embaixo; desligado, a 3ª pessoa padrão e o HUD padrão
+  retro = retroMode();
+  view.thirdPerson = !retro;
+  setupStatusBar(retro);
 }
 
 // ganchos de depuração só com ?debug=1 (D-33, debug-hooks.ts)
@@ -91,11 +97,11 @@ setPs1(urlPs1);
 /** gancho somente-leitura das opções (tools/a11y/axe.mjs; só com ?debug=1): o que o jogador escolheu e o estado efetivo de cada módulo */
 exposeDebugHook("__thehellOptions", () => ({
   options: currentOptions(), ps1: getPs1(), layerA: getLayerA(), reduceFlicker: getReduceFlicker(), bobScale: bobScale(), fov: cameraFov(),
-  colorMode: getColorMode(), uiScale: getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim(), controls: getControls(),
+  retro: retroMode(), colorMode: getColorMode(), uiScale: getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim(), controls: getControls(),
   puzzleZone: gameCfg.balance.puzzles.timing.zone,
 }));
-/** mockup Retro FPS: vista da câmera exposta às capturas do A2b (tools/art/a2b-capturas.mjs); sem ?retro não existe */
-if (urlRetro) exposeDebugHook("__thehellView", view);
+/** vista da câmera (yaw, pitch, 1ª/3ª pessoa) exposta às capturas (tools/art/a2b-capturas.mjs, v9-capturas.mjs); só com ?debug=1 */
+exposeDebugHook("__thehellView", view);
 
 async function start() {
   if (gate.busy()) return;
@@ -172,7 +178,7 @@ function draw(dt: number) {
   const target = cameraTarget(G);
   if (target) renderFrame(ctx, { ...G, survivors: [target] }, { ...view, thirdPerson: true });
   else renderFrame(ctx, G, view);
-  // áudio (V5, atrás de audio.director_enabled): ouvinte na câmera ativa (inclusive a 1ª pessoa de ?retro=1), logo
+  // áudio (V5, atrás de audio.director_enabled): ouvinte na câmera ativa (inclusive a 1ª pessoa do modo Retro FPS), logo
   // depois de posicioná-la; oclusão e diretor pelo personagem visto. O diretor roda no mesmo quadro em que o windup
   // do caçador é desenhado, então o telegraph sai junto com o visual (D-36)
   if (directorEnabled()) {
@@ -184,7 +190,7 @@ function draw(dt: number) {
   // legendas de som (V8b): só esmaecer e aria-live; a lista é refeita quando o barramento avisa
   captionsFrame(!G.over);
   hud(G, dt, view.yaw);
-  if (urlRetro) statusBar(G, urlRetroClass);
+  if (retro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);
   puzzlePanel(G);
 }

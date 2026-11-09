@@ -13,7 +13,7 @@ export const CLASS_ICON: Record<ClassName, string> = {
 };
 
 /**
- * mockup do modo Retro FPS (D-13): ícones das classes da fase 4, só para as vistas de Protetor e Batedor do A2b
+ * modo Retro FPS (V9, D-13): ícones das classes da fase 4, só para as vistas de depuração de Protetor e Batedor
  * (Art Bible §3: escudo redondo; capuz com ponta e cachecol)
  */
 export const PREVIEW_CLASS_ICON = {

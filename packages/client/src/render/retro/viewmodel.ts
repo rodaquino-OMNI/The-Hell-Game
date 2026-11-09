@@ -1,8 +1,10 @@
-// MOCKUP A2b — ferramenta da classe na mão em 1ª pessoa (D-13, docs/plano-construcao.md §7). As peças vêm da ficha
-// de personagem (data/art/personagens.json, as mesmas do .glb: cajado, chave, espada, escudo, cachecol), montadas com
+// Modo Retro FPS (V9) — ferramenta da classe na mão em 1ª pessoa (D-13, docs/plano-construcao.md §7). As peças vêm da
+// ficha de personagem (data/art/personagens.json, as mesmas do .glb: cajado, chave, espada, escudo, cachecol) ou, para
+// a luneta do Batedor (resposta 2c do A2b, issue #27), de peças feitas em código em data/balance.yaml; montadas com
 // as primitivas low-poly do bake (characters/geometry.ts), coloridas pelo atlas da paleta e desenhadas com o material
 // PS1 numa cena própria por cima do mundo (sem atravessar paredes), na mesma resolução interna e no mesmo passe final.
-// Posição, giro, escala e balanço em data/balance.yaml `render.retro`. Só com `?retro=1`.
+// Resposta 1b do A2b: tudo encolhe para o canto inferior (`render.retro.viewmodel.corner`). Posição, giro, escala e
+// balanço em data/balance.yaml `render.retro`. Só com o modo ligado (render/retro/mode.ts).
 import * as THREE from "three";
 import type { Sheet, SheetCharacter, SheetPiece } from "@thehell/shared";
 import sheetJson from "@thehell/shared/generated/personagens.json";
@@ -24,18 +26,27 @@ type V3 = [number, number, number];
  * entram as peças da variante padrão (`variantes.padrao`, ex.: cajado de mago do Curandeiro)
  */
 export function pieceTris(ch: SheetCharacter, osso: string, cores?: readonly string[]): Tri[] {
+  const variant = ch.variantes ? ch.variantes.lista[ch.variantes.padrao]?.pecas ?? [] : [];
+  return shapeTris(([...ch.pecas, ...variant] as SheetPiece[]).filter(pc => pc.forma !== "seg" && pc.osso === osso && (!cores || cores.includes(pc.cor))), osso);
+}
+
+/** peça feita em código (render.retro.viewmodel.classes.<c>.grupos[].pecas): cilindro ou caixa no formato da ficha */
+type Group = NonNullable<(typeof vm.classes)[RetroClass]>["grupos"][number];
+type CodePiece = Extract<Group, { pecas: unknown }>["pecas"][number];
+
+/** triângulos das peças dadas (formas da ficha), pintadas com a junta `osso` */
+function shapeTris(pieces: readonly (SheetPiece | CodePiece)[], osso: string): Tri[] {
   const out: Tri[] = [];
   const v = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
-  const variant = ch.variantes ? ch.variantes.lista[ch.variantes.padrao]?.pecas ?? [] : [];
-  for (const pc of [...ch.pecas, ...variant] as SheetPiece[]) {
-    if (pc.forma === "seg" || pc.osso !== osso || (cores && !cores.includes(pc.cor))) continue;
+  for (const pc of pieces) {
+    if (pc.forma === "seg") continue;
     const paint = { token: pc.cor, joint: osso, glow: "brilho" in pc && !!pc.brilho };
     switch (pc.forma) {
       case "caixa": box(out, paint, v(pc.desloc), pc.tam as V3, pc.rot as V3 | undefined); break;
       case "elipse": ellipsoid(out, paint, v(pc.desloc), pc.r as V3, pc.lados, pc.aneis); break;
       case "cilindro": {
         const rr = typeof pc.r[0] === "number" ? [pc.r as [number, number], pc.r as [number, number]] : (pc.r as [[number, number], [number, number]]);
-        prism(out, paint, v(pc.de), v(pc.ate), rr[0], rr[1], pc.lados, pc.giro);
+        prism(out, paint, v(pc.de), v(pc.ate), rr[0], rr[1], pc.lados, "giro" in pc ? pc.giro : 0);
         break;
       }
       case "piramide": pyramid(out, paint, v(pc.base), v(pc.ponta), pc.r); break;
@@ -76,20 +87,29 @@ export interface Viewmodel {
   setAspect(aspect: number): void;
 }
 
-/** monta a ferramenta (peças da ficha) e as mãos de `cls` numa cena própria com câmera e luzes */
-export function createViewmodel(cls: RetroClass, aspect: number): Viewmodel {
+/**
+ * monta a ferramenta (peças da ficha ou feitas em código) e as mãos de `cls` numa cena própria com câmera e luzes;
+ * `corner` = encolhimento para o canto (padrão `render.retro.viewmodel.corner`; o teste compara com escala 1)
+ */
+export function createViewmodel(cls: RetroClass, aspect: number, corner: { scale: number; anchor: readonly number[] } = vm.corner): Viewmodel {
   const ch = SHEET.personagens.find(p => p.id === cls);
   if (!ch) throw new Error(`classe '${cls}' fora de data/art/personagens.json`);
   const spec = vm.classes[cls];
   if (!spec) throw new Error(`classe '${cls}' sem render.retro.viewmodel`);
   const lit: Tri[] = [], glow: Tri[] = [];
   const geos: THREE.BufferGeometry[] = [], glowGeos: THREE.BufferGeometry[] = [];
+  // A2b 1b: escala `corner.scale` em volta de `corner.anchor` (x espelhado para o lado de `pos`), depois da pose
+  const toCorner = (pos: readonly number[]) => {
+    const [ax, ay, az] = corner.anchor, k = corner.scale, x = pos[0] < 0 ? -ax : ax;
+    return new THREE.Matrix4().makeTranslation(x, ay, az).multiply(new THREE.Matrix4().makeScale(k, k, k)).multiply(new THREE.Matrix4().makeTranslation(-x, -ay, -az));
+  };
   const mtx = (pos: readonly number[], rot: readonly number[], s: number, origin: readonly number[] = [0, 0, 0]) =>
-    new THREE.Matrix4().compose(new THREE.Vector3(...(pos as V3)), new THREE.Quaternion().setFromEuler(deg(rot)), new THREE.Vector3(s, s, s))
+    toCorner(pos).multiply(new THREE.Matrix4().compose(new THREE.Vector3(...(pos as V3)), new THREE.Quaternion().setFromEuler(deg(rot)), new THREE.Vector3(s, s, s)))
       .multiply(new THREE.Matrix4().makeTranslation(-origin[0], -origin[1], -origin[2]));
   for (const g of spec.grupos) {
-    const tris = pieceTris(ch, g.osso, g.cores);
-    if (!tris.length) throw new Error(`${cls}: nenhuma peça da ficha no osso '${g.osso}'`);
+    // luneta do Batedor (A2b 2c): peças feitas em código, pintadas como a mão direita
+    const tris = "pecas" in g ? shapeTris(g.pecas, "hand_r") : pieceTris(ch, g.osso, g.cores);
+    if (!tris.length) throw new Error(`${cls}: grupo sem peças (${"osso" in g ? `osso '${g.osso}'` : "pecas"})`);
     const m = mtx(g.pos, g.rot, g.escala, g.origem);
     const a = tris.filter(t => !t.glow), b = tris.filter(t => t.glow);
     if (a.length) geos.push(toGeometry(a, m));

@@ -1,6 +1,6 @@
-// MOCKUP A2b — preset industrial do Pátio (D-15, docs/plano-construcao.md §7): variante de texturas e iluminação,
+// Modo Retro FPS (V9; resposta 4a do A2b, issue #27) — preset industrial do Pátio (D-15, docs/plano-construcao.md §7): variante de texturas e iluminação,
 // sem layout novo. Texturas procedurais de metal rebitado e concreto (PRNG com semente do cliente, render/options.ts),
-// luz ambiente fria, luz assada âmbar e luminárias emissivas no topo dos muros. Só com `?retro=1`.
+// luz ambiente fria, luz assada âmbar e luminárias emissivas no topo dos muros. Só com o modo ligado (render/retro/mode.ts).
 // Números em data/balance.yaml `render.retro.industrial`; cores só por token world.industrial.* de data/art/palette.json.
 import * as THREE from "three";
 import { insideWall } from "@thehell/sim";

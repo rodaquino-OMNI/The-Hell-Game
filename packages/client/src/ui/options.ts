@@ -1,4 +1,4 @@
-// Menu de opções (V8, F2-08; checklist do GDD-v0.3 §12.4): intensidades PS1 (§10.1), camada A (§10.2), reduzir
+// Menu de opções (V8, F2-08; checklist do GDD-v0.3 §12.4): modo Retro FPS (V9, D-13), intensidades PS1 (§10.1), camada A (§10.2), reduzir
 // flicker e balanço de câmera, fov (§12.2), volume por barramento (§11, audio/engine.ts), idioma (§12.5), tamanho da
 // fonte, modo daltônico, controles (sensibilidade, inverter Y, alternar em vez de segurar, quebra-cabeça acessível) e
 // remapeamento de teclas. Diálogo modal como a loja: só controles nativos (teclado e leitor de tela), foco no título
@@ -164,7 +164,9 @@ function padList() {
 
 function build(): HTMLElement[] {
   const o = opts, ob = balance.ui.options, step = ob.intensity_step, fr = balance.ui.fov, sens = balance.ui.controls.sensitivity;
+  // modo Retro FPS (V9, D-13): opção de exibição, desligada por padrão; a tecla da ação `camera` alterna 1ª/3ª pessoa
   const video = section("os-video", t("opt.sec.video"),
+    checkbox("o-retro", t("opt.retro_fps"), o.retroFps, v => commit({ ...opts, retroFps: v }), t("opt.retro_fps_hint", { key: keysText(o.keys.camera) })),
     ...PS1_OPTIONS.map(e => slider("o-ps1-" + e, t(PS1_LABEL[e]), o.ps1[e], 0, 1, step, pct, v => commit({ ...opts, ps1: { ...opts.ps1, [e]: v } }))));
   const layer = section("os-layer", t("opt.sec.layer"),
     ...LAYER_A_OPTIONS.map(e => slider("o-la-" + e, t(LAYER_LABEL[e]), o.layerA[e], 0, 1, step, pct, v => commit({ ...opts, layerA: { ...opts.layerA, [e]: v } }))));

@@ -10,7 +10,8 @@ import { charactersReady } from "./characters/runtime.ts";
 import { aimLantern, bakeVertexLight, createAmbience, createLantern, cullShadowCasters, neutralBake, type Ambience } from "./environment.ts";
 import { cameraFov } from "./motion.ts";
 import { fxTime, onLayersChange, presetLayers, setGrainSeed, setLayers, tickLayers, type LayerSet } from "./layers.ts";
-import { clientRandom, urlPreset, urlRetro, urlRetroClass, type RetroClass } from "./options.ts";
+import { clientRandom, urlPreset, urlRetroClass, type RetroClass } from "./options.ts";
+import { retroMode } from "./retro/mode.ts";
 import { createPresenter, type Presenter } from "./present.ts";
 import { Ps1Material, ps1Uniforms } from "./ps1.ts";
 import { createIndustrial, type Industrial } from "./retro/industrial.ts";
@@ -39,7 +40,7 @@ export interface RenderCtx {
   shadowStep: number;
   /** `renderer.info` do último quadro (sombra + cena + passes finais) */
   info: { calls: number; triangles: number };
-  /** mockup do modo Retro FPS (`?retro=1`, D-13/D-15): Pátio industrial e ferramenta na mão; ausente sem o parâmetro */
+  /** modo Retro FPS (V9, D-13/D-15; render/retro/mode.ts): Pátio industrial e ferramenta na mão; ausente com o modo desligado */
   retro?: { industrial: Industrial; vm: Viewmodel | null; overlay?: { scene: THREE.Scene; camera: THREE.Camera } };
 }
 
@@ -52,7 +53,7 @@ export const genVisuals: GenVisual[] = [];
 const TEX_SALT = 1;
 /** sementes do grão da camada A e das posições da camada C (fluxos próprios) */
 const GRAIN_SALT = 2, AMBIENCE_SALT = 3;
-/** semente das texturas do preset industrial (mockup Retro FPS, D-15) */
+/** semente das texturas do preset industrial (modo Retro FPS, D-15) */
 const INDUSTRIAL_SALT = 4;
 
 function tex(rand: () => number, color: string, n: number, rx: number, rz: number) {
@@ -142,7 +143,7 @@ export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   const cam = new THREE.PerspectiveCamera(px.camera.fov, iw / ih, rc.camera.near, rc.camera.far);
   cam.rotation.order = "YXZ";
   // preset industrial (D-15): luz ambiente fria no lugar de light.ambiente
-  const industrial = urlRetro ? createIndustrial(clientRandom(INDUSTRIAL_SALT)) : null;
+  const industrial = retroMode() ? createIndustrial(clientRandom(INDUSTRIAL_SALT)) : null;
   const ri = rc.retro.industrial;
   S.add(industrial ? new THREE.AmbientLight(tok(ri.ambient), ri.ambient_intensity * Math.PI) : new THREE.AmbientLight(tok(WORLD.ambient), rc.lights.ambient * Math.PI));
   const PL = new THREE.PointLight(tok(WORLD.playerLight), rc.lights.player * Math.PI, rc.player_light_radius, rc.lights.player_decay);
@@ -264,7 +265,7 @@ export function placeCamera(ctx: RenderCtx, G: GameState, view: { yaw: number; p
 
 /**
  * desenha o quadro com a câmera já posta (`placeCamera`, ou a vista de cima da cena de pior caso, stress.ts);
- * `tool` = ferramenta na mão à vista (mockup Retro FPS: só em 1ª pessoa)
+ * `tool` = ferramenta na mão à vista (modo Retro FPS: só em 1ª pessoa)
  */
 export function drawFrame(ctx: RenderCtx, G: GameState, tool: boolean) {
   const { cam } = ctx;
@@ -283,7 +284,7 @@ export function drawFrame(ctx: RenderCtx, G: GameState, tool: boolean) {
   ctx.fx.lastHp = P.hp;
   tickLayers(G.t, ctx.fx.hitT);
   ctx.ambience.update(fxTime(G.t), cam, ctx.lantern);
-  // ferramenta na mão (mockup Retro FPS): só em 1ª pessoa, com o jogador de pé
+  // ferramenta na mão (modo Retro FPS): só em 1ª pessoa, com o jogador de pé
   ctx.retro?.vm?.update(P.x, P.z, G.t, tool && P.st === "ok");
   present(ctx);
 }
