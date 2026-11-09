@@ -25,6 +25,9 @@
     "assets:validate": "node tools/assets/validate.mjs",
     "maps:validate": "tsx tools/maps/validate.ts",
     "sim": "tsx tools/sim/run.ts",
+    "sim:check": "tsx tools/sim/run.ts --check",
+    "sim:baseline": "tsx tools/sim/run.ts --check --write-baseline",
+    "sim:nightly": "tsx tools/sim/run.ts --nightly",
     "maps:browser-check": "pnpm data && node tools/maps/recast-browser-check.mjs",
     "visual": "node tools/visual/compare.mjs"
   },
