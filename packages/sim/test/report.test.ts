@@ -324,6 +324,11 @@ describe("tools/sim/compare-human.ts", () => {
     const f = m.finishedOnly([{ path: "a.json", report: rep }, { path: "b.json", report: { ...rep, over: false } }]);
     expect(f.kept.length).toBe(1);
     expect(f.warnings).toEqual([expect.stringMatching(/b\.json.*over: false/)]);
+    // quebra-cabeça acessível: outro quebra-cabeça, aviso e fora das medianas; sem o campo (relatório antigo) = normal
+    const old = { ...rep }; delete old.accessiblePuzzles;
+    const acc = m.finishedOnly([{ path: "a.json", report: rep }, { path: "c.json", report: { ...rep, accessiblePuzzles: true } }, { path: "d.json", report: old }]);
+    expect(acc.kept).toEqual([rep, old]);
+    expect(acc.warnings).toEqual([expect.stringMatching(/c\.json.*accessiblePuzzles: true/)]);
     // Treino recusado
     const dir = mkdtempSync(join(tmpdir(), "rep-"));
     const tut = join(dir, "treino.json");

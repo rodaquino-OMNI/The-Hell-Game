@@ -109,13 +109,24 @@ describe("quebra-cabeça acessível: sem tempo (puzzles.accessible.timed: false)
     const c = makeConfig(b, map, { ruleset: "v1", accessiblePuzzles: true });
     const g = quiet(c); openPuzzle(c, g, 0);
     const z = g.puzzle!;
-    if (z.zoneWidth >= 1) return; // zona = barra inteira: não há onde errar
-    const far = z.zoneCenter < 0.5 ? 1 : 0; // ponta da barra mais longe da zona (centro da zona fica em 0,2..0,8)
-    hold(c, g, 1 / (b.puzzles.timing.speed) + STEP, { strafe: far ? 1 : -1 });
+    expect(z.zoneWidth).toBeLessThan(1); // pré-condição: há onde errar
+    const far = z.zoneCenter < 0.5 ? 1 : 0; // ponta da barra mais longe da zona
+    hold(c, g, 1 / b.puzzles.timing.speed + STEP, { strafe: far ? 1 : -1 });
     expect(z.t).toBe(far);
-    if (Math.abs(z.t - z.zoneCenter) < z.zoneWidth / 2) return;
+    expect(Math.abs(z.t - z.zoneCenter)).toBeGreaterThanOrEqual(z.zoneWidth / 2); // pré-condição: fora da zona
     step(c, g, { ...NO_INPUT, puzzleSpace: true });
     expect(sounds(g, "puzzle_fail")).toBe(1);
+  });
+  it("entrada analógica parcial: strafe 0,5 anda metade da distância", () => {
+    const c = makeConfig(b, map, { ruleset: "v1", accessiblePuzzles: true });
+    const full = quiet(c); openPuzzle(c, full, 0);
+    const half = quiet(c); openPuzzle(c, half, 0);
+    const secs = 1 / (2 * b.puzzles.timing.speed); // meia barra no eixo cheio: nenhum dos dois bate na ponta
+    hold(c, full, secs, { strafe: 1 });
+    hold(c, half, secs, { strafe: 0.5 });
+    expect(full.puzzle!.t).toBeGreaterThan(0);
+    expect(full.puzzle!.t).toBeLessThan(1);
+    expect(half.puzzle!.t).toBeCloseTo(full.puzzle!.t / 2, 9);
   });
   it("com timed: true só a zona muda: o marcador anda sozinho como no normal", () => {
     const c = makeConfig(variant({ ...BASE, timed: true }), map, { ruleset: "v1", accessiblePuzzles: true });

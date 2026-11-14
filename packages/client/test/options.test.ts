@@ -259,12 +259,15 @@ describe("gamepad (navigator.getGamepads simulado)", () => {
 });
 
 describe("quebra-cabeça acessível (puzzles.accessible)", () => {
-  // a regra mora no simulador (makeConfig accessiblePuzzles, packages/sim/test/puzzles-acessiveis.test.ts); aqui, a
-  // zona que o cliente mostra continua a de antes da mudança (timing e Mecânico × zone_mult, limitada à barra)
-  it("zona do timing e do Mecânico × zone_mult, sem passar da barra; o balance não muda", () => {
-    const on = makeConfig(balance, map, { ruleset: "v1", difficulty: "normal", accessiblePuzzles: true }), k = balance.puzzles.accessible.zone_mult;
-    expect(puzzleZoneWidth(on, false)).toBeCloseTo(Math.min(1, balance.puzzles.timing.zone * k) * on.zoneMult);
-    expect(puzzleZoneWidth(on, true)).toBeCloseTo(Math.min(1, balance.classes.mechanic.puzzle_zone * k) * on.zoneMult);
+  // a regra (zona × dificuldade × zone_mult, limitada à barra) mora só no simulador (`puzzleZoneWidth`, testada em
+  // packages/sim/test/puzzles-acessiveis.test.ts); aqui o cliente não refaz a conta: o painel mostra a do sim
+  it("zona do timing e do Mecânico vem do sim, maior que a normal e sem passar da barra; o balance não muda", () => {
+    const on = makeConfig(balance, map, { ruleset: "v1", difficulty: "normal", accessiblePuzzles: true });
+    const off = makeConfig(balance, map, { ruleset: "v1", difficulty: "normal" });
+    for (const mech of [false, true]) {
+      expect(puzzleZoneWidth(on, mech)).toBeGreaterThan(puzzleZoneWidth(off, mech));
+      expect(puzzleZoneWidth(on, mech)).toBeLessThanOrEqual(1);
+    }
     expect(on.balance).toBe(balance);
     expect(balance.puzzles.timing.zone).toBe(0.25); // o original não muda (GDD-v0.2 §2.3)
   });
