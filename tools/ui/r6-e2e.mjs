@@ -85,6 +85,10 @@ async function reportCheck(page, game) {
   // clique (mouse) também não pula
   await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.click("#rptd")]);
   check(await counting(), "clique em Baixar .json pulou a contagem");
+  // Espaço no botão focado também baixa (ativação nativa na tela de fim) e não pula a contagem
+  await page.focus("#rptd");
+  await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.keyboard.press("Space")]);
+  check(await counting(), "Espaço em Baixar .json pulou a contagem");
   check(await page.evaluate(() => window.__rptNoReload === true), "botões do relatório recarregaram a página");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-relatorio.png") });
   await page.keyboard.press("Shift+Tab");
@@ -212,12 +216,17 @@ try {
     check(r.sr === fmt(score[r.cat]), `contagem ${r.cat}: texto do leitor "${r.sr}" ≠ final ${score[r.cat]}`);
   }
   check((await page.textContent("#rstot .rsv")) === fmt(Math.round(total * MID)), "contagem: total visível fora da fração");
+  check((await page.getAttribute("#rstot .rsv", "aria-hidden")) === "true", "contagem: número do total sem aria-hidden");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-contando.png") });
   await reportCheck(page, game);
-  // Enter em "Jogar de novo" durante a contagem só pula para os finais (não recarrega a página)
+  // Enter em "Jogar de novo" durante a contagem só pula para os finais (não recarrega a página); segurado, a
+  // repetição automática do teclado não aciona "Jogar de novo" logo depois de pular
   await page.evaluate(() => { window.__r6NoReload = true; });
-  await page.keyboard.press("Enter");
-  check(await page.evaluate(() => window.__r6NoReload === true), "Enter na contagem recarregou a página em vez de pular");
+  await page.keyboard.down("Enter");
+  await page.keyboard.down("Enter");
+  await page.keyboard.down("Enter");
+  await page.keyboard.up("Enter");
+  check(await page.evaluate(() => window.__r6NoReload === true), "Enter (segurado) na contagem recarregou a página em vez de só pular");
   check((await game(() => window.__thehellResults.state()))?.counting === false, "Enter não pulou a contagem");
   check((await page.evaluate(() => document.activeElement?.id)) === "again", "foco saiu de Jogar de novo depois de pular");
   rows = await readRows();
@@ -241,9 +250,10 @@ try {
   check(coinLines === 1, `moedas em ${coinLines} linhas`);
   check((await page.evaluate(() => document.activeElement?.id)) === "again", "foco não foi para Jogar de novo");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim.png") });
-  // depois da contagem, Enter em "Jogar de novo" volta a funcionar (recarrega)
-  await Promise.all([page.waitForEvent("load", { timeout: 10000 }), page.keyboard.press("Enter")]);
-  check(await page.evaluate(() => window.__r6NoReload === undefined), "Enter depois da contagem não acionou Jogar de novo");
+  // depois da contagem, "Jogar de novo" volta a funcionar; com Espaço também (ativação nativa do botão, que o
+  // preventDefault global da partida bloqueava na tela de fim)
+  await Promise.all([page.waitForEvent("load", { timeout: 10000 }), page.keyboard.press("Space")]);
+  check(await page.evaluate(() => window.__r6NoReload === undefined), "Espaço depois da contagem não acionou Jogar de novo");
 
   // ---------- reduzir movimento: "reduzir balanço de câmera" ligado → valores finais na hora ----------
   await page.evaluate(() => localStorage.setItem("thehell.options", JSON.stringify({ reduceCameraBob: true })));
