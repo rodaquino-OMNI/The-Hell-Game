@@ -120,7 +120,6 @@ export function placeCage(arena: Pick<Arena, "cage">) {
   if (c) c.position.set(arena.cage.x, c.position.y, arena.cage.z);
 }
 
-/** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 /**
  * libera o mundo anterior (2ª partida na mesma página, "Jogar partida" no fim do Treino): o novo renderer usa o mesmo
  * contexto WebGL do canvas, então geometrias, materiais, texturas e programas antigos ficariam presos nele. O que for
@@ -135,9 +134,11 @@ export function disposeWorld(old: RenderCtx) {
       mat.dispose();
     }
   });
+  old.presenter.dispose();
   old.R.dispose();
 }
 
+/** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
   THREE.ColorManagement.enabled = false;
