@@ -1,7 +1,7 @@
 // Cliente THE HELL (fase 0): porte da tela do protótipo (prototype/the-hell.html) sobre a simulação de @thehell/sim.
 // A lógica de jogo está toda em packages/sim; este arquivo só orquestra o laço. Entrada em input.ts, render em render/,
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
-import { createGame, drainEvents, makeConfig, matchReport, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
+import { createGame, drainEvents, makeConfig, matchReport, puzzleZoneWidth, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
 import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
@@ -34,7 +34,7 @@ import { applyOptions } from "./ui/apply.ts";
 import { closeMenuDialogs, hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
 import { currentOptions, refreshVolumeSliders, setupOptions } from "./ui/options.ts";
 import { startPadLoop } from "./ui/padnav.ts";
-import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
+import { loadOptions } from "./ui/settings.ts";
 import { afterLoadIdle, startGate } from "./ui/start-gate.ts";
 import { charactersReady } from "./render/characters/runtime.ts";
 import { prefetchMatchCharacters } from "./render/characters/actors.ts";
@@ -74,7 +74,7 @@ setupOptions(saved, refreshMenuText);
 function init() {
   ctx = buildWorld($("c") as HTMLCanvasElement);
   gameCfg = currentOptions().puzzleAccessible
-    ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty(), ...(mapFlags ? { mapFlags } : {}) })
+    ? makeConfig(balance, map, { ruleset, difficulty: selectedDifficulty(), accessiblePuzzles: true, ...(mapFlags ? { mapFlags } : {}) })
     : matchConfig(cfg);
   // relatório de playtest (R8; ui/report.ts): a coleta só liga com ?debug=1; sem ela, nenhuma opção
   G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0), reportOptions());
@@ -101,7 +101,7 @@ setPs1(urlPs1);
 exposeDebugHook("__thehellOptions", () => ({
   options: currentOptions(), ps1: getPs1(), layerA: getLayerA(), reduceFlicker: getReduceFlicker(), bobScale: bobScale(), fov: cameraFov(),
   retro: retroMode(), colorMode: getColorMode(), uiScale: getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim(), controls: getControls(),
-  puzzleZone: gameCfg.balance.puzzles.timing.zone,
+  puzzleZone: puzzleZoneWidth(gameCfg, false), accessiblePuzzles: gameCfg.accessiblePuzzles,
 }));
 /** vista da câmera (yaw, pitch, 1ª/3ª pessoa) exposta às capturas (tools/art/a2b-capturas.mjs, v9-capturas.mjs); só com ?debug=1 */
 exposeDebugHook("__thehellView", view);

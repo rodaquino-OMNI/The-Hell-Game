@@ -82,6 +82,7 @@
 
   "puzzle.title": "Gerador — quebra-cabeça {n}/{total}",
   "puzzle.timing": "ESPAÇO quando o marcador estiver na zona marcada",
+  "puzzle.timing_untimed": "mova o marcador com A/D ou ←/→ e aperte ESPAÇO quando ele estiver na zona marcada, sem pressa",
   "puzzle.sequence": "repita a sequência com as setas ou WASD",
   "puzzle.exit": "Sair do gerador (E / Esc)",
   "puzzle.arrow.left": "esquerda",
@@ -221,6 +222,7 @@
   "opt.toggle_interact": "Interagir e resgatar: apertar alterna (em vez de segurar)",
   "opt.puzzle_accessible": "Quebra-cabeça acessível",
   "opt.puzzle_accessible_hint": "Zona de acerto do timing com {pct}% da largura normal.",
+  "opt.puzzle_accessible_hint_untimed": "Zona de acerto do timing com {pct}% da largura normal e sem tempo: o marcador só anda quando você o move.",
   "opt.keys_hint": "Escolha uma ação e aperte a nova tecla. Esc cancela; Tab sai sem trocar.",
   "opt.key_wait": "Aperte uma tecla…",
   "opt.key_prompt": "Aperte a nova tecla para {action}.",

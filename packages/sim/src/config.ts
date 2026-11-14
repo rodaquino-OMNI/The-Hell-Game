@@ -33,6 +33,11 @@ export interface SimConfig {
   gateTime: number;
   /** multiplicador da zona de acerto do quebra-cabeça de timing */
   zoneMult: number;
+  /**
+   * quebra-cabeça acessível do jogador (`puzzles.accessible`, GDD-v0.3 §12.4; GDD-v0.2 §6.1 item b): zona maior e,
+   * com `timed: false`, sem tempo. Ver `puzzleZoneWidth` e `puzzleUntimed`. Não muda os bots. false na partida padrão.
+   */
+  accessiblePuzzles: boolean;
   projectileDamage: number;
   trapInterval: number;
   pointsMult: number;
@@ -81,6 +86,8 @@ export interface ConfigOptions {
    * As flags omitidas valem as dos dados. Sem efeito no protótipo.
    */
   mapFlags?: Partial<Balance["maps"]["v1"]>;
+  /** liga o quebra-cabeça acessível do jogador (opção do jogador no cliente; ver SimConfig.accessiblePuzzles) */
+  accessiblePuzzles?: boolean;
   /** navmesh para a IA (ex.: RecastNav de "@thehell/sim/nav/recast"); sem isto, a grade A* de reserva (GDD-v0.3 §8.6) */
   nav?: NavQuery;
   trace?: (e: AiTrace) => void;
@@ -99,7 +106,7 @@ export function makeConfig(balance: Balance, topMap: GameMap, opts: ConfigOption
   const anyCompetent = botBrain === "competent" || Object.values(botBrainBySlot).includes("competent");
   const grid = brain === "utility" || anyCompetent ? gridFromMap(map, balance, Math.max(h.radius, balance.survivor.bot_radius)) : null;
   const base = {
-    balance, map, v1, difficulty,
+    balance, map, v1, difficulty, accessiblePuzzles: opts.accessiblePuzzles ?? false,
     brain, botBrain, botBrainBySlot, aiLevel: balance.ai.by_difficulty[difficulty], grid, nav: grid ? opts.nav ?? grid : null, trace: opts.trace,
   };
   if (!v1) {
@@ -120,6 +127,26 @@ export function makeConfig(balance: Balance, topMap: GameMap, opts: ConfigOption
     cageTime: d.cage, gateTime: d.gate, zoneMult: d.zone_mult,
     projectileDamage: d.projectile_dmg, trapInterval: d.trap_interval, pointsMult: d.points_mult,
   };
+}
+
+/**
+ * largura da zona de acerto do quebra-cabeça do jogador (fração da barra): `puzzles.timing.zone` (ou
+ * `classes.mechanic.puzzle_zone` do Mecânico) × `zoneMult` da dificuldade. Com o quebra-cabeça acessível, também ×
+ * `puzzles.accessible.zone_mult` (GDD-v0.2 §6.1 item b: "zona maior"), limitada à barra inteira (1). Fora dele, o
+ * cálculo de sempre, sem teto (paridade). Todo tipo de quebra-cabeça com zona passa por aqui.
+ */
+export function puzzleZoneWidth(cfg: SimConfig, mechanic: boolean): number {
+  const b = cfg.balance, base = (mechanic ? b.classes.mechanic.puzzle_zone : b.puzzles.timing.zone) * cfg.zoneMult;
+  return cfg.accessiblePuzzles ? Math.min(1, base * b.puzzles.accessible.zone_mult) : base;
+}
+
+/**
+ * quebra-cabeça sem tempo (GDD-v0.3 §12.4 "quebra-cabeças sem tempo"; GDD-v0.2 §6.1 item b "sem tempo"): acessível
+ * ligado e `puzzles.accessible.timed: false`. Nada no quebra-cabeça corre sozinho: o marcador do timing só anda
+ * enquanto o jogador o move (game.ts) e para onde ele soltar; a tentativa não tem prazo. Vale para qualquer tipo.
+ */
+export function puzzleUntimed(cfg: SimConfig): boolean {
+  return cfg.accessiblePuzzles && !cfg.balance.puzzles.accessible.timed;
 }
 
 /** cérebro do bot na vaga `id` (sobreposição por vaga ou o padrão da partida) */

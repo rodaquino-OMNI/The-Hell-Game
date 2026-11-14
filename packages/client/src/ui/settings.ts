@@ -111,17 +111,3 @@ export function loadOptions(storage: OptionsStorage | null = defaultStorage()): 
 export function saveOptions(o: Options, storage: OptionsStorage | null = defaultStorage()): boolean {
   try { if (!storage) return false; storage.setItem(OPTIONS_KEY, JSON.stringify(o)); return true; } catch { return false; }
 }
-
-/**
- * `balance` com o quebra-cabeça acessível (`puzzles.accessible`, GDD-v0.3 §12.4 e GDD-v0.2 §6 item b): zona de acerto
- * do timing × `zone_mult` (também a zona maior do Mecânico), limitada à barra inteira. Só a configuração da partida
- * local muda; a simulação (packages/sim) lê os mesmos campos de sempre.
- */
-export function withAccessiblePuzzles(b: Balance): Balance {
-  const k = b.puzzles.accessible.zone_mult;
-  return {
-    ...b,
-    puzzles: { ...b.puzzles, timing: { ...b.puzzles.timing, zone: Math.min(1, b.puzzles.timing.zone * k) } },
-    classes: { ...b.classes, mechanic: { ...b.classes.mechanic, puzzle_zone: Math.min(1, b.classes.mechanic.puzzle_zone * k) } },
-  };
-}

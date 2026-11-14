@@ -77,6 +77,14 @@ generator:
 puzzles:
   timing: {speed: 0.9, zone: 0.25}
   sequence: {length: 4}
+  # Quebra-cabeça acessível (GDD-v0.3 §12.4: "quebra-cabeças sem tempo e com zona maior"; GDD-v0.2 §6.1 item b:
+  # "versão de acessibilidade (zona maior, sem tempo)"). Ligado por `makeConfig(..., { accessiblePuzzles: true })`
+  # (opção do jogador); só o quebra-cabeça do jogador, os bots não mudam.
+  # zone_mult: multiplica a zona do timing e a do Mecânico (depois da dificuldade), limitada à barra inteira.
+  # timed: false = sem tempo: o marcador não anda sozinho; anda só enquanto o jogador o move (eixo lateral) e para
+  # onde ele soltar; não há prazo; errar ainda reprova. true = marcador automático, só a zona maior.
+  # LACUNA §12.4/§6.1: o GDD não diz como se joga o timing sem tempo nem a velocidade do marcador movido pelo jogador;
+  # reusa `timing.speed` (nenhum número novo). A sequência já não tem prazo nem zona: o acessível não a muda.
   accessible: {zone_mult: 1.6, timed: false}
 
 # ---------- 5. Ruído (GDD-v0.2 §3.4; usado com ruleset v1: o caçador no raio investiga por ai.hearing_investigate_time) ----------

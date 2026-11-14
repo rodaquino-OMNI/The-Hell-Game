@@ -15,6 +15,7 @@
  },
  "layout": "g3c1e0",
  "puzzleZone": 0.25,
+ "accessiblePuzzles": false,
  "duration": 191.38333333337778,
  "over": true,
  "end": {
