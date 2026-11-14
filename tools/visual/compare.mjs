@@ -468,6 +468,13 @@ async function visualChecks(browser) {
   //    onde a cor some no muro; antes contava só os pixels já visíveis sem o contorno
   {
     const lg = balance.render.legibility;
+    // revisão do PR #96: contraste que passa mas fica a menos de warn_margin do mínimo vira aviso no log (não reprova
+    // nem anota o job: low dentro do cone e high fora já ficam nessa faixa desde D-54, e uma anotação fixa viraria ruído)
+    const near = (cr, what) => {
+      if (cr < lg.min_contrast || cr >= lg.min_contrast + lg.warn_margin) return;
+      const m = `${what}: ${cr.toFixed(2)}:1, a menos de ${lg.warn_margin} do mínimo ${lg.min_contrast}:1 (render.legibility.warn_margin)`;
+      console.warn(`AVISO: ${m}`);
+    };
     const probe = async (o) => {
       const r = await (o.page ?? med).evaluate(([LEG, o, a0, outline0]) => {
         const h = window.__thehellRender, G = window.__thehell(), P = G.survivors[0], H = G.hunter;
@@ -510,8 +517,10 @@ async function visualChecks(browser) {
     console.log(`legibilidade D-18 (contorno ${outlineDefault}): fora do cone ${fmt(cbRim)} (sem camada A ${cbRim0.cr.toFixed(2)}:1, conserva ${(cbRim.cr / cbRim0.cr).toFixed(3)}), sem contorno ${fmt(cb)}; dentro do cone ${fmt(ci)}, sem contorno ${fmt(ciBare)}`);
     if (!ci.n) fail("legibilidade: caçador fora da cena de prova dentro do cone");
     if (cbRim.cr < lg.body_keep * cbRim0.cr) fail(`legibilidade: a camada A tira contraste do caçador com o contorno (${cbRim.cr.toFixed(2)} < ${lg.body_keep} × ${cbRim0.cr.toFixed(2)}; D-38)`);
-    if (cbRim.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador fora do cone com contraste ${cbRim.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
-    if (ci.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador dentro do cone com contraste ${ci.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`);
+    if (cbRim.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador fora do cone com contraste ${cbRim.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`)
+    else near(cbRim.cr, `legibilidade: corpo do caçador fora do cone`);
+    if (ci.cr < lg.min_contrast) fail(`legibilidade: corpo do caçador dentro do cone com contraste ${ci.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-18)`)
+    else near(ci.cr, `legibilidade: corpo do caçador dentro do cone`);
     // D-54 (Art Bible §5.3): o mesmo mínimo nos outros presets, 3ª pessoa, fora (LEG) e dentro (LEG_IN) do cone, com
     // as camadas do preset e o contorno × render.hunter_outline.preset_scale (no low, sem camada B, "dentro" é só o
     // ângulo da cena). O medium é a conta acima
@@ -523,7 +532,8 @@ async function visualChecks(browser) {
         const c = contrast(pflat, pbg, await probe({ page, leg }), pbg);
         cs.push(`${where} do cone ${fmt(c)}`);
         if (!c.n) fail(`legibilidade (${preset}): caçador fora da cena de prova ${where} do cone`);
-        if (c.cr < lg.min_contrast) fail(`legibilidade (${preset}): corpo do caçador ${where} do cone com contraste ${c.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-54, render.hunter_outline.preset_scale.${preset} = ${k})`);
+        if (c.cr < lg.min_contrast) fail(`legibilidade (${preset}): corpo do caçador ${where} do cone com contraste ${c.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (D-54, render.hunter_outline.preset_scale.${preset} = ${k})`)
+        else near(c.cr, `legibilidade (${preset}): corpo do caçador ${where} do cone`);
       }
       console.log(`legibilidade D-54 (${preset}, contorno ${outlineDefault} × preset_scale ${k}): ${cs.join("; ")}`);
     }
@@ -540,8 +550,10 @@ async function visualChecks(browser) {
     }
     console.log(`legibilidade: corpo do caçador sem contorno ${cb.cr.toFixed(2)}:1 (sem camada A ${cb0.cr.toFixed(2)}:1, ${cb.n} px); olhos no preparo ${ce.cr.toFixed(2)}:1 (${ce.n} px); feixe ${beamId} ${beam.cr.toFixed(2)}:1 (${beam.n} px); mínimo ${lg.min_contrast}:1, corpo ≥ ${lg.body_keep} do contraste sem a camada A`);
     if (!cb.n || !ce.n || !beam.n) fail("legibilidade: caçador, olhos ou feixe fora da cena de prova");
-    if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
-    if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`);
+    if (ce.cr < lg.min_contrast) fail(`legibilidade: olhos no preparo com contraste ${ce.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`)
+    else near(ce.cr, `legibilidade: olhos no preparo`);
+    if (beam.cr < lg.min_contrast) fail(`legibilidade: feixe com contraste ${beam.cr.toFixed(2)}:1 < ${lg.min_contrast}:1`)
+    else near(beam.cr, `legibilidade: feixe`);
     if (cb.cr < lg.body_keep * cb0.cr) fail(`legibilidade: a camada A tira contraste do caçador sem o contorno (${cb.cr.toFixed(2)} < ${lg.body_keep} × ${cb0.cr.toFixed(2)})`);
 
     // issue #48 (3b): no modo Retro em 1ª pessoa (`?retro=1`) o contorno leva render.hunter_outline.retro_scale; o
@@ -567,7 +579,8 @@ async function visualChecks(browser) {
       const cr = contrast(rflat, rbg, await shot({}), rbg), cr0 = contrast(rflat, rbg, await shot({ outline: 0 }), rbg);
       console.log(`legibilidade Retro 1ª pessoa (${preset}, contorno ${outlineDefault} × preset_scale ${ho.preset_scale[preset]} × retro_scale ${ho.retro_scale}): fora do cone ${fmt(cr)}, sem contorno ${cr0.cr.toFixed(2)}:1`);
       if (!cr.n) fail(`legibilidade Retro (${preset}): caçador fora da cena de prova`);
-      if (cr.cr < lg.min_contrast) fail(`legibilidade Retro (${preset}): corpo do caçador fora do cone em 1ª pessoa com contraste ${cr.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (issue #48, render.hunter_outline.retro_scale)`);
+      if (cr.cr < lg.min_contrast) fail(`legibilidade Retro (${preset}): corpo do caçador fora do cone em 1ª pessoa com contraste ${cr.cr.toFixed(2)}:1 < ${lg.min_contrast}:1 (issue #48, render.hunter_outline.retro_scale)`)
+      else near(cr.cr, `legibilidade Retro (${preset}): corpo do caçador fora do cone em 1ª pessoa`);
       if (g.errors.length) fail(`erros no console (Retro ${preset}): ${g.errors.join(" | ")}`);
       await g.page.close();
     }
