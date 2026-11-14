@@ -42,11 +42,11 @@
 .bar{position:relative;height:22px;background:var(--ui-bg);margin:10px 0}.bar i{position:absolute;top:0;height:100%}
 .zn{background:var(--gen-pronto)}.cu{background:var(--ui-text);width:4px}
 .sq span{display:inline-block;font-size:calc(30px * var(--ui-scale,1));min-width:44px;margin:4px;border:2px solid var(--ui-text-dim)}.sq .ok{color:var(--gen-pronto);border-color:var(--gen-pronto)}
-#menu,#end,#shop,#opts{position:fixed;inset:0;background:var(--ui-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px;overflow:auto}
-#end,#shop{display:none}
-#menu p,#end p,#shop p,#opts p{margin:0}
+#menu,#end,#shop,#opts,#tend{position:fixed;inset:0;background:var(--ui-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px;overflow:auto}
+#end,#shop,#tend{display:none}
+#menu p,#end p,#shop p,#opts p,#tend p{margin:0}
 h1{margin:0;font-size:calc(46px * var(--ui-scale,1));letter-spacing:8px;color:var(--ui-danger)}
-#shop h1,#opts h1{font-size:calc(30px * var(--ui-scale,1))}
+#shop h1,#opts h1,#tend h1{font-size:calc(30px * var(--ui-scale,1))}
 /* menu de opções (V8): seções em grade, controles nativos com a cor de destaque, foco sempre visível */
 #opts{justify-content:flex-start}
 .ogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:10px;width:min(1180px,100%);text-align:left}
@@ -107,6 +107,26 @@ body.retro #bot.lift{bottom:calc(var(--sb-h,0px) + 14px + 8px + var(--pings-lift
 .cp{display:flex;align-items:center;gap:6px;max-width:100%;background:var(--ui-panel);color:var(--ui-text);border:2px solid var(--ui-text-dim);padding:3px 8px;overflow-wrap:anywhere}
 .cp.hz{border-color:var(--ui-danger)}.cp.hz .ca{color:var(--ui-danger)}
 .ca{flex:none;display:inline-flex;width:1.3em;height:1.3em}.ca svg{width:100%;height:100%}.cn{flex:none;color:var(--ui-accent);font-weight:bold}
+/* Treino (V6, GDD-v0.3 §12.3): painel da etapa no topo da coluna de baixo, marcador do alvo e tela de fim própria */
+#tut{max-width:min(92vw,46ch);text-align:left}
+#tut p{margin:0}#tuth{color:var(--ui-text-dim)}
+#tutn{display:flex;align-items:center;gap:6px;font-weight:bold}
+#tutk{display:inline-flex;align-items:center;justify-content:center;width:1.3em;height:1.3em;flex:none}
+#tutk[data-mark=empty],#tutk[data-mark=check]{border:2px solid var(--ui-text-dim)}
+#tutk[data-mark=check]{border-color:var(--gen-pronto);color:var(--gen-pronto)}
+#tutk[data-mark=""]{display:none}
+#tuto{color:var(--gen-pronto);font-weight:normal}
+#tutb{height:8px;background:var(--ui-bg);margin:4px 0 2px;border:1px solid var(--ui-text-dim)}#tutb i{display:block;height:100%;background:var(--ui-accent)}
+#tutp{display:block}
+#tuts{display:block;margin:6px 0 0;min-height:24px}
+#tmk{position:fixed;width:28px;height:28px;color:var(--ui-accent);pointer-events:none;filter:drop-shadow(0 0 2px var(--ui-bg));animation:tmk 1.2s steps(2) infinite}
+@keyframes tmk{50%{opacity:.6}}
+@media (prefers-reduced-motion:reduce){#tmk{animation:none}}
+.reduce-flicker #tmk{animation:none}
+#tel{list-style:none;margin:0;padding:8px 16px;background:var(--ui-panel);border:2px solid var(--ui-text-dim);min-width:min(320px,100%);text-align:left}
+#tel li{display:grid;grid-template-columns:1.5em 1fr auto;gap:8px;padding:2px 0}
+#tel li[data-outcome=done] .tm,#tel li[data-outcome=done] .ts{color:var(--gen-pronto)}
+#tel li[data-outcome=skipped] .tm,#tel li[data-outcome=skipped] .ts{color:var(--ui-text-dim)}
 </style></head><body>
 <canvas id="c" role="img" data-i18n-aria-label="app.canvas"></canvas><div id="vg"></div>
 <div id="hud" hidden>
@@ -115,9 +135,12 @@ body.retro #bot.lift{bottom:calc(var(--sb-h,0px) + 14px + 8px + var(--pings-lift
 <ul id="tm" class="p" data-i18n-aria-label="team.title"></ul>
 <div id="msg" role="status" aria-live="polite"></div>
 <div id="threat" role="img" hidden></div>
+<div id="tmk" aria-hidden="true" hidden></div>
+<p id="tutl" class="sr" role="status" aria-live="polite"></p>
 <div id="pings" class="p" role="group" data-i18n-aria-label="ping.title"><div id="pcd"></div><ul id="pf"></ul></div>
 <div id="sb" role="group" data-i18n-aria-label="retro.bar" hidden></div>
 <div id="bot">
+<div id="tut" class="p" role="group" data-i18n-aria-label="tut.panel" hidden><p id="tuth"></p><p id="tutn"><span id="tutk" aria-hidden="true" data-mark=""></span><span id="tutt"></span><span id="tuto"></span></p><p id="tutd"></p><div id="tutb" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="tut.progress.label" hidden><i></i></div><small id="tutp" hidden></small><button type="button" id="tuts"></button></div>
 <div id="cap" role="log" data-i18n-aria-label="hud.captions" aria-live="off" hidden></div>
 <div id="spec" class="p" hidden><h2 id="spt"></h2><div id="spw"></div><button type="button" id="spn" data-i18n="spec.next"></button><small data-i18n="spec.note"></small></div>
 <div id="hint" class="p" hidden></div>
@@ -129,7 +152,7 @@ body.retro #bot.lift{bottom:calc(var(--sb-h,0px) + 14px + 8px + var(--pings-lift
 <p id="sub"></p>
 <div id="langs" role="group" data-i18n-aria-label="lang.label"></div>
 <p id="choose" data-i18n="menu.choose_class"></p><div id="cls" role="group" aria-labelledby="choose"></div><p id="desc" aria-live="polite"></p>
-<div><button type="button" id="go"><span aria-hidden="true">▶ </span><span id="gol" data-i18n="menu.start"></span></button><button type="button" id="sh" data-i18n="menu.shop"></button><button type="button" id="op" data-i18n="opt.open"></button></div>
+<div><button type="button" id="go"><span aria-hidden="true">▶ </span><span id="gol" data-i18n="menu.start"></span></button><button type="button" id="tr"><span id="trl" data-i18n="menu.tutorial"></span></button><button type="button" id="sh" data-i18n="menu.shop"></button><button type="button" id="op" data-i18n="opt.open"></button></div>
 <p id="gost" class="sr" role="status" aria-live="polite"></p>
 <p id="co"></p>
 <small data-i18n="menu.controls"></small>
@@ -138,5 +161,6 @@ body.retro #bot.lift{bottom:calc(var(--sb-h,0px) + 14px + 8px + var(--pings-lift
 <div id="shop" role="dialog" aria-modal="true" aria-labelledby="shopt"></div>
 <div id="opts" role="dialog" aria-modal="true" aria-labelledby="optt" hidden></div>
 <div id="end" role="dialog" aria-modal="true" aria-labelledby="et" aria-describedby="es"><h1 id="et"></h1><p id="es"></p><p id="est"></p><button type="button" id="again" data-i18n="end.again"></button></div>
+<div id="tend" role="dialog" aria-modal="true" aria-labelledby="tet" aria-describedby="tes"><h1 id="tet" data-i18n="tutend.title"></h1><p id="tes"></p><ol id="tel" data-i18n-aria-label="tutend.steps"></ol><div><button type="button" id="tplay" data-i18n="tutend.play"></button><button type="button" id="tmenu" data-i18n="tutend.menu"></button></div></div>
 <script type="module" src="/src/main.ts"></script>
 </body></html>

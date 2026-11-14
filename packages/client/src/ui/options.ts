@@ -25,11 +25,13 @@ const COLOR_LABEL: Record<ColorModeOption, Key> = { normal: "opt.color.normal", 
 const ACTION_LABEL: Record<Exclude<ControlAction, "ping_1" | "ping_2" | "ping_3" | "ping_4">, Key> = {
   forward: "act.forward", back: "act.back", left: "act.left", right: "act.right", run: "act.run", interact: "act.interact",
   ability: "act.ability", attack: "act.attack", camera: "act.camera", look_left: "act.look_left", look_right: "act.look_right",
-  puzzle_confirm: "act.puzzle_confirm", mute: "act.mute",
+  puzzle_confirm: "act.puzzle_confirm", mute: "act.mute", tutorial_skip: "act.tutorial_skip",
 };
 const PING_ACTIONS = ["ping_1", "ping_2", "ping_3", "ping_4"] as const;
 /** nomes dos botões no layout "standard" da Gamepad API (https://w3c.github.io/gamepad/#remapping); símbolos, sem idioma */
 const PAD_BUTTON = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "Select", "Start", "L3", "R3", "↑", "↓", "←", "→", "Home"];
+/** nome do botão `i` do gamepad (símbolo do layout "standard"; o índice se não houver nome) */
+export const padButtonName = (i: number) => PAD_BUTTON[i] ?? String(i);
 
 /** nome da ação no idioma atual (pings: "Ping: <tipo>") */
 export function actionName(a: ControlAction): string {
@@ -158,8 +160,9 @@ function padList() {
     [actionName("interact"), b.interact], [t("act.puzzle_exit"), b.puzzle_exit], [actionName("run"), b.run], [actionName("attack"), b.attack],
     [actionName("ability"), b.ability], [actionName("camera"), b.camera],
     ...PING_ACTIONS.map(p => [actionName(p), b[p]] as [string, number]),
+    [actionName("tutorial_skip"), b.tutorial_skip],
   ];
-  return el("ul", { className: "opad" }, ...rows.map(([n, i]) => el("li", {}, `${n}: ${PAD_BUTTON[i] ?? String(i)}`)));
+  return el("ul", { className: "opad" }, ...rows.map(([n, i]) => el("li", {}, `${n}: ${padButtonName(i)}`)));
 }
 
 function build(): HTMLElement[] {

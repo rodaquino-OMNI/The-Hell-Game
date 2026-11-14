@@ -148,6 +148,8 @@ export interface Presenter {
    * Retro FPS, D-13): cena desenhada por cima no mesmo alvo, depois de limpar só a profundidade (ferramenta na mão)
    */
   present(scene: THREE.Scene, camera: THREE.Camera, overlay?: { scene: THREE.Scene; camera: THREE.Camera }): void;
+  /** libera alvos, materiais e geometria do pós (2ª partida na mesma página; render/scene.ts disposeWorld) */
+  dispose(): void;
 }
 
 const quadMaterial = (uniforms: Record<string, THREE.IUniform>, fragmentShader: string, defines: Record<string, unknown> = {}) =>
@@ -181,6 +183,11 @@ export function createPresenter(R: THREE.WebGLRenderer, canvas: HTMLCanvasElemen
 
   const self: Presenter = {
     target, preset, scale: 1,
+    dispose() {
+      for (const t of [target, postTarget, bloomTarget]) t.dispose();
+      for (const m of [post, bloomMat, blit]) m.dispose();
+      geo.dispose();
+    },
     setPreset(name) {
       const [w, h] = balance.render.presets[name].internal;
       self.preset = name;

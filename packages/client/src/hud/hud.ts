@@ -7,7 +7,8 @@ import { directorEnabled } from "../audio/director.ts";
 import { $, balance, px } from "../data.ts";
 import { num, t, type Key } from "../i18n/index.ts";
 import { className, directionText, pingName } from "../text.ts";
-import { pingIndexOf } from "../input.ts";
+import { isTutorialSkipKey, pingIndexOf } from "../input.ts";
+import { requestTutorialSkip } from "./tutorial.ts";
 import { THREAT_ARROW } from "./icons.ts";
 import { newPingState, pingRemaining, prunePings, tryPing, type PingState } from "./ping.ts";
 import { isSpectating, nextSpectatorTarget, resetSpectator, spectatorTarget } from "./spectator.ts";
@@ -42,13 +43,15 @@ export function cameraTarget(G: GameState): Survivor | null {
   return isSpectating(G) ? spectatorTarget(G) : null;
 }
 
-/** liga as teclas do HUD: 1–4 pings (`ui.ping_types`), Espaço troca o aliado no modo espectador */
+/** liga as teclas do HUD: 1–4 pings (`ui.ping_types`), Espaço troca o aliado no modo espectador, P pula etapa no Treino */
 export function setupHud(game: () => GameState | undefined) {
   addEventListener("keydown", e => {
     const G = game();
     if (!G || G.over || e.repeat) return;
     // teclas dos pings remapeáveis (V8, `ui.controls.keyboard.ping_1..4`; padrão 1–4)
     if (pingByIndex(G, pingIndexOf(e.code))) return;
+    // Treino (V6): "pular etapa" na tecla da ação `tutorial_skip`; um pedido por aperto (sem repetição da tecla)
+    if (G.tutorial && isTutorialSkipKey(e.code)) { requestTutorialSkip(e.timeStamp); return; }
     if (e.code === "Space" && isSpectating(G)) { e.preventDefault(); nextSpectatorTarget(G); }
   });
   $("spn").onclick = () => { const G = game(); if (G) nextSpectatorTarget(G); };

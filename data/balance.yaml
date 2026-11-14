@@ -1010,6 +1010,13 @@ ui:
   # "reduzir balanço de câmera" ligado ou prefers-reduced-motion do sistema os valores aparecem na hora
   results:
     count_up_s: 1.2
+  # ---- V6: tela do Treino (GDD-v0.3 §12.3; D-34; etapas e metas em `tutorial`) ----
+  # LACUNA (GDD v0.2/v0.3 e Art Bible não definem): tempo em s que o painel mostra a etapa terminada ("concluída" ou
+  # "etapa pulada") antes da próxima. Proposta: 1,5 s (o aviso também sai no aria-live na hora, sem depender do tempo)
+  # LACUNA (idem): intervalo mínimo em s entre dois "pular etapa" aceitos (tecla, botão ou gamepad). Um pedido por
+  # quadro já é a regra (duas chamadas no mesmo quadro pulariam duas etapas); este intervalo evita o duplo clique e o
+  # toque duplo no controle. Proposta: 0,5 s
+  tutorial: {done_s: 1.5, skip_debounce_s: 0.5}
   # GDD-v0.3 §12.2: remapeamento de todas as ações, sensibilidade e inversão do eixo Y
   controls:
     mouse_rad_per_px: 0.0025        # rad por pixel de mouse com sensibilidade 1 (prototype/the-hell.html L114)
@@ -1039,6 +1046,9 @@ ui:
       ping_3: [Digit3]
       ping_4: [Digit4]
       mute: [KeyM]                  # mudo do volume geral (D-41, audio/mute.ts); sem botão padrão no gamepad
+      # V6: "pular etapa" do Treino (só vale no modo tutorial). LACUNA (GDD-v0.3 §12.3 não define a tecla). Proposta:
+      # P (de "pular"), livre no padrão e fora das saídas fixas do quebra-cabeça (Esc, Backspace, X)
+      tutorial_skip: [KeyP]
     # "alternar em vez de segurar" (GDD-v0.3 §12.4): padrão desligado (segurar, como no protótipo)
     toggle_run: false
     toggle_interact: false
@@ -1054,7 +1064,9 @@ ui:
       menu_stick: 0.5               # analógico esquerdo vira direção nos menus a partir desta fração (LACUNA; proposta)
       axes: {move_x: 0, move_y: 1, look_x: 2, look_y: 3}
       # em partida; no quebra-cabeça: `interact` confirma (timing), `puzzle_exit` sai e o direcional dá as setas
-      buttons: {interact: 0, puzzle_exit: 1, ability: 3, attack: 7, run: 6, camera: 11, ping_1: 12, ping_2: 15, ping_3: 13, ping_4: 14}
+      # tutorial_skip (V6, só no Treino). LACUNA (GDD não define). Proposta: 8 (Select/View), livre em partida e o
+      # botão que jogos de console costumam usar para pular
+      buttons: {interact: 0, puzzle_exit: 1, ability: 3, attack: 7, run: 6, camera: 11, ping_1: 12, ping_2: 15, ping_3: 13, ping_4: 14, tutorial_skip: 8}
       # menus: direcional move o foco, ← → ajustam slider; A ativa; B volta (= Esc)
       menu: {confirm: 0, back: 1, up: 12, down: 13, left: 14, right: 15}
       # repetição ao segurar uma direção no menu (s): primeira repetição e intervalo (LACUNA; proposta)

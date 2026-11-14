@@ -46,6 +46,8 @@ const UiSchema = z.object({
   }).strict(),
   /** R6 (issue #66): contagem dos pontos na tela de fim (s; 0 = valores na hora) */
   results: z.object({ count_up_s: pos }).strict(),
+  /** V6: tela do Treino (GDD v0.3 §12.3): tempo do aviso de etapa terminada e intervalo mínimo do "pular etapa" (s) */
+  tutorial: z.object({ done_s: pos.positive(), skip_debounce_s: pos }).strict(),
   /** V8: controles (GDD v0.3 §12.2): remapeamento, sensibilidade, inversão do Y, alternar em vez de segurar, gamepad */
   controls: z.object({
     mouse_rad_per_px: num.positive(), pitch_limit: num.positive(), key_turn_speed: num.positive(),
@@ -59,7 +61,7 @@ const UiSchema = z.object({
       axes: z.object({ move_x: int.min(0), move_y: int.min(0), look_x: int.min(0), look_y: int.min(0) }).strict(),
       buttons: z.object({
         interact: int.min(0), puzzle_exit: int.min(0), ability: int.min(0), attack: int.min(0), run: int.min(0), camera: int.min(0),
-        ping_1: int.min(0), ping_2: int.min(0), ping_3: int.min(0), ping_4: int.min(0),
+        ping_1: int.min(0), ping_2: int.min(0), ping_3: int.min(0), ping_4: int.min(0), tutorial_skip: int.min(0),
       }).strict(),
       menu: z.object({ confirm: int.min(0), back: int.min(0), up: int.min(0), down: int.min(0), left: int.min(0), right: int.min(0) }).strict(),
       menu_repeat: z.object({ delay: num.positive(), interval: num.positive() }).strict(),

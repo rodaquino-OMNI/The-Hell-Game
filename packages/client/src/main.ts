@@ -1,7 +1,7 @@
 // Cliente THE HELL (fase 0): porte da tela do protótipo (prototype/the-hell.html) sobre a simulação de @thehell/sim.
 // A lógica de jogo está toda em packages/sim; este arquivo só orquestra o laço. Entrada em input.ts, render em render/,
 // HUD em hud/, menu e loja em ui/, áudio em audio/.
-import { createGame, drainEvents, makeConfig, matchReport, step, STEP, type GameState, type SimConfig } from "@thehell/sim";
+import { createGame, drainEvents, makeConfig, matchReport, skipTutorialStep, step, STEP, type GameEvent, type GameMode, type GameOptions, type GameState, type SimConfig } from "@thehell/sim";
 import { initAudio, beep, SOUNDS } from "./audio/beeps.ts";
 import { clearCaptions, getCaptionBus } from "./audio/captions.ts";
 import { audioEvents, directorEnabled, updateAudio } from "./audio/director.ts";
@@ -14,6 +14,7 @@ import { setupBottomLayout } from "./hud/layout.ts";
 import { applyPalette } from "./hud/palette.ts";
 import { puzzlePanel, setupPuzzlePanel } from "./hud/puzzle.ts";
 import { setupStatusBar, statusBar } from "./hud/statusbar.ts";
+import { resetTutorialHud, setupTutorialPanel, takeTutorialSkip, tutorialEvents, tutorialHud, tutorialNoticeOver, tutorialOutcomes } from "./hud/tutorial.ts";
 import { advanceClock, frameLoop } from "./loop.ts";
 import { getControls, isMuteKey, muteMessage, lockPointer, readInput, requestPuzzleExit, resetInput, setupInput, view } from "./input.ts";
 import { exposeDebugHook } from "./debug-hooks.ts";
@@ -24,14 +25,15 @@ import { installRenderHook } from "./render/debug.ts";
 import { urlPs1, urlRetroClass, urlSeed, urlStress } from "./render/options.ts";
 import { retroMode } from "./render/retro/mode.ts";
 import { getPs1, setPs1 } from "./render/ps1.ts";
-import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
+import { buildActors, buildWorld, disposeWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
+import { projectGround } from "./render/project.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
 import { messageText } from "./text.ts";
 import { matchConfig, selectedDifficulty } from "./ui/difficulty.ts";
 import { initLocale } from "./ui/locale.ts";
 import { applyOptions } from "./ui/apply.ts";
-import { closeMenuDialogs, hideMenu, refreshMenuText, selectedClass, setStartBusy, setupMenu, showEnd } from "./ui/menu.ts";
+import { closeMenuDialogs, hideMenu, refreshMenuText, selectedClass, setStartBusy, setStartMode, setupMenu, showEnd } from "./ui/menu.ts";
 import { currentOptions, refreshVolumeSliders, setupOptions } from "./ui/options.ts";
 import { startPadLoop } from "./ui/padnav.ts";
 import { loadOptions, withAccessiblePuzzles } from "./ui/settings.ts";
@@ -41,6 +43,7 @@ import { prefetchMatchCharacters } from "./render/characters/actors.ts";
 import { reportEnabled, reportOptions } from "./ui/report.ts";
 import { holdCount, resultsCount } from "./ui/results.ts";
 import { persist, save } from "./ui/shop.ts";
+import { setupTutorialEnd, showTutorialEnd } from "./ui/tutorial-end.ts";
 
 let G: GameState;
 /**
@@ -58,6 +61,15 @@ let last = 0;
 let playing = false;
 /** modo Retro FPS da partida atual (V9; lido em init: mudar a opção vale na próxima partida) */
 let retro = false;
+/** partida normal ou Treino (V6; GDD-v0.3 §12.3, D-34), escolhido no menu */
+let mode: GameMode = "normal";
+/** fim do Treino recebido: a tela `tutorial_end` abre quando o aviso da última etapa sai do painel */
+let tutorialEnd: Extract<GameEvent, { type: "tutorial_end" }> | null = null;
+
+/** opções de `createGame`: na partida normal as mesmas de antes (só o relatório com ?debug=1); no Treino, o modo */
+function gameOptions(): GameOptions | undefined {
+  return mode === "tutorial" ? { ...reportOptions(), mode } : reportOptions();
+}
 
 applyPalette(document.documentElement);
 initLocale();
@@ -72,17 +84,20 @@ applyOptions(saved);
 setupOptions(saved, refreshMenuText);
 
 function init() {
+  if (ctx) disposeWorld(ctx);
   ctx = buildWorld($("c") as HTMLCanvasElement);
   gameCfg = currentOptions().puzzleAccessible
     ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty(), ...(mapFlags ? { mapFlags } : {}) })
     : matchConfig(cfg);
   // relatório de playtest (R8; ui/report.ts): a coleta só liga com ?debug=1; sem ela, nenhuma opção
-  G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0), reportOptions());
+  G = createGame(gameCfg, selectedClass(), urlSeed ?? ((Math.random() * 2 ** 31) | 0), gameOptions());
+  tutorialEnd = null;
   resetInput();
   buildActors(ctx, G, save.eq);
   if (urlStress) stress = buildStress(ctx, G);
   view.yaw = 0;
   resetHud();
+  resetTutorialHud(G);
   // modo Retro FPS (V9, D-13; opção do menu ou ?debug=1&retro=1): começa em 1ª pessoa (tecla da câmera alterna) com a
   // barra de estado fina embaixo; desligado, a 3ª pessoa padrão e o HUD padrão
   retro = retroMode();
@@ -113,8 +128,10 @@ exposeDebugHook("__thehellResults", {
   finish: () => resultsCount()?.finish(),
 });
 
-async function start() {
+async function start(m: GameMode = "normal") {
   if (gate.busy()) return;
+  mode = m;
+  setStartMode(m);
   // áudio e pointer lock no gesto do clique (a espera abaixo pode passar da ativação transitória)
   initAudio();
   lockPointer($("c") as HTMLCanvasElement);
@@ -137,6 +154,10 @@ async function start() {
 setupInput(() => (playing ? G : undefined));
 setupHud(() => G);
 setupPuzzlePanel(requestPuzzleExit);
+setupTutorialPanel();
+// fim do Treino: "Jogar partida" começa a partida normal na mesma página (o clique é o gesto do áudio e do pointer
+// lock); "Voltar ao menu" recarrega, como "Jogar de novo" na tela de fim
+setupTutorialEnd(() => void start("normal"), () => location.reload());
 setupCaptions();
 setupBottomLayout();
 /** gancho de teste das legendas (tools/a11y/axe.mjs; só com ?debug=1): publica a legenda de um efeito como se ele
@@ -161,10 +182,13 @@ function loop(now: number) {
     renderStress(ctx, stress, 0, false);
     return;
   }
+  // Treino: "pular etapa" pedido desde o último quadro, no máximo uma vez por quadro (hud/tutorial.ts)
+  if (G.tutorial && !G.over && takeTutorialSkip()) skipTutorialStep(gameCfg, G);
   for (let i = 0; i < steps && !G.over; i++) step(gameCfg, G, readInput(G, STEP));
   // uma só drenagem por quadro: HUD e áudio leem a mesma lista (audioEvents é no-op com audio.director_enabled false)
   const events = drainEvents(G);
   audioEvents(events, G.survivors[0].id);
+  tutorialEvents(G, gameCfg, events);
   for (const e of events) {
     if (e.type === "msg") showMessage(messageText(e));
     // com o diretor ligado o efeito completo sai em audioEvents; o bipe da fase 0 tocaria em dobro
@@ -178,9 +202,15 @@ function loop(now: number) {
       const r = reportEnabled() && G.report ? matchReport(G) : null;
       showEnd(e, r ? { json: JSON.stringify(r), seed: r.seed, difficulty: r.difficulty } : null);
     }
+    else if (e.type === "tutorial_end") {
+      tutorialEnd = e;
+      document.exitPointerLock?.();
+      captionsFrame(false);
+    }
   }
   tickTimers(dt);
   draw(dt);
+  if (tutorialEnd && tutorialNoticeOver()) { showTutorialEnd(tutorialEnd, tutorialOutcomes()); tutorialEnd = null; }
 }
 const frames = frameLoop(requestAnimationFrame, loop);
 
@@ -202,6 +232,8 @@ function draw(dt: number) {
   // legendas de som (V8b): só esmaecer e aria-live; a lista é refeita quando o barramento avisa
   captionsFrame(!G.over);
   hud(G, dt, view.yaw);
+  // Treino: painel da etapa e marcador do alvo pela câmera que acabou de desenhar (no-op fora do modo tutorial)
+  if (G.tutorial) tutorialHud(G, dt, (x, z) => projectGround(ctx.cam, x, z), ctx.cam.aspect);
   if (retro) statusBar(G, urlRetroClass);
   syncDynamic(ctx, G);
   puzzlePanel(G);
