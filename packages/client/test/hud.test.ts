@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { loadBalanceFile } from "@thehell/shared/node";
 import { newPingState, pingRemaining, prunePings, tryPing } from "../src/hud/ping.ts";
-import { portraitState } from "../src/hud/team.ts";
+import { portraitsHtml, portraitState } from "../src/hud/team.ts";
 import { DIRECTIONS, relativeSector, sectorDegrees, sectorDirection, threatSector } from "../src/hud/threat.ts";
 import { PING_NAME } from "../src/text.ts";
 
@@ -117,5 +117,13 @@ describe("retratos da equipe", () => {
     expect(portraitState({ st: "cage", hp: 10 }, w)).toBe("caged");
     expect(portraitState({ st: "dead", hp: 0 }, w)).toBe("dead");
     expect(portraitState({ st: "out", hp: 5 }, w)).toBe("escaped");
+  });
+  it("preso no Treino (cronômetro da gaiola parado) aparece sem prazo; na partida, com os segundos", () => {
+    const w = bal.survivor.wounded_hp;
+    const caged = [{ st: "cage", hp: 0, cage: 75, cls: "Mecânico", bot: true }] as unknown as Parameters<typeof portraitsHtml>[0];
+    const match = portraitsHtml(caged, w), tut = portraitsHtml(caged, w, false);
+    expect(match).toContain("75");
+    expect(tut).not.toContain("75");
+    expect(tut).toContain('class="pt caged');
   });
 });

@@ -21,17 +21,21 @@ const STATE_TEXT: Record<PortraitState, Key> = {
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-/** HTML dos retratos (itens de lista); o texto completo vai para leitores de tela, o curto fica visível */
-export function portraitsHtml(survivors: readonly Survivor[], woundedHp: number): string {
+/**
+ * HTML dos retratos (itens de lista); o texto completo vai para leitores de tela, o curto fica visível. `cageTimer`
+ * falso (Treino: o cronômetro da gaiola não corre no modo tutorial, packages/sim game.ts) mostra o preso sem prazo
+ */
+export function portraitsHtml(survivors: readonly Survivor[], woundedHp: number, cageTimer = true): string {
   return survivors.map(s => {
     const state = portraitState(s, woundedHp);
+    const untimed = state === "caged" && !cageTimer;
     const p = { hp: Math.max(0, Math.round(s.hp)), n: Math.max(0, Math.ceil(s.cage)) };
     const name = className(s.cls);
-    const full = t("team.portrait", { cls: name, you: s.bot ? "no" : "yes", state, ...p });
+    const full = t("team.portrait", { cls: name, you: s.bot ? "no" : "yes", state: untimed ? "caged_untimed" : state, ...p });
     const you = s.bot ? "" : ` <span class="you">(${esc(t("team.you"))})</span>`;
     return `<li class="pt ${state} c-${CLASS_ID[s.cls]}"><span class="sr">${esc(full)}</span>` +
       `<span aria-hidden="true" class="ci">${CLASS_ICON[s.cls]}</span>` +
       `<span aria-hidden="true" class="nm">${esc(name)}${you}</span>` +
-      `<span aria-hidden="true" class="st">${STATE_ICON[state]}${esc(t(STATE_TEXT[state], p))}</span></li>`;
+      `<span aria-hidden="true" class="st">${STATE_ICON[state]}${esc(t(untimed ? "team.state.caged_untimed" : STATE_TEXT[state], p))}</span></li>`;
   }).join("");
 }

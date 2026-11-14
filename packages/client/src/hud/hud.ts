@@ -105,7 +105,7 @@ export function hud(G: GameState, dt: number, yaw: number) {
     puzzles, puzzlesTotal: req.length * b.generator.puzzles_per_generator,
   }) + gateLine + `<div class="hb">${bar(t("hud.hunter"), H.hp, H.maxHp, "--hunter-espectro")}</div>${hunterLabel}`);
 
-  setHtml("tm", portraitsHtml(G.survivors, balance.survivor.wounded_hp));
+  setHtml("tm", portraitsHtml(G.survivors, balance.survivor.wounded_hp, !G.tutorial));
 
   // dica de interação
   let hint = "";

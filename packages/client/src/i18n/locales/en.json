@@ -47,9 +47,10 @@
   "team.state.ok": "{hp} HP",
   "team.state.wounded": "WOUNDED · {hp} HP",
   "team.state.caged": "CAGED · {n} s",
+  "team.state.caged_untimed": "CAGED",
   "team.state.dead": "DEAD",
   "team.state.escaped": "ESCAPED",
-  "team.portrait": "{cls}{you, select, yes { (you)} other {}}: {state, select, ok {alive, {hp} health} wounded {wounded, {hp} health} caged {caged, {n} s left for rescue} dead {dead} other {escaped}}",
+  "team.portrait": "{cls}{you, select, yes { (you)} other {}}: {state, select, ok {alive, {hp} health} wounded {wounded, {hp} health} caged {caged, {n} s left for rescue} caged_untimed {caged, waiting for rescue} dead {dead} other {escaped}}",
 
   "dir.front": "ahead",
   "dir.front_right": "ahead, to the right",

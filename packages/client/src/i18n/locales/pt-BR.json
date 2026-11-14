@@ -47,9 +47,10 @@
   "team.state.ok": "{hp} HP",
   "team.state.wounded": "FERIDO · {hp} HP",
   "team.state.caged": "PRESO · {n} s",
+  "team.state.caged_untimed": "PRESO",
   "team.state.dead": "MORTO",
   "team.state.escaped": "ESCAPOU",
-  "team.portrait": "{cls}{you, select, yes { (você)} other {}}: {state, select, ok {vivo, {hp} de vida} wounded {ferido, {hp} de vida} caged {preso, {n} s para o resgate} dead {morto} other {escapou}}",
+  "team.portrait": "{cls}{you, select, yes { (você)} other {}}: {state, select, ok {vivo, {hp} de vida} wounded {ferido, {hp} de vida} caged {preso, {n} s para o resgate} caged_untimed {preso, esperando o resgate} dead {morto} other {escapou}}",
 
   "dir.front": "à frente",
   "dir.front_right": "à frente, à direita",
