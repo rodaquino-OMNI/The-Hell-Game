@@ -82,7 +82,7 @@ describe("teclado na partida (keyDown)", () => {
   it("preventDefault em Espaço/setas e em toda tecla com ação durante a partida; não nas outras", () => {
     expect(keyDown(game(), "KeyQ", false)).toBe(true);
     expect(keyDown(game(), "Space", false)).toBe(true);
-    expect(keyDown(game(), "KeyP", false)).toBe(false);
+    expect(keyDown(game(), "KeyJ", false)).toBe(false); // tecla sem ação (P virou "pular etapa" do Treino, V6)
     expect(keyDown(game(null, true), "KeyQ", false)).toBe(false); // partida acabou: a tecla volta ao navegador
   });
 

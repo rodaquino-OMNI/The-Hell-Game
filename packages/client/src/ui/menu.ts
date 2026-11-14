@@ -1,6 +1,6 @@
 // Menu inicial (idioma, escolha de classe, objetivo, botões) e tela de fim de partida.
 // Acessibilidade (GDD v0.3 §12.4): tudo é botão nativo (teclado), seleção com aria-pressed, foco visível.
-import { CLASSES, type ClassName, type GameEvent } from "@thehell/sim";
+import { CLASSES, type ClassName, type GameEvent, type GameMode } from "@thehell/sim";
 import { $, balance, cfg } from "../data.ts";
 import { locale, t } from "../i18n/index.ts";
 import { classDescription, className, endStats, endText, goalText } from "../text.ts";
@@ -14,8 +14,13 @@ import { shop, updateCoins } from "./shop.ts";
 let selected: ClassName = "Curandeiro";
 /** D-45: menu travado na espera pelos personagens (só o #go fica ativo; a partida já foi montada com estas escolhas) */
 let locked = false;
-/** controles do menu além do #go: classe, dificuldade, idioma, loja e opções */
-const lockable = () => [...$("menu").querySelectorAll<HTMLElement>("button, select, input")].filter(el => el.id !== "go");
+/** botão que começou a espera: "go" (partida) ou "tr" (Treino, V6); só ele fica ativo e mostra "carregando" */
+let startId: "go" | "tr" = "go";
+const START_LABEL = { go: ["gol", "menu.start"], tr: ["trl", "menu.tutorial"] } as const;
+/** controles do menu além do botão que começou: classe, dificuldade, idioma, o outro botão de começar, loja e opções */
+const lockable = () => [...$("menu").querySelectorAll<HTMLElement>("button, select, input")].filter(el => el.id !== startId);
+/** qual botão começou a partida (D-45: o estado de carregando fica nele) */
+export function setStartMode(mode: GameMode) { startId = mode === "tutorial" ? "tr" : "go"; }
 /** classe escolhida no menu */
 export const selectedClass = () => selected;
 
@@ -32,7 +37,7 @@ export function refreshMenuText() {
   for (const x of $("langs").querySelectorAll("button")) x.setAttribute("aria-pressed", String(x.lang === locale()));
 }
 
-export function setupMenu(onStart: () => void) {
+export function setupMenu(onStart: (mode: GameMode) => void) {
   applyStaticText();
   const classBox = $("cls");
   for (const cls of CLASSES) {
@@ -49,13 +54,15 @@ export function setupMenu(onStart: () => void) {
   refreshMenuText();
   (classBox.children[0] as HTMLButtonElement).click();
   setupLanguagePicker($("langs"), refreshMenuText);
-  $("go").onclick = onStart;
+  $("go").onclick = () => onStart("normal");
+  // Treino (V6; GDD-v0.3 §12.3, D-34): mesma classe escolhida acima; o GDD não diz onde fica a entrada (LACUNA no PR)
+  $("tr").onclick = () => onStart("tutorial");
   $("sh").onclick = () => shop();
   $("again").onclick = () => location.reload();
   $("pzx").onmousedown = e => e.stopPropagation();
-  // D-45: na espera, clique (mouse, Enter/Espaço ou o .click() da navegação por gamepad) fora do #go não faz nada
+  // D-45: na espera, clique (mouse, Enter/Espaço ou o .click() da navegação por gamepad) fora do botão que começou não faz nada
   $("menu").addEventListener("click", e => {
-    if (locked && !$("go").contains(e.target as Node)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (locked && !$(startId).contains(e.target as Node)) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
 }
 
@@ -74,9 +81,9 @@ export function hideMenu() { $("menu").style.display = "none"; }
  * a partida já foi montada (init) com as escolhas do clique
  */
 export function setStartBusy(on: boolean) {
-  const go = $("go");
-  $("gol").setAttribute("data-i18n", on ? "menu.loading" : "menu.start");
-  $("gol").textContent = t(on ? "menu.loading" : "menu.start");
+  const go = $(startId), [labelId, labelKey] = START_LABEL[startId];
+  $(labelId).setAttribute("data-i18n", on ? "menu.loading" : labelKey);
+  $(labelId).textContent = t(on ? "menu.loading" : labelKey);
   $("gost").textContent = on ? t("menu.loading_status") : "";
   go.setAttribute("aria-busy", String(on));
   // o resto do menu fica inerte (fora do Tab e do clique) e marcado como desativado; o foco fica no #go

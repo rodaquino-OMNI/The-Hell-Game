@@ -8,6 +8,7 @@ import { browserPads, createEdges, createRepeater, firstPad, navDirection, type 
 import { pingByIndex } from "../hud/hud.ts";
 import { isSpectating, nextSpectatorTarget } from "../hud/spectator.ts";
 import { padFrame, padIdle } from "../input.ts";
+import { requestTutorialSkip } from "../hud/tutorial.ts";
 
 const gp = balance.ui.controls.gamepad;
 const FOCUSABLE = "button, input, select, textarea, a[href], [tabindex]:not([tabindex='-1'])";
@@ -88,6 +89,8 @@ function padLoop(game: () => GameState | undefined, getPads: GetPads, raf: (cb: 
     const G = game();
     if (G && !G.over && !shown($("menu"))) {
       if (isSpectating(G) && down.has(gp.menu.confirm)) nextSpectatorTarget(G);
+      // Treino (V6): "pular etapa" no botão `buttons.tutorial_skip`; um pedido por aperto (borda de descida)
+      if (G.tutorial && down.has(gp.buttons.tutorial_skip)) requestTutorialSkip();
       const pi = padFrame(G, p, down, dt);
       if (pi >= 0) pingByIndex(G, pi);
     } else {
