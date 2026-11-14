@@ -85,6 +85,10 @@ async function reportCheck(page, game) {
   // clique (mouse) também não pula
   await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.click("#rptd")]);
   check(await counting(), "clique em Baixar .json pulou a contagem");
+  // Espaço no botão focado também baixa (ativação nativa na tela de fim) e não pula a contagem
+  await page.focus("#rptd");
+  await Promise.all([page.waitForEvent("download", { timeout: 5000 }), page.keyboard.press("Space")]);
+  check(await counting(), "Espaço em Baixar .json pulou a contagem");
   check(await page.evaluate(() => window.__rptNoReload === true), "botões do relatório recarregaram a página");
   if (shotsDir) await page.screenshot({ path: join(shotsDir, "r6-fim-relatorio.png") });
   await page.keyboard.press("Shift+Tab");

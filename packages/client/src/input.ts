@@ -63,7 +63,7 @@ export function setupInput(game: () => GameState | undefined) {
   onkeydown = e => {
     const G = game();
     // na tela de fim, Espaço num botão focado é a ativação nativa dele (Jogar de novo, relatório): não bloquear
-    const endButton = !!G?.over && (e.target as Element | null)?.closest?.("button") != null;
+    const endButton = !!G?.over && e.code === "Space" && (e.target as Element | null)?.closest?.("button") != null;
     if (G && keyDown(G, e.code, e.repeat) && !endButton) e.preventDefault();
   };
   onkeyup = e => keyUp(e.code);
