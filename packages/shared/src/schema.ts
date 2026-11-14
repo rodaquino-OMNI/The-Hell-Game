@@ -135,7 +135,9 @@ const AudioSchema = z.object({
     /** A-2: andamento e compasso (decisão do Rodrigo, 09/11/2026) e tom lido pelo A-3 */
     bpm: pos.positive(), beats_per_bar: z.number().int().positive(), key: z.string().min(1),
     layer_gain: gain01, duck_attack: pos.positive(), duck_release: pos.positive(), start_lead: pos,
-  }).strict(),
+    /** Treino (V6, D-34): estado musical fixo do tutorial; precisa ser um dos `stems` */
+    tutorial_state: z.enum(["ambient", "tension", "chase", "final_pressure", "rescue"]),
+  }).strict().refine(m => m.stems.includes(m.tutorial_state), { message: "tutorial_state fora de stems", path: ["tutorial_state"] }),
   /** A-3: parâmetros da composição procedural (tools/audio/compose.ts) */
   compose: z.object({
     loop_bars: int.positive(), tail_bars: int.positive(), seed: int.nonnegative(),
