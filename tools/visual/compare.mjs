@@ -70,6 +70,10 @@ if (aa && opt("--baseline") && resolve(opt("--baseline")) !== resolve(root)) {
   console.error("compare: --aa mede o build deste checkout contra ele mesmo; --baseline, se dado, tem de ser este checkout");
   process.exit(2);
 }
+if (aa && update) {
+  console.error("compare: --aa só mede o custo; não grava referências (--update), rode sem --aa para isso");
+  process.exit(2);
+}
 const baselineDir = aa ? root : opt("--baseline");
 let url = args.find((a, i) => a.startsWith("http") && !["--out", "--shots", "--baseline"].includes(args[i - 1]));
 const balance = JSON.parse(readFileSync(join(root, "packages/shared/generated/balance.json"), "utf8"));

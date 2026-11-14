@@ -147,7 +147,7 @@ function row(label: string, value: number, icon?: string, valueId?: string): { t
 }
 
 let skipInstalled = false;
-/** durante a contagem, a 1ª ativação dentro da tela de fim (Enter/Espaço/A em "Jogar de novo" ou clique) só pula */
+/** durante a contagem, a 1ª ativação dentro da tela de fim (Enter/Espaço/A em "Jogar de novo" ou clique) só pula; a repetição automática de Enter/Espaço segurado não ativa de novo */
 function installSkip(end: HTMLElement) {
   if (skipInstalled) return;
   skipInstalled = true;
@@ -158,6 +158,10 @@ function installSkip(end: HTMLElement) {
     e.preventDefault();
     e.stopImmediatePropagation();
     current.finish();
+  }, true);
+  // Enter/Espaço segurado: a repetição automática do teclado ativaria o botão de novo (pula e logo recarrega)
+  end.addEventListener("keydown", e => {
+    if (e.repeat && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
 }
 
