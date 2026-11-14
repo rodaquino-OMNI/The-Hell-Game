@@ -46,6 +46,8 @@ const UiSchema = z.object({
   }).strict(),
   /** R6 (issue #66): contagem dos pontos na tela de fim (s; 0 = valores na hora) */
   results: z.object({ count_up_s: pos }).strict(),
+  /** V6: tela do Treino (GDD v0.3 §12.3): tempo do aviso de etapa terminada e intervalo mínimo do "pular etapa" (s) */
+  tutorial: z.object({ done_s: pos.positive(), skip_debounce_s: pos }).strict(),
   /** V8: controles (GDD v0.3 §12.2): remapeamento, sensibilidade, inversão do Y, alternar em vez de segurar, gamepad */
   controls: z.object({
     mouse_rad_per_px: num.positive(), pitch_limit: num.positive(), key_turn_speed: num.positive(),
@@ -59,7 +61,7 @@ const UiSchema = z.object({
       axes: z.object({ move_x: int.min(0), move_y: int.min(0), look_x: int.min(0), look_y: int.min(0) }).strict(),
       buttons: z.object({
         interact: int.min(0), puzzle_exit: int.min(0), ability: int.min(0), attack: int.min(0), run: int.min(0), camera: int.min(0),
-        ping_1: int.min(0), ping_2: int.min(0), ping_3: int.min(0), ping_4: int.min(0),
+        ping_1: int.min(0), ping_2: int.min(0), ping_3: int.min(0), ping_4: int.min(0), tutorial_skip: int.min(0),
       }).strict(),
       menu: z.object({ confirm: int.min(0), back: int.min(0), up: int.min(0), down: int.min(0), left: int.min(0), right: int.min(0) }).strict(),
       menu_repeat: z.object({ delay: num.positive(), interval: num.positive() }).strict(),
@@ -333,17 +335,18 @@ const render = z.object({
     /** D-51: rodadas de crossOrder medidas e descartadas por vista antes das medidas (aquecimento igual nos dois builds) */
     warmup_rounds: z.number().int().nonnegative(),
   }).strict(),
-  legibility: z.object({ min_contrast: num.min(1), body_keep: unit }).strict(),
+  legibility: z.object({ min_contrast: num.min(1), body_keep: unit, warn_margin: pos }).strict(),
   /**
    * D-18: contorno do caçador (borda de luz por vértice); intensity de 0 a 1, amount = escala da cor do token;
    * retro_scale (issue #48, 3b) = fator de 0 a 1 sobre a intensidade só no modo Retro em 1ª pessoa;
    * preset_scale (D-54; Art Bible §5.3) = fator por preset sobre a intensidade escolhida (> 1 alarga a borda; a cor
-   * continua limitada a token × amount no shader)
+   * continua limitada a token × amount no shader); preset_scale_max = teto de cada fator (revisão do PR #96)
    */
   hunter_outline: z.object({
     intensity: unit, color: token, amount: pos, power: num.positive(), retro_scale: unit,
     preset_scale: z.object({ low: num.positive(), medium: num.positive(), high: num.positive() }).strict(),
-  }).strict(),
+    preset_scale_max: num.positive(),
+  }).strict().refine(o => Object.values(o.preset_scale).every(v => v <= o.preset_scale_max), { message: "preset_scale: fator acima de preset_scale_max", path: ["preset_scale"] }),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({

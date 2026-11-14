@@ -50,6 +50,8 @@ export function pingIndexOf(code: string): number {
   return PING_ACTIONS.findIndex(p => a.includes(p));
 }
 
+/** a tecla é a de "pular etapa" do Treino (ação `tutorial_skip`, V6; remapeável, padrão P; lido por hud/hud.ts) */
+export const isTutorialSkipKey = (code: string) => prefs.keys.tutorial_skip.includes(code);
 /** a tecla é a do mudo (ação `mute`, D-41; audio/mute.ts `installMuteKey`) */
 export const isMuteKey = (code: string) => prefs.keys.mute.includes(code);
 /** aviso do mudo com a tecla atual da ação `mute` (remapeável; padrão M) */
@@ -62,7 +64,9 @@ export function resetInput() { hold.run = hold.interact = false; for (const k of
 export function setupInput(game: () => GameState | undefined) {
   onkeydown = e => {
     const G = game();
-    if (G && keyDown(G, e.code, e.repeat)) e.preventDefault();
+    // na tela de fim, Espaço num botão focado é a ativação nativa dele (Jogar de novo, relatório): não bloquear
+    const endButton = !!G?.over && e.code === "Space" && (e.target as Element | null)?.closest?.("button") != null;
+    if (G && keyDown(G, e.code, e.repeat) && !endButton) e.preventDefault();
   };
   onkeyup = e => keyUp(e.code);
   document.addEventListener("pointerlockchange", () => mouseFilter.lockChange(!!document.pointerLockElement));

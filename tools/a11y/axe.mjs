@@ -12,6 +12,7 @@
 //   - confere o HUD: seta de ameaça com setor 0–7 quando o caçador está dentro de `ui.threat_radius`, ping com
 //     recarga `ui.ping_cooldown` e retratos com o estado de cada aliado;
 //   - confere a tela de fim do v1 (`end.team`, `end.reason`, `end.individual`) e o modo espectador;
+//   - V6: Treino pelo menu: painel da etapa (barra), aviso de etapa pulada e a tela própria `tutorial_end`;
 //   - V9: a opção "Modo Retro FPS" liga pelo teclado e persiste; com ela, barra de estado fina (vida, fôlego,
 //     habilidade), axe e contraste nos 3 tamanhos de fonte, e legendas e pings sem cobrir a barra.
 // Uso: node tools/a11y/axe.mjs [--shots dir] [url]
@@ -413,6 +414,44 @@ async function endCountCheck(page, locale, pt) {
   await page.evaluate((s) => document.documentElement.style.setProperty("--ui-scale", String(s)), scales[balance.ui.options.font_default]);
 }
 
+/**
+ * V6: Treino (GDD-v0.3 §12.3; D-34) pelo botão do menu: axe e contraste no painel da etapa com barra (mover), no aviso
+ * de etapa pulada (segurado na tela pelo gancho `__thehellTutorial`, só com ?debug=1) e na tela própria `tutorial_end`
+ * (foco no primeiro botão, lista com feita/pulada); botão "Pular etapa" com alvo ≥ 24 px
+ */
+async function tutorialFlow(page, locale, T, pt) {
+  const n = `${locale}/treino`;
+  await page.goto(`${url}/?debug=1&seed=${SEED}`, { waitUntil: "load" });
+  await page.click("#tr");
+  if (!(await waitStarted(page, n))) return;
+  const tut = () => game(page, () => window.__thehell().tutorial);
+  if (!(await page.isVisible("#tut")) || !(await page.isVisible("#tutb"))) fail(`${n}: painel ou barra da etapa mover não visível`);
+  if ((await page.getAttribute("#tutl", "aria-live")) !== "polite") fail(`${n}: anúncio da troca de etapa sem aria-live polite`);
+  const r = await page.$eval("#tuts", b => { const x = b.getBoundingClientRect(); return { w: x.width, h: x.height }; });
+  if (r.w < 24 || r.h < 24) fail(`${n}: botão Pular etapa menor que 24 px: ${JSON.stringify(r)}`);
+  await axe(page, `${n}-barra`);
+  if (pt) await shot(page, "treino-barra");
+  await game(page, () => window.__thehellTutorial.hold(true));
+  // com o pointer lock da partida o mouse fica preso no canvas; o jogador solta com Esc e clica (aqui: exitPointerLock)
+  await page.evaluate(() => document.exitPointerLock());
+  await page.click("#tuts", { timeout: STALL_MS });
+  for (let i = 0; i < 100 && (await tut()).index < 1; i++) await sleep(30);
+  if ((await page.textContent("#tuto")) !== T["tut.skipped"]) fail(`${n}: aviso sem "${T["tut.skipped"]}"`);
+  await axe(page, `${n}-pulada`);
+  await game(page, () => window.__thehellTutorial.hold(false));
+  for (let k = 1; k < balance.tutorial.steps.length; k++) {
+    await sleep(balance.ui.tutorial.skip_debounce_s * 1000 + 50);
+    await page.keyboard.press("KeyP");
+    for (let i = 0; i < 100 && (await tut()).index < k + 1; i++) await sleep(30);
+  }
+  await page.waitForSelector("#tend", { state: "visible", timeout: STALL_MS });
+  if ((await active(page)) !== "tplay") fail(`${n}: foco do fim do Treino em ${await active(page)}`);
+  if (await page.isVisible("#end")) fail(`${n}: tela de resultados da partida aberta no fim do Treino`);
+  await axe(page, `${n}-fim`);
+  if (pt) await shot(page, "treino-fim");
+  report.push(`${n}: painel, aviso e tela tutorial_end sem violações`);
+}
+
 try {
   const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   for (const locale of balance.ui.locales) {
@@ -553,6 +592,9 @@ try {
     const notEscaped = T["end.v1.title"].match(/other \{([^}]*)\}/)[1];
     const t2 = await page.textContent("#et");
     if (t2 !== notEscaped) fail(`${locale}: fim v1 no limite com o jogador vivo: "${t2}", esperado "${notEscaped}"`);
+
+    // ---------- V6: Treino (painel da etapa e tela tutorial_end) ----------
+    await tutorialFlow(page, locale, T, pt);
 
     // ---------- V9: modo Retro FPS ligado pela opção (como o jogador): barra fina, HUD, axe, sobreposição ----------
     await retroFlow(page, locale, T);
