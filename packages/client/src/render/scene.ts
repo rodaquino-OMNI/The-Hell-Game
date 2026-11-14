@@ -121,6 +121,23 @@ export function placeCage(arena: Pick<Arena, "cage">) {
 }
 
 /** renderer, cena, câmera, luzes e mapa estático (chão, muros, jaula); roda antes de criar a partida */
+/**
+ * libera o mundo anterior (2ª partida na mesma página, "Jogar partida" no fim do Treino): o novo renderer usa o mesmo
+ * contexto WebGL do canvas, então geometrias, materiais, texturas e programas antigos ficariam presos nele. O que for
+ * compartilhado com o mundo novo (cache de módulo) o three envia de novo à GPU no primeiro uso
+ */
+export function disposeWorld(old: RenderCtx) {
+  old.S.traverse(o => {
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose();
+    for (const mat of ([] as THREE.Material[]).concat(m.material ?? [])) {
+      for (const v of Object.values(mat)) if (v instanceof THREE.Texture) v.dispose();
+      mat.dispose();
+    }
+  });
+  old.R.dispose();
+}
+
 export function buildWorld(canvas: HTMLCanvasElement): RenderCtx {
   // three.js atual com a aparência da r128: sem gerenciamento de cor e luzes sem unidades físicas
   THREE.ColorManagement.enabled = false;

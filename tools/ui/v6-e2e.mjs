@@ -197,8 +197,9 @@ try {
   await shot("v6-fim.png");
   report.push(`fim: ${end.rows.map(r => r[0]).join(", ")}; "${end.sub}"`);
 
-  // ---------- "Jogar partida": partida normal na mesma página ----------
-  await page.keyboard.press("Enter");
+  // ---------- "Jogar partida": partida normal na mesma página (com Espaço: o Treino acaba com G.over, e Espaço num
+  // botão focado tem de ativá-lo, revisão do qa no #102; Enter fica coberto no "Voltar ao menu" abaixo) ----------
+  await page.keyboard.press("Space");
   const normal = await waitFor(async () => { const g = await game(() => { const x = window.__thehell(); return { tut: !!x.tutorial, t: x.t, over: x.over }; }); return !g.tut && g.t > 0.5 ? g : null; }, "a partida normal começar");
   check(!!normal && !normal.over, "partida normal não começou depois de Jogar partida");
   check(!(await page.isVisible("#tend")) && !(await page.isVisible("#tut")) && (await page.isVisible("#top")), "tela do Treino ainda visível na partida normal");

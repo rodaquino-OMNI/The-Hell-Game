@@ -25,7 +25,7 @@ import { installRenderHook } from "./render/debug.ts";
 import { urlPs1, urlRetroClass, urlSeed, urlStress } from "./render/options.ts";
 import { retroMode } from "./render/retro/mode.ts";
 import { getPs1, setPs1 } from "./render/ps1.ts";
-import { buildActors, buildWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
+import { buildActors, buildWorld, disposeWorld, renderFrame, type RenderCtx } from "./render/scene.ts";
 import { projectGround } from "./render/project.ts";
 import { buildStress, renderStress, type StressScene } from "./render/stress.ts";
 import { syncActors, syncDynamic } from "./render/sync.ts";
@@ -84,6 +84,7 @@ applyOptions(saved);
 setupOptions(saved, refreshMenuText);
 
 function init() {
+  if (ctx) disposeWorld(ctx);
   ctx = buildWorld($("c") as HTMLCanvasElement);
   gameCfg = currentOptions().puzzleAccessible
     ? makeConfig(withAccessiblePuzzles(balance), map, { ruleset, difficulty: selectedDifficulty(), ...(mapFlags ? { mapFlags } : {}) })
