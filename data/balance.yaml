@@ -652,6 +652,11 @@ audio:
     # LACUNA (GDD não define): antecedência (s) entre decodificar os stems e iniciá-los juntos, para que os 5
     # `start(t)` caiam no mesmo instante futuro do relógio de áudio. Proposta: 0,1 s (> 2 quadros a 30 fps).
     start_lead: 0.1
+    # Treino (V6, D-34; GDD-v0.3 §12.3): estado musical fixo durante todo o tutorial. O aliado nasce preso (etapa de
+    # resgate) e o caçador fica parado, então as regras da partida dariam `rescue` do 1º segundo; o Treino fica só na
+    # camada ambiente, sem tensão, perseguição, pressão final nem resgate (pedido da supervisão, 14/11/2026). Telegraph,
+    # efeitos e legendas seguem iguais. Tem de ser um dos `stems`.
+    tutorial_state: ambient
   # A-3 (tools/audio/compose.ts): composição procedural dos stems (docs/handoff/plano-audio-v5.md §2 e §4; decisão do
   # Rodrigo, 09/11/2026: síntese PS1 pura, sem samples). Parâmetros de renderização e masterização, não de jogo.
   compose:

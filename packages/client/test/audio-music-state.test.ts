@@ -1,6 +1,7 @@
 // Estado musical (A-2 do V5; GDD-v0.3 §11): prioridade pressão final > perseguição > resgate > tensão > ambiente,
 // com GameState montado pelo sim (createGame + makeConfig) e campos mutados por cenário.
 import { describe, expect, it } from "vitest";
+import { BalanceSchema } from "@thehell/shared";
 import { loadBalanceFile, loadMapFile } from "@thehell/shared/node";
 import { createGame, makeConfig, newHunterAi, type GameState, type HunterMode } from "@thehell/sim";
 import { musicStateFor } from "../src/audio/musicState.ts";
@@ -115,5 +116,55 @@ describe("musicStateFor: 10 cenários e conflitos de prioridade", () => {
     const before = JSON.stringify(g);
     state(g); state(g, 1);
     expect(JSON.stringify(g)).toBe(before);
+  });
+});
+
+// Treino (V6, D-34; GDD-v0.3 §12.3): o aliado nasce preso e o caçador fica parado; sem regra própria a música ficaria
+// em `rescue` do 1º segundo até o resgate. No modo tutorial o estado é fixo em `audio.music.tutorial_state` (ambiente)
+describe("musicStateFor: Treino (modo tutorial) fica no estado próprio", () => {
+  const tut = () => createGame(basic, "Curandeiro", 7, { mode: "tutorial" });
+
+  it("dado: tutorial_state é ambient e é um dos stems", () => {
+    expect(cfg.tutorial_state).toBe("ambient");
+    expect(cfg.stems).toContain(cfg.tutorial_state);
+  });
+
+  it("Treino recém-criado: há aliado preso (regras normais dariam rescue), mas toca ambient", () => {
+    const g = tut();
+    expect(g.tutorial).toBeTruthy();
+    expect(g.survivors.some(s => s.st === "cage")).toBe(true);
+    expect(state(g)).toBe(cfg.tutorial_state);
+    // controle: o mesmo estado sem o modo tutorial cairia em resgate
+    const normal: GameState = { ...g, tutorial: undefined };
+    expect(musicStateFor(normal, P, cfg)).toBe("rescue");
+  });
+
+  it("no Treino nem tensão, perseguição ou pressão final mudam a música", () => {
+    const g = tut();
+    hunterAt(g, R / 2);
+    expect(state(g)).toBe("ambient");
+    chase(g);
+    expect(state(g)).toBe("ambient");
+    g.gateStarted = true; g.gateOpen = true;
+    expect(state(g)).toBe("ambient");
+  });
+
+  it("o estado vem do dado (audio.music.tutorial_state), não de constante no código", () => {
+    expect(musicStateFor(tut(), P, { ...cfg, tutorial_state: "tension" })).toBe("tension");
+  });
+
+  it("partida normal não muda: aliado preso → rescue", () => {
+    const g = game();
+    cage(g, 1);
+    expect(g.tutorial).toBeUndefined();
+    expect(state(g)).toBe("rescue");
+  });
+
+  it("schema: tutorial_state fora de stems é rejeitado", () => {
+    const bad = structuredClone(bal);
+    bad.audio.music.stems = ["ambient", "tension", "chase"];
+    bad.audio.music.tutorial_state = "rescue";
+    expect(BalanceSchema.safeParse(bad).success).toBe(false);
+    expect(BalanceSchema.safeParse(bal).success).toBe(true);
   });
 });

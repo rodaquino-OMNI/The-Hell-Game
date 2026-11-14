@@ -1,12 +1,13 @@
 // Estado musical (item A-2 do V5; GDD-v0.3 §11 e GDD-v0.2 §11): qual dos 5 stems toca para um jogador. Função pura
 // sobre o GameState, para o laço do cliente e, na fase 3, para o servidor (que mandará o sinal de perseguição).
 // Prioridade (docs/handoff/plano-audio-v5.md §1): pressão final > perseguição > resgate > tensão > ambiente.
+// No Treino (modo tutorial), estado fixo `audio.music.tutorial_state`.
 import type { Balance } from "@thehell/shared";
 import type { GameState, HunterMode } from "@thehell/sim";
 
 export const MUSIC_STATES = ["ambient", "tension", "chase", "final_pressure", "rescue"] as const;
 export type MusicState = (typeof MUSIC_STATES)[number];
-export type MusicStateCfg = Pick<Balance["audio"]["music"], "tension_radius">;
+export type MusicStateCfg = Pick<Balance["audio"]["music"], "tension_radius" | "tutorial_state">;
 
 /**
  * Modos da IA do R3 que contam como perseguição: Perseguir, Atacar e Recuo. O golpe é parte da perseguição (o sim usa
@@ -62,6 +63,9 @@ export function hunterNear(g: GameState, playerId: number, cfg: MusicStateCfg): 
 
 /** estado musical do jogador `playerId`; pura (só lê o estado) */
 export function musicStateFor(state: GameState, playerId: number, cfg: MusicStateCfg): MusicState {
+  // Treino (V6, D-34): estado fixo `audio.music.tutorial_state` (ambiente) do começo ao fim; o aliado nasce preso e as
+  // regras abaixo dariam `rescue` desde o 1º segundo. Só a música muda: telegraph, efeitos e legendas seguem iguais
+  if (state.tutorial) return cfg.tutorial_state;
   if (isFinalPressure(state)) return "final_pressure";
   if (isChased(state, playerId)) return "chase";
   if (anyCaged(state)) return "rescue";
