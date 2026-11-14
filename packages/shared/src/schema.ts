@@ -344,7 +344,7 @@ const render = z.object({
     intensity: unit, color: token, amount: pos, power: num.positive(), retro_scale: unit,
     preset_scale: z.object({ low: num.positive(), medium: num.positive(), high: num.positive() }).strict(),
     preset_scale_max: num.positive(),
-  }).strict().refine(o => Object.values(o.preset_scale).every(v => v <= o.preset_scale_max), "preset_scale: fator acima de preset_scale_max"),
+  }).strict().refine(o => Object.values(o.preset_scale).every(v => v <= o.preset_scale_max), { message: "preset_scale: fator acima de preset_scale_max", path: ["preset_scale"] }),
   budgets: z.object({ fps: pos, draw_calls: z.number().int().positive(), triangles: z.number().int().positive(), initial_download_mb: pos, map_download_mb: pos, time_to_play_s: pos }).strict(),
   stress: z.object({ distance: num.positive(), spacing: num.positive(), margin: pos, sweep: z.number().int().positive(), network_mbps: num.positive() }).strict(),
   models: z.object({

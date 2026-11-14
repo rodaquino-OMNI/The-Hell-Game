@@ -501,7 +501,7 @@ render:
   # de fora o contorno de dentro dá 2,97. Retro em 1ª pessoa, fora
   # do cone, depois de D-54: low 4,14, medium 3,91, high 3,44. Conferido em tools/visual/compare.mjs (legibilidade D-54)
   # preset_scale_max: teto de cada fator de preset_scale (revisão do PR #96): um fator muito alto (ex.: 50) passaria o
-  # schema e deixaria o caçador como silhueta chapada da cor do token, outra leitura de arte (Art Bible §5.3 pede
+  # schema e deixaria o caçador como silhueta chapada da cor do token, outra leitura de arte (D-18 pede
   # contorno sutil). LACUNA: não medido além de 1,30 (high); 1,5 é folga de ferramenta, não decisão de arte. Subir
   # o teto pede capturas e aprovação de arte como em D-54
   hunter_outline: {intensity: 1.0, color: hunter.espectro, amount: 1.15, power: 1, retro_scale: 0.7, preset_scale: {low: 1.15, medium: 1, high: 1.3}, preset_scale_max: 1.5}
