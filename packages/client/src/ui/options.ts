@@ -196,7 +196,7 @@ function build(): HTMLElement[] {
     checkbox("o-invy", t("opt.invert_y"), o.invertY, v => commit({ ...opts, invertY: v })),
     checkbox("o-trun", t("opt.toggle_run"), o.toggleRun, v => commit({ ...opts, toggleRun: v })),
     checkbox("o-tint", t("opt.toggle_interact"), o.toggleInteract, v => commit({ ...opts, toggleInteract: v })),
-    checkbox("o-puz", t("opt.puzzle_accessible"), o.puzzleAccessible, v => commit({ ...opts, puzzleAccessible: v }), t("opt.puzzle_accessible_hint", { pct: Math.round(balance.puzzles.accessible.zone_mult * 100) })));
+    checkbox("o-puz", t("opt.puzzle_accessible"), o.puzzleAccessible, v => commit({ ...opts, puzzleAccessible: v }), t(balance.puzzles.accessible.timed ? "opt.puzzle_accessible_hint" : "opt.puzzle_accessible_hint_untimed", { pct: Math.round(balance.puzzles.accessible.zone_mult * 100) })));
   const keys = section("os-keys", t("opt.sec.keys"), el("small", { className: "ohint", id: "okh" }, t("opt.keys_hint")), el("div", { id: "okeys" }, ...CONTROL_ACTIONS.map(keyRow)));
   const pad = section("os-pad", t("opt.sec.gamepad"), el("small", { className: "ohint" }, t("opt.pad_hint")), padList());
   const head = el("h1", { id: "optt", tabIndex: -1 }, t("opt.title"));

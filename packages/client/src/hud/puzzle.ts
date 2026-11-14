@@ -17,6 +17,6 @@ export function puzzlePanel(G: GameState) {
   panel.style.display = "block";
   const title = `<b>${t("puzzle.title", { n: G.gens[z.gen].n + 1, total: balance.generator.puzzles_per_generator })}</b>`;
   $("pzc").innerHTML = z.kind === "timing"
-    ? `${title}<div class="bar"><i class="zn" style="left:${(z.zoneCenter - z.zoneWidth / 2) * 100}%;width:${z.zoneWidth * 100}%"></i><i class="cu" style="left:${z.t * 100}%"></i></div><small>${t("puzzle.timing")}</small>`
+    ? `${title}<div class="bar"><i class="zn" style="left:${(z.zoneCenter - z.zoneWidth / 2) * 100}%;width:${z.zoneWidth * 100}%"></i><i class="cu" style="left:${z.t * 100}%"></i></div><small>${t(z.untimed ? "puzzle.timing_untimed" : "puzzle.timing")}</small>`
     : `${title}<div class="sq">${z.seq.map((a, i) => `<span role="img" aria-label="${t(ARROW_LABEL[a])}" class="${i < z.i ? "ok" : ""}">${AR[a]}</span>`).join("")}</div><small>${t("puzzle.sequence")}</small>`;
 }

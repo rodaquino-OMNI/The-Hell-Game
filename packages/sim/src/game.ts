@@ -4,7 +4,7 @@
 // revisto, vida escalada, tabela de dificuldade, anti-tunnel, recuo, telegraph e regras de gerador do §6.2.
 import { botsHear, updateBotAi, type BotEffects } from "./ai/bots.ts";
 import { newHunterAi, updateHunterAi, type HunterEffects } from "./ai/hunter.ts";
-import { anyCompetentBot, botBrainOf, hunterMaxHp, type SimConfig } from "./config.ts";
+import { anyCompetentBot, botBrainOf, hunterMaxHp, puzzleUntimed, puzzleZoneWidth, type SimConfig } from "./config.ts";
 import { releaseFromCage } from "./cage.ts";
 import { individualResult, matchEnd, type MatchEnd } from "./match.ts";
 import { chooseLayout, crossedExit, gateFacing, resolveLayout, survivorSpawns } from "./nav/layout.ts";
@@ -185,8 +185,8 @@ export function openPuzzle(cfg: SimConfig, g: GameState, genIndex: number) {
   const zc = 0.2 + nextRandom(g) * 0.6;
   const seq = kind === "sequence" ? Array.from({ length: b.puzzles.sequence.length }, () => ARROWS[(nextRandom(g) * 4) | 0]) : [];
   g.puzzle = {
-    gen: genIndex, kind, t: 0, dir: 1, zoneCenter: zc,
-    zoneWidth: (mech ? b.classes.mechanic.puzzle_zone : b.puzzles.timing.zone) * cfg.zoneMult, i: 0, seq,
+    gen: genIndex, kind, t: 0, dir: 1, zoneCenter: zc, zoneWidth: puzzleZoneWidth(cfg, mech), i: 0, seq,
+    ...(puzzleUntimed(cfg) ? { untimed: true as const } : {}),
   };
 }
 
@@ -580,7 +580,10 @@ function stepGame(cfg: SimConfig, g: GameState, input: PlayerInput, dt: number) 
     if (g.puzzle) {
       P.stamina = Math.min(sv.stamina.max, P.stamina + sv.stamina.regen_puzzle * dt);
       const z = g.puzzle;
-      if (z.kind === "timing") {
+      // sem tempo (acessível): o marcador só anda com o eixo lateral do jogador, na mesma `puzzles.timing.speed`, e
+      // fica parado onde ele soltar; confirmar continua no puzzleSpace (erro reprova, espera não)
+      if (z.kind === "timing" && z.untimed) z.t = Math.max(0, Math.min(1, z.t + input.strafe * dt * b.puzzles.timing.speed));
+      else if (z.kind === "timing") {
         z.t += z.dir * dt * b.puzzles.timing.speed;
         if (z.t > 1) { z.t = 1; z.dir = -1; }
         if (z.t < 0) { z.t = 0; z.dir = 1; }

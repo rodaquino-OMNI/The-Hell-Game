@@ -1,6 +1,6 @@
 export * from "./types.ts";
 export * from "./game.ts";
-export { makeConfig, hunterMaxHp, botBrainOf, anyCompetentBot, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type BotBrain, type AiDifficulty, type AiTrace } from "./config.ts";
+export { makeConfig, puzzleZoneWidth, puzzleUntimed, hunterMaxHp, botBrainOf, anyCompetentBot, type SimConfig, type ConfigOptions, type Difficulty, type HunterBrain, type BotBrain, type AiDifficulty, type AiTrace } from "./config.ts";
 export { matchEnd, individualResult, isTerminal, type MatchEnd } from "./match.ts";
 export { canSee, inCone, lineOfSight, segmentHitsBox } from "./perception.ts";
 export { nextRandom } from "./rng.ts";

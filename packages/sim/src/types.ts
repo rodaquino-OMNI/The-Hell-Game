@@ -309,6 +309,11 @@ export interface Puzzle {
   dir: 1 | -1;
   zoneCenter: number;
   zoneWidth: number;
+  /**
+   * sem tempo (quebra-cabeça acessível, `puzzleUntimed`): o marcador do timing não anda sozinho; segue o eixo lateral
+   * do jogador (`PlayerInput.strafe`). Ausente fora desse modo (o estado padrão não muda).
+   */
+  untimed?: true;
   /** passos já acertados da sequência */
   i: number;
   seq: Arrow[];

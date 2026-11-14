@@ -82,6 +82,7 @@
 
   "puzzle.title": "Generador — acertijo {n}/{total}",
   "puzzle.timing": "ESPACIO cuando el marcador esté en la zona marcada",
+  "puzzle.timing_untimed": "mueve el marcador con A/D o ←/→ y pulsa ESPACIO cuando esté en la zona marcada, sin prisa",
   "puzzle.sequence": "repite la secuencia con las flechas o WASD",
   "puzzle.exit": "Salir del generador (E / Esc)",
   "puzzle.arrow.left": "izquierda",
@@ -221,6 +222,7 @@
   "opt.toggle_interact": "Interactuar y rescatar: pulsar alterna (en vez de mantener)",
   "opt.puzzle_accessible": "Rompecabezas accesible",
   "opt.puzzle_accessible_hint": "Zona de acierto del timing al {pct}% del ancho normal.",
+  "opt.puzzle_accessible_hint_untimed": "Zona de acierto del timing al {pct}% del ancho normal y sin tiempo: el marcador solo se mueve cuando tú lo mueves.",
   "opt.keys_hint": "Elige una acción y pulsa la nueva tecla. Esc cancela; Tab sale sin cambiar.",
   "opt.key_wait": "Pulsa una tecla…",
   "opt.key_prompt": "Pulsa la nueva tecla para {action}.",

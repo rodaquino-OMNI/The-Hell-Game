@@ -82,6 +82,7 @@
 
   "puzzle.title": "Generator — puzzle {n}/{total}",
   "puzzle.timing": "SPACE when the marker is inside the marked zone",
+  "puzzle.timing_untimed": "move the marker with A/D or ←/→ and press SPACE when it is inside the marked zone, no rush",
   "puzzle.sequence": "repeat the sequence with the arrows or WASD",
   "puzzle.exit": "Leave the generator (E / Esc)",
   "puzzle.arrow.left": "left",
@@ -221,6 +222,7 @@
   "opt.toggle_interact": "Interact and rescue: press to toggle (instead of hold)",
   "opt.puzzle_accessible": "Accessible puzzles",
   "opt.puzzle_accessible_hint": "Timing hit zone at {pct}% of the normal width.",
+  "opt.puzzle_accessible_hint_untimed": "Timing hit zone at {pct}% of the normal width, untimed: the marker only moves when you move it.",
   "opt.keys_hint": "Pick an action and press the new key. Esc cancels; Tab leaves without changing.",
   "opt.key_wait": "Press a key…",
   "opt.key_prompt": "Press the new key for {action}.",

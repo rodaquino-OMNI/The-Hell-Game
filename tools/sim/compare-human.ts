@@ -150,10 +150,19 @@ export function readReport(path: string): MatchReport {
   return r;
 }
 
-/** separa as partidas terminadas das inacabadas (`over: false`); as inacabadas ficam fora das medianas */
+/**
+ * separa as partidas comparáveis: ficam fora das medianas, com aviso, as inacabadas (`over: false`) e as com o
+ * quebra-cabeça acessível (`accessiblePuzzles: true`, GDD-v0.3 §12.4: outro quebra-cabeça, sem par entre os bots).
+ * Relatórios anteriores ao campo não o têm: contam como normais.
+ */
 export function finishedOnly(reports: readonly { path: string; report: MatchReport }[]): { kept: MatchReport[]; warnings: string[] } {
-  const warnings = reports.filter(x => !x.report.over).map(x => `aviso: ${x.path} é de partida inacabada (over: false, ${x.report.duration.toFixed(1)} s); fica fora das medianas`);
-  return { kept: reports.filter(x => x.report.over).map(x => x.report), warnings };
+  const warnings: string[] = [], kept: MatchReport[] = [];
+  for (const { path, report: r } of reports) {
+    if (!r.over) warnings.push(`aviso: ${path} é de partida inacabada (over: false, ${r.duration.toFixed(1)} s); fica fora das medianas`);
+    else if (r.accessiblePuzzles === true) warnings.push(`aviso: ${path} usou o quebra-cabeça acessível (accessiblePuzzles: true); fica fora das medianas contra o bot normal`);
+    else kept.push(r);
+  }
+  return { kept, warnings };
 }
 
 if (!isMainThread) {

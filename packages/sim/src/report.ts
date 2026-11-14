@@ -12,7 +12,7 @@
 // (duração até o golpe que derrubou); aqui ficam todos, com o alvo e o motivo do fim (`capture`, `lost` = voltou a
 // patrulhar/investigar, `switch` = trocou de alvo, `open` = em curso no fim da partida). Os episódios `capture` do
 // time inteiro têm exatamente as durações de `chaseEpisodes`. Só existe com `ai.hunter_brain: utility`.
-import type { AiTrace, SimConfig } from "./config.ts";
+import { puzzleZoneWidth, type AiTrace, type SimConfig } from "./config.ts";
 import type { ClassName, EndReason, GameEvent, GameMode, GameState, Individual, Outcome, Score, SurvivorState, Team, Vec } from "./types.ts";
 
 /** versão do formato do relatório (sobe quando um campo muda de sentido ou sai) */
@@ -87,6 +87,8 @@ export interface MatchLog {
     layout: string;
     /** largura efetiva da zona de acerto do quebra-cabeça de timing (opção acessível muda) */
     puzzleZone: number;
+    /** a partida usou o quebra-cabeça acessível (`SimConfig.accessiblePuzzles`) */
+    accessiblePuzzles: boolean;
   };
   prev: { st: SurvivorState; hp: number; work: number }[];
   prevGens: { n: number; done: boolean }[];
@@ -109,7 +111,8 @@ export function newMatchLog(cfg: SimConfig, g: GameState, mode: GameMode): Match
     meta: {
       seed: g.seed, map: cfg.map.id, mode, ruleset: cfg.v1 ? "v1" : "prototype", difficulty: cfg.difficulty, hunterBrain: cfg.brain, botBrain: cfg.botBrain,
       botBrainBySlot: { ...cfg.botBrainBySlot }, mapFlags: cfg.v1 ? { ...cfg.balance.maps.v1 } : null,
-      layout: `g${L.generators}c${L.cage}e${L.exit}`, puzzleZone: cfg.balance.puzzles.timing.zone * cfg.zoneMult,
+      layout: `g${L.generators}c${L.cage}e${L.exit}`, puzzleZone: puzzleZoneWidth(cfg, false),
+      accessiblePuzzles: cfg.accessiblePuzzles,
     },
     prev: g.survivors.map(s => ({ st: s.st, hp: s.hp, work: s.work })),
     prevGens: g.gens.map(x => ({ n: x.n, done: x.done })),
@@ -295,6 +298,11 @@ export interface MatchReport {
   mapFlags: MatchLog["meta"]["mapFlags"];
   layout: string;
   puzzleZone: number;
+  /**
+   * a partida usou o quebra-cabeça acessível (`puzzles.accessible`, GDD-v0.3 §12.4): zona maior e, com
+   * `timed: false`, sem tempo. Acréscimo à versão 1 (relatórios antigos não têm o campo: tratar como false).
+   */
+  accessiblePuzzles: boolean;
   /** duração total (s, com fração) e se a partida terminou */
   duration: number;
   over: boolean;
@@ -373,6 +381,7 @@ export function matchReport(g: GameState): MatchReport {
   return {
     version: REPORT_VERSION, seed: m.seed, map: m.map, mode: m.mode, ruleset: m.ruleset, difficulty: m.difficulty, hunterBrain: m.hunterBrain,
     botBrain: m.botBrain, botBrainBySlot: m.botBrainBySlot, mapFlags: m.mapFlags, layout: m.layout, puzzleZone: m.puzzleZone,
+    accessiblePuzzles: m.accessiblePuzzles,
     duration: t, over: g.over,
     end: e ? {
       reason: e.reason ?? null, team: e.team ?? null, individual: e.individual ?? null, outcome: e.outcome, win: e.win, coins: e.coins,

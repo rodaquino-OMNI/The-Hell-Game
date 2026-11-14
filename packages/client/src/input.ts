@@ -168,7 +168,9 @@ const clamp1 = (v: number) => Math.max(-1, Math.min(1, v));
 export function readInput(G: GameState, dt: number): PlayerInput {
   if (!G.puzzle) view.yaw += axisKeys("look_right", "look_left") * ctl.key_turn_speed * dt;
   const input: PlayerInput = {
-    forward: clamp1(axisKeys("back", "forward") + pad.forward), strafe: clamp1(axisKeys("left", "right") + pad.strafe),
+    forward: clamp1(axisKeys("back", "forward") + pad.forward),
+    // quebra-cabeça sem tempo (acessível): o eixo lateral move o marcador; as setas de olhar também, pois a câmera para
+    strafe: clamp1(axisKeys("left", "right") + (G.puzzle?.untimed ? axisKeys("look_left", "look_right") : 0) + pad.strafe),
     run: holdOrToggle(prefs.toggleRun, hold.run, held(prefs.keys, "run", keys) || pad.run, false), yaw: view.yaw,
     interact: !!pending.interact, interactHeld: holdOrToggle(prefs.toggleInteract, hold.interact, held(prefs.keys, "interact", keys) || pad.interact, false),
     ability: !!pending.ability, attack: !!pending.attack, puzzleSpace: pending.puzzleSpace, puzzleArrow: pending.puzzleArrow, puzzleExit: pending.puzzleExit,

@@ -2,18 +2,18 @@
 // (navigator.getGamepads simulado), quebra-cabeça acessível, fov/balanço, troca de tokens do modo daltônico,
 // feixe pendente com "reduzir flicker" e as pendências do R7 (plural de 0 e seletores ICU sem protótipo).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GameState } from "@thehell/sim";
-import { balance, px } from "../src/data.ts";
+import { makeConfig, puzzleZoneWidth, type GameState } from "@thehell/sim";
+import { balance, map, px } from "../src/data.ts";
 import { actionsOf, bindable, defaultBindings, holdOrToggle, parseBindings, rebind } from "../src/bindings.ts";
 import { axis, browserPads, button, createEdges, createRepeater, firstPad, navDirection, padSticks, type PadLike } from "../src/gamepad.ts";
 import { format, parse } from "../src/i18n/icu.ts";
 import { t, setLocale } from "../src/i18n/index.ts";
 import { installMuteKey } from "../src/audio/mute.ts";
-import { getControls, isMuteKey, muteMessage, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
+import { getControls, isMuteKey, keyDown, keyUp, muteMessage, padFrame, padIdle, readInput, resetInput, setControls, view } from "../src/input.ts";
 import { getColorMode, PALETTE, setColorMode, tok } from "../src/look.ts";
 import { bobScale, cameraFov, setFov, setReduceCameraBob } from "../src/render/motion.ts";
 import { beamLevel } from "../src/render/states.ts";
-import { defaultOptions, loadOptions, OPTIONS_KEY, parseOptions, saveOptions, withAccessiblePuzzles } from "../src/ui/settings.ts";
+import { defaultOptions, loadOptions, OPTIONS_KEY, parseOptions, saveOptions } from "../src/ui/settings.ts";
 
 const ctl = balance.ui.controls, gp = ctl.gamepad;
 
@@ -259,13 +259,30 @@ describe("gamepad (navigator.getGamepads simulado)", () => {
 });
 
 describe("quebra-cabeça acessível (puzzles.accessible)", () => {
-  it("zona do timing e do Mecânico × zone_mult, sem passar da barra; o resto do balance igual", () => {
-    const a = withAccessiblePuzzles(balance), k = balance.puzzles.accessible.zone_mult;
-    expect(a.puzzles.timing.zone).toBeCloseTo(Math.min(1, balance.puzzles.timing.zone * k));
-    expect(a.classes.mechanic.puzzle_zone).toBeCloseTo(Math.min(1, balance.classes.mechanic.puzzle_zone * k));
-    expect(a.puzzles.timing.speed).toBe(balance.puzzles.timing.speed);
-    expect(a.survivor).toBe(balance.survivor);
+  // a regra (zona × dificuldade × zone_mult, limitada à barra) mora só no simulador (`puzzleZoneWidth`, testada em
+  // packages/sim/test/puzzles-acessiveis.test.ts); aqui o cliente não refaz a conta: o painel mostra a do sim
+  it("zona do timing e do Mecânico vem do sim, maior que a normal e sem passar da barra; o balance não muda", () => {
+    const on = makeConfig(balance, map, { ruleset: "v1", difficulty: "normal", accessiblePuzzles: true });
+    const off = makeConfig(balance, map, { ruleset: "v1", difficulty: "normal" });
+    for (const mech of [false, true]) {
+      expect(puzzleZoneWidth(on, mech)).toBeGreaterThan(puzzleZoneWidth(off, mech));
+      expect(puzzleZoneWidth(on, mech)).toBeLessThanOrEqual(1);
+    }
+    expect(on.balance).toBe(balance);
     expect(balance.puzzles.timing.zone).toBe(0.25); // o original não muda (GDD-v0.2 §2.3)
+  });
+  it("sem tempo: no timing, A/D e as setas de olhar viram o eixo lateral que move o marcador", () => {
+    const untimed = { puzzle: { kind: "timing", untimed: true }, over: false } as unknown as GameState;
+    const timed = { puzzle: { kind: "timing" }, over: false } as unknown as GameState;
+    const look = balance.ui.controls.keyboard.look_right[0], right = balance.ui.controls.keyboard.right[0];
+    keyDown(untimed, look, false);
+    expect(readInput(untimed, 0).strafe).toBe(1);
+    expect(readInput(timed, 0).strafe).toBe(0);
+    keyUp(look);
+    keyDown(untimed, right, false);
+    expect(readInput(untimed, 0).strafe).toBe(1);
+    keyUp(right);
+    expect(readInput(untimed, 0).strafe).toBe(0);
   });
 });
 
