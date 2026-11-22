@@ -13,7 +13,7 @@
     "build": "echo sim: sem build (consumido como fonte)"
   },
   "dependencies": {
-    "@recast-navigation/core": "0.43.1",
+    "@recast-navigation/core": "0.44.0",
     "@recast-navigation/generators": "0.43.1",
     "@thehell/shared": "workspace:*"
   }
