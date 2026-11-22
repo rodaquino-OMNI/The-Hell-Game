@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@recast-navigation/core": "0.43.1",
-    "@recast-navigation/generators": "0.43.1",
+    "@recast-navigation/generators": "0.44.0",
     "@thehell/shared": "workspace:*"
   }
 }
