@@ -35,18 +35,18 @@
     "perf:budget": "node tools/perf/budget.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.5",
-    "@types/node": "22.20.5",
-    "@vitest/coverage-v8": "4.1.12",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.1.0",
     "axe-core": "4.14.0",
-    "eslint": "9.39.5",
-    "globals": "17.13.0",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
     "gltf-validator": "2.0.0-dev.3.10",
-    "playwright": "1.63.0",
+    "playwright": "1.65.0",
     "tsx": "4.23.15",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.72.0",
-    "vitest": "4.1.12",
+    "typescript": "7.0.2",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.1.0",
     "yaml": "2.9.1"
   }
 }
